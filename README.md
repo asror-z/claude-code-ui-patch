@@ -8,6 +8,13 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 | ----------- | -------- |
 | 2.1.201+    | 1.0.x    |
 
+## Every knob, one panel
+
+|                               Before                               |                      After                       |
+| :----------------------------------------------------------------: | :----------------------------------------------: |
+| ![Native values used by Claude Code](docs/img/before-ui-patch.png) | ![UI Patch applied](docs/img/after-ui-patch.png) |
+|              Yellow: `Reload window to apply changes`              |          Green: `All settings applied`           |
+
 ## What it patches
 
 Claude Code hard-codes a handful of UI details that no setting reaches. This extension edits them in the installed bundle and reverts cleanly on demand.
