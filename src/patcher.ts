@@ -260,6 +260,48 @@ const THEME_SYNC_ON =
 const DIFF_LINES_CSS_MARKER = "/*ccup:diffLines*/";
 const DIFF_CONTAINER_HASH_RE = /\.diffEditorContainer_([-\w]+)\{/g;
 
+// Effort reload-sync (ON): close the settings.json -> actual-call gap. Claude
+// Code persists `effortLevel` to ~/.claude/settings.json and the chat UI seeds
+// its effort button from that raw value, but a freshly spawned CLI session does
+// NOT re-read `effortLevel` from settings — effort is driven live only via the
+// apply_settings / applyFlagSettings RPC, which fires when the button is
+// toggled. So after a window reload the button shows "max" while the next
+// message silently runs at the CLI default ("high") until you flip the button.
+// The patch mirrors the toggle's proven path: in the webview init effect that
+// seeds `effortLevel` from settings, also push that value to the running CLI
+// via applySettings({effortLevel:r},{flagsOnly:!0}) (flagsOnly = push only, no
+// settings.json rewrite, since the value already came from there). The
+// /*ccup-effortSync*/ marker makes the ON state detectable; the local seed
+// variable is captured so the patch survives re-minification across versions.
+// The seed branch's own `!this.effortLevel.value` guard makes the push fire
+// once per webview load, and .catch swallows any rejection (e.g. an effort
+// level the current model doesn't support) so it can never break the effect.
+const EFFORT_SYNC_MARKER = "/*ccup-effortSync*/";
+// Native (OFF) form: if(VAR&&!this.effortLevel.value)this.effortLevel.value=VAR;
+const EFFORT_SYNC_OFF_RE =
+  /if\(([a-zA-Z_$][\w$]*)&&!this\.effortLevel\.value\)this\.effortLevel\.value=\1;/;
+// Patched (ON) form: the marker plus the live push to the running CLI session.
+const EFFORT_SYNC_ON_RE =
+  /if\(([a-zA-Z_$][\w$]*)&&!this\.effortLevel\.value\)\{this\.effortLevel\.value=\1;\/\*ccup-effortSync\*\/this\.queueSettingsApply\(\(\)=>this\.applySettings\(\{effortLevel:\1\},\{flagsOnly:!0\}\)\.catch\(\(\)=>\{\}\)\);\}/;
+
+function effortSyncPresent(c: string): boolean {
+  return EFFORT_SYNC_OFF_RE.test(c) || EFFORT_SYNC_ON_RE.test(c);
+}
+// true = ON (patched), false = OFF (native), undefined = anchor gone.
+function effortSyncCurrentOn(c: string): boolean | undefined {
+  if (EFFORT_SYNC_ON_RE.test(c)) return true;
+  if (EFFORT_SYNC_OFF_RE.test(c)) return false;
+  return undefined;
+}
+function effortSyncSet(c: string, on: boolean): string {
+  if (on) {
+    return c.replace(EFFORT_SYNC_OFF_RE, (_w, v: string) =>
+      `if(${v}&&!this.effortLevel.value){this.effortLevel.value=${v};${EFFORT_SYNC_MARKER}this.queueSettingsApply(()=>this.applySettings({effortLevel:${v}},{flagsOnly:!0}).catch(()=>{}));}`);
+  }
+  return c.replace(EFFORT_SYNC_ON_RE, (_w, v: string) =>
+    `if(${v}&&!this.effortLevel.value)this.effortLevel.value=${v};`);
+}
+
 interface TogglePoint {
   id: string;
   section: Section;
@@ -267,10 +309,17 @@ interface TogglePoint {
   key: string; // settings sub-key under the claudeCodeUiPatch namespace (boolean)
   defaultOn: boolean; // native default (the "off"/stock state)
   file: string; // path relative to the install dir
-  re: RegExp; // global; captures (prefix)(value)(suffix)
-  onValue: string; // literal written for ON
-  offValue: string; // literal written for OFF (native)
+  // Value-swap model (re captures (prefix)(value)(suffix); onValue/offValue
+  // replace the captured value). Used by the diff-card toggles.
+  re?: RegExp; // global; captures (prefix)(value)(suffix)
+  onValue?: string; // literal written for ON
+  offValue?: string; // literal written for OFF (native)
   isOn?: (value: string) => boolean; // detect ON from the captured value (default: === onValue)
+  // Custom transform for an on/off change the value-swap model can't express
+  // (e.g. injecting a statement). When present, these override re/onValue/offValue/isOn.
+  fnPresent?: (c: string) => boolean;
+  fnCurrentOn?: (c: string) => boolean | undefined; // undefined => anchor gone
+  fnSet?: (c: string, on: boolean) => string;
   // Optional secondary CSS side-effect (a different file) applied when ON.
   cssFile?: string;
   cssMarker?: string; // comment tagging the appended rule
@@ -308,6 +357,17 @@ const TOGGLE_POINTS: TogglePoint[] = [
     onValue: THEME_SYNC_ON,
     offValue: '"vs-dark"',
     isOn: (v) => v.includes("ccup-theme"),
+  },
+  {
+    id: "effortSyncFix",
+    section: "Chat Panel or Tab",
+    label: "effort reload sync",
+    key: "effortSyncFix",
+    defaultOn: false,
+    file: "webview/index.js",
+    fnPresent: effortSyncPresent,
+    fnCurrentOn: effortSyncCurrentOn,
+    fnSet: effortSyncSet,
   },
 ];
 
@@ -348,14 +408,16 @@ export async function migrateLegacyKeys(): Promise<void> {
 }
 
 function togglePresent(content: string, t: TogglePoint): boolean {
-  t.re.lastIndex = 0;
-  return t.re.test(content);
+  if (t.fnPresent) return t.fnPresent(content);
+  t.re!.lastIndex = 0;
+  return t.re!.test(content);
 }
 // on/off in the bundle (reads the first match; all sites are kept in sync), or
 // undefined when the anchor is absent.
 function toggleCurrentOn(content: string, t: TogglePoint): boolean | undefined {
-  t.re.lastIndex = 0;
-  const m = t.re.exec(content);
+  if (t.fnCurrentOn) return t.fnCurrentOn(content);
+  t.re!.lastIndex = 0;
+  const m = t.re!.exec(content);
   if (!m) return undefined;
   return t.isOn ? t.isOn(m[2]) : m[2] === t.onValue;
 }
@@ -391,8 +453,9 @@ function toggleWantStr(t: TogglePoint, on: boolean): string {
   return `${js}+${on ? "css" : "nocss"}`;
 }
 function toggleSet(content: string, t: TogglePoint, on: boolean): string {
+  if (t.fnSet) return t.fnSet(content, on);
   const value = on ? t.onValue : t.offValue;
-  return content.replace(t.re, (_w, p, _v, s) => `${p}${value}${s}`);
+  return content.replace(t.re!, (_w, p, _v, s) => `${p}${value}${s}`);
 }
 
 function toggleByFile(): Map<string, TogglePoint[]> {

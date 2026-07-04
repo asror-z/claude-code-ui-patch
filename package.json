@@ -1,7 +1,7 @@
 {
   "name": "claude-code-ui-patch",
   "displayName": "Claude Code UI Patch",
-  "description": "Patch Claude Code UI, most notably, various font sizes.",
+  "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
   "version": "1.0.1",
   "publisher": "zeyutang",
   "icon": "icon.png",
@@ -62,17 +62,22 @@
           "default": 12,
           "minimum": 6,
           "maximum": 24,
-          "markdownDescription": "Diff card size in px (the side-by-side diff in Edit/MultiEdit tool cards, and its expanded modal). Native is 12."
+          "markdownDescription": "Diff card size in px (the side-by-side diff in Edit/MultiEdit tool cards, and its expanded modal)."
         },
         "claudeCodeUiPatch.chatDiffCardLineNumbers": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs and a de-emphasized first line (native: off). Line numbers count from the top of the shown change, not the file. Reload the window to take effect."
+          "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs and a de-emphasized first line. Line numbers count from the top of the shown change, not the file."
         },
         "claudeCodeUiPatch.chatDiffCardThemeSync": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Match the diff card theme to the current VS Code light/dark theme instead of the forced dark theme, updating live on theme change (native: off). Reload the window to take effect."
+          "markdownDescription": "Match the diff card theme to the current VS Code light/dark theme instead of the forced dark theme, updating live on theme change."
+        },
+        "claudeCodeUiPatch.effortSyncFix": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "The effort button shows the persisted level but the call could silently run at the CLI default. Set to true to ensure in-sync."
         },
         "claudeCodeUiPatch.planPreviewFontSize": {
           "type": "number",
@@ -100,7 +105,7 @@
           "default": 12,
           "minimum": 6,
           "maximum": 24,
-          "markdownDescription": "Plan-preview selected-text quote size in px (clips sooner when larger)."
+          "markdownDescription": "Plan-preview selected-text quote size in px."
         },
         "claudeCodeUiPatch.planPreviewCommentBadgeFontSize": {
           "type": "number",

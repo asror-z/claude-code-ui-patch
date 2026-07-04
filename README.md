@@ -2,37 +2,38 @@
 
 Patch Claude Code VS Code extension UI to provide finegrained settings for various UI details (font sizes, code blocks, diff cards, and more).
 
-## Supported versions
+## Supported Versions
 
 | Claude Code | UI Patch |
 | ----------- | -------- |
 | 2.1.201+    | 1.0.x    |
 
-## Every knob, one panel
+## Every Knob, One Panel
 
 |                               Before                               |                      After                       |
 | :----------------------------------------------------------------: | :----------------------------------------------: |
 | ![Native values used by Claude Code](docs/img/before-ui-patch.png) | ![UI Patch applied](docs/img/after-ui-patch.png) |
-|              Yellow: `Reload window to apply changes`              |          Green: `All settings applied`           |
+|                   Yellow: Reload window to apply                   |           Green: All settings applied            |
 
-## What it patches
+## What This Extension Patches
 
 Claude Code hard-codes a handful of UI details that no setting reaches. This extension edits them in the installed bundle and reverts cleanly on demand.
 
 - **Nothing changes until you ask.** Every setting starts at Claude Code's native value, so installing does nothing on its own. Adjust a size or flip a toggle to change something, reset it to default to revert. Changes apply on save; reload the window to see them.
 - **Sticks across updates.** The patch re-applies itself after Claude Code updates, so your settings survive.
 
-### 1. Chat panel or tab
+### 1. Chat Panel and Tab
 
-| Setting                                     | Native                    | Target                                                       |
-| ------------------------------------------- | ------------------------- | ------------------------------------------------------------ |
-| `chat.fontSize`                             | `~14px`                   | chat panel/tab text, input, IN/OUT blocks                    |
-| `claudeCodeUiPatch.chatCodeblockFontSize`   | `~11px`                   | chat panel/tab fenced code blocks                            |
-| `claudeCodeUiPatch.chatDiffCardFontSize`    | `12px`                    | diff card (Edit/MultiEdit tool cards and their expand modal) |
-| `claudeCodeUiPatch.chatDiffCardLineNumbers` | `off`                     | diff-card line numbers, with real `+`/`-` gutter signs       |
-| `claudeCodeUiPatch.chatDiffCardThemeSync`   | `off` (forces dark theme) | diff card follows the VS Code light/dark theme               |
+| Setting                                     | Native  | Target                                                                 |
+| ------------------------------------------- | ------- | ---------------------------------------------------------------------- |
+| `chat.fontSize`                             | `~14px` | chat panel/tab text, input, IN/OUT blocks                              |
+| `claudeCodeUiPatch.chatCodeblockFontSize`   | `~11px` | chat panel/tab fenced code blocks                                      |
+| `claudeCodeUiPatch.chatDiffCardFontSize`    | `12px`  | diff card (Edit/MultiEdit tool cards and their expand modal)           |
+| `claudeCodeUiPatch.chatDiffCardLineNumbers` | `off`   | diff-card line numbers, with real `+`/`-` gutter signs                 |
+| `claudeCodeUiPatch.chatDiffCardThemeSync`   | `off`   | diff card follows the VS Code light/dark theme                         |
+| `claudeCodeUiPatch.effortSyncFix`           | `off`   | syncs the interface effort button and the actual API call effort level |
 
-### 2. Plan-mode Markdown preview
+### 2. Plan Mode Markdown Preview
 
 | Setting                                             | Native | Target                                         |
 | --------------------------------------------------- | ------ | ---------------------------------------------- |
@@ -42,7 +43,7 @@ Claude Code hard-codes a handful of UI details that no setting reaches. This ext
 | `claudeCodeUiPatch.planPreviewCommentInputFontSize` | `13px` | select-and-comment input                       |
 | `claudeCodeUiPatch.planPreviewCommentBadgeFontSize` | `10px` | comment badge (fixed 14px circle, keep <= 12)  |
 
-## Using it
+## Using This UI Patch
 
 - **Status bar:** hover for current sizes, click to open the configuration panel.
 - **Configuration panel:** per-knob `▼`/`▲` for sizes and an On/Off switch for toggles, each with a leading sync dot (green = in effect, amber = window reload needed), plus Restore Last Applied / Factory Reset / Open Settings / Reload. The native `chat.fontSize` appears here too.
@@ -51,6 +52,7 @@ Claude Code hard-codes a handful of UI details that no setting reaches. This ext
 
 ## Caveats
 
+- **Effort reload sync** (`effortSyncFix`): Claude Code persists `effortLevel` to `~/.claude/settings.json` and the effort button seeds from it, but a freshly spawned session does not re-read it — effort is only pushed live when you toggle the button. So after a reload the button can show `max` while the call silently runs at the default (`high`) until you flip the button. Enabling this toggle makes the init seed also push the persisted level to the session, so the call matches the button without a manual toggle. It mirrors the button's own push path and is opt-in (native behavior by default).
 - The patch reverts on Claude Code updates (re-applied on the next window load; reload once more to see it). VS Code may show a one-time "corrupt installation" warning that is safe to dismiss.
 - Diff-card line numbers count from the top of the shown change, not from the file: the card only receives the changed snippet, never its position in the file, so true file line numbers aren't available.
 - The comment badge sits in a fixed 14px circle, so values above ~12 overflow.

@@ -8,6 +8,14 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.0.x    |
 
+## 1.0.2
+
+- Include `claudeCodeUiPatch.effortSyncFix`
+
+## 1.0.1
+
+- Include example UI Patch configuration panel figures
+
 ## 1.0.0
 
 Initial release. Adds settings that reach font sizes and a few behaviors Claude Code otherwise pins, by editing the installed extension's bundled files in place and reverting cleanly on demand.
