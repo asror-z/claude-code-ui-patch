@@ -1,0 +1,125 @@
+{
+  "name": "claude-code-ui-patch",
+  "displayName": "Claude Code UI Patch",
+  "description": "Patch Claude Code UI, most notably, various font sizes.",
+  "version": "1.0.0",
+  "publisher": "zeyutang",
+  "icon": "icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zeyutang/claude-code-ui-patch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zeyutang/claude-code-ui-patch/issues"
+  },
+  "homepage": "https://github.com/zeyutang/claude-code-ui-patch#readme",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "font size",
+    "font",
+    "text size",
+    "readability",
+    "accessibility",
+    "zoom",
+    "plan mode",
+    "patch"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeCodeUiPatch.restore",
+        "title": "Claude Code UI Patch: Restore Font Sizes"
+      },
+      {
+        "command": "claudeCodeUiPatch.panel",
+        "title": "Claude Code UI Patch: Open Panel"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Code UI Patch",
+      "properties": {
+        "claudeCodeUiPatch.chatCodeblockFontSize": {
+          "type": "number",
+          "default": 11,
+          "minimum": 6,
+          "maximum": 24,
+          "markdownDescription": "Chat panel code block size in px. Chat text stays native via `#chat.fontSize#`."
+        },
+        "claudeCodeUiPatch.chatDiffCardFontSize": {
+          "type": "number",
+          "default": 12,
+          "minimum": 6,
+          "maximum": 24,
+          "markdownDescription": "Diff card size in px (the side-by-side diff in Edit/MultiEdit tool cards, and its expanded modal). Native is 12."
+        },
+        "claudeCodeUiPatch.chatDiffCardLineNumbers": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs and a de-emphasized first line (native: off). Line numbers count from the top of the shown change, not the file. Reload the window to take effect."
+        },
+        "claudeCodeUiPatch.chatDiffCardThemeSync": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Match the diff card theme to the current VS Code light/dark theme instead of the forced dark theme, updating live on theme change (native: off). Reload the window to take effect."
+        },
+        "claudeCodeUiPatch.planPreviewFontSize": {
+          "type": "number",
+          "default": 14,
+          "minimum": 6,
+          "maximum": 24,
+          "markdownDescription": "Plan-preview rendered text size in px (headings scale with it)."
+        },
+        "claudeCodeUiPatch.planPreviewCodeblockFontSize": {
+          "type": "number",
+          "default": 13,
+          "minimum": 6,
+          "maximum": 24,
+          "markdownDescription": "Plan-preview code size in px (code blocks and inline code)."
+        },
+        "claudeCodeUiPatch.planPreviewCommentInputFontSize": {
+          "type": "number",
+          "default": 13,
+          "minimum": 6,
+          "maximum": 24,
+          "markdownDescription": "Plan-preview select-and-comment input size in px."
+        },
+        "claudeCodeUiPatch.planPreviewCommentQuoteFontSize": {
+          "type": "number",
+          "default": 12,
+          "minimum": 6,
+          "maximum": 24,
+          "markdownDescription": "Plan-preview selected-text quote size in px (clips sooner when larger)."
+        },
+        "claudeCodeUiPatch.planPreviewCommentBadgeFontSize": {
+          "type": "number",
+          "default": 10,
+          "minimum": 6,
+          "maximum": 12,
+          "markdownDescription": "Plan-preview comment-count badge size in px (fixed 14px circle, keep <= 12)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
