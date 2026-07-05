@@ -8,6 +8,10 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.0.x    |
 
+## 1.0.3
+
+- Improve README
+
 ## 1.0.2
 
 - Include `claudeCodeUiPatch.effortSyncFix`
