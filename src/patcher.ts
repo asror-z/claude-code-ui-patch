@@ -395,11 +395,17 @@ function permCodeSet(c: string, on: boolean): string {
 
 // The chat message "Show more" (.expandButton_<hash>) and "Show less"
 // (.collapseButton_<hash>) buttons live in the expandable-content module. "Show
-// more" is position:absolute with no positioned parent, so it drifts; "Show less"
-// is a flex item defaulting to the container's right edge. The
-// chatShowMoreAndLessAlign inject point (below) pins BOTH to the same side: drop
-// them into normal flow (position:static) and force the side with an auto margin.
-// "" = leave native. Anchor on the buttonContainer rule to recover the hash.
+// more" is position:absolute (bottom:0;right:0) anchored to the fit-content
+// .expandableContainer and only renders on hover, so it overlays the content
+// instead of taking a flow slot; its horizontal spot tracks the content width
+// and drifts between messages. "Show less" is an in-flow flex item defaulting
+// to the container's right edge. The chatShowMoreAndLessAlign inject point
+// (below) pins each to the chosen side: "Show more" stays absolute (still
+// overlaid, so it never adds height) with only its left/right anchor flipped;
+// "Show less" keeps its flow slot, pushed with an auto margin. An earlier build
+// forced "Show more" into normal flow (position:static), which grew the box
+// taller whenever it appeared on hover, a vertical jitter. "" = leave native.
+// Anchor on the buttonContainer rule to recover the hash.
 const SHOW_MORE_MARKER = "/*cc-ui-patch:showMoreRight*/";
 const SHOW_MORE_HASH_RE =
   /\.buttonContainer_([-\w]+)\{display:flex;opacity:\.9;justify-content:flex-end/;
@@ -917,21 +923,32 @@ const INJECT_POINTS: InjectPoint[] = [
     effective: (raw) => (raw === "left" || raw === "right" ? raw : undefined),
     present: (c) => SHOW_MORE_HASH_RE.test(c),
     current: (c) => {
-      const i = c.indexOf(SHOW_MORE_MARKER);
-      if (i < 0) return undefined; // native (no rule)
-      const end = c.indexOf("\n", i);
-      return c.slice(i, end < 0 ? c.length : end).includes("margin-left:auto")
-        ? "right"
-        : "left";
+      const line = cssMarkedLine(c, SHOW_MORE_MARKER);
+      if (line === undefined) return undefined; // native (no rule)
+      // A pre-fix rule (no absolute "Show more" block) reads as native so the
+      // drift gate re-applies the current form on upgrade.
+      if (!line.includes("position:absolute")) return undefined;
+      return line.includes("margin-left:auto") ? "right" : "left";
     },
     apply: (c, v) => {
       const hash = c.match(SHOW_MORE_HASH_RE)?.[1];
       if (!hash) return c; // anchor gone: leave native
-      const align = v === "right" ? "margin-left:auto" : "margin-right:auto";
+      // "Show more" stays position:absolute so it keeps overlaying the content
+      // and never adds height (the source of the old hover jitter); only its
+      // horizontal anchor flips. "Show less" is already in flow, so an auto
+      // margin on the opposite side pins it without changing its slot.
+      const expand =
+        v === "right"
+          ? "position:absolute !important;left:auto !important;right:0 !important"
+          : "position:absolute !important;right:auto !important;left:0 !important";
+      const collapse =
+        v === "right"
+          ? "position:static !important;margin-left:auto !important"
+          : "position:static !important;margin-right:auto !important";
       return cssApplyLine(
         c,
         SHOW_MORE_MARKER,
-        `${SHOW_MORE_MARKER}.expandButton_${hash},.collapseButton_${hash}{position:static !important;${align} !important}`,
+        `${SHOW_MORE_MARKER}.expandButton_${hash}{${expand}}.collapseButton_${hash}{${collapse}}`,
       );
     },
     remove: (c) => cssRemoveLine(c, SHOW_MORE_MARKER),
