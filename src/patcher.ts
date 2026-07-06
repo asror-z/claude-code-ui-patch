@@ -28,7 +28,33 @@ export const MAX_PX = 48;
 export const STEP = 0.25;
 
 export type Section = "Chat Panel or Tab" | "Plan Mode Markdown Preview";
-export const SECTION_ORDER: Section[] = ["Chat Panel or Tab", "Plan Mode Markdown Preview"];
+export const SECTION_ORDER: Section[] = [
+  "Chat Panel or Tab",
+  "Plan Mode Markdown Preview",
+];
+
+// Display order of knobs within a section (panel and popup), by point id. Ids
+// not listed keep their natural order after the listed ones.
+const KNOB_ORDER: string[] = [
+  "chatHistorySize", // agent response
+  "chatCodeInline", // inline code
+  "chatCode", // code block
+  "diffCard",
+  "diffLineNumbers",
+  "diffThemeSync",
+  "permCode",
+  "effortSyncFix",
+  "text", // plan agent response
+  "planCodeInline", // plan inline code
+  "code", // plan code block
+  "preview", // plan comment quote
+  "input", // plan comment composer
+  "badge", // plan comment badge
+];
+function knobOrder(id: string): number {
+  const i = KNOB_ORDER.indexOf(id);
+  return i < 0 ? KNOB_ORDER.length : i;
+}
 
 // ---------------------------------------------------------------------------
 // Native chat text size. NOT patched: Claude Code reads chat.fontSize and
@@ -53,6 +79,14 @@ const NATIVE_KNOBS: NativeKnob[] = [
 function nativePx(k: NativeKnob): number {
   const raw = vscode.workspace.getConfiguration().get<number>(k.vscodeKey);
   return typeof raw === "number" && raw > 0 ? raw : k.fallback;
+}
+
+// The native chat.fontSize, shown by the chatHistoryFontSize knob while it is
+// inheriting (setting at 0), so the knob still reflects the effective size and a
+// first ▲/▼ takes control from that value.
+function nativeChatFontSizePx(): number {
+  const raw = vscode.workspace.getConfiguration().get<number>("chat.fontSize");
+  return typeof raw === "number" && raw > 0 ? raw : 13;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,22 +118,24 @@ interface PatchPoint {
 
 // Chat code block. Scoped to the chat message DOM (hovers/tooltips untouched)
 // by appending a CSS rule to webview/index.css that overrides the font ONLY
-// inside chat code-block wrappers (.codeBlockWrapper_<hash>). The stock wrapper
-// rule sets no font-size; chat code blocks inherit 0.85em of chat.fontSize from
-// a general `pre` rule, so a scoped !important rule wins by specificity. The
-// CSS-module hash changes per build, so we read it from the existing wrapper
-// rule at patch time. originalPx is approximate (em-relative; ~11px at the
-// default chat.fontSize of 13) and unused by the css-style logic.
+// inside chat code-block wrappers (.codeBlockWrapper_<hash>) AND inline code
+// (.root_<hash> code, the markdown renderer's code spans). The stock wrapper
+// rule sets no font-size and inline code is 0.9em of chat.fontSize, so pinning
+// both to the same px keeps inline and fenced code matched. The markdown module
+// exposes both classes under one CSS-module hash, so `.root_<hash>` reuses the
+// hash read from the wrapper rule. A scoped !important rule wins by specificity.
+// The hash changes per build, so we read it at patch time; originalPx is
+// approximate (em-relative; ~11px at the default chat.fontSize of 13) and unused
+// by the css-style logic.
 const CHAT_CODE_MARKER = "/*cc-ui-patch:chatCode*/";
 const CHAT_CODE_WRAP_RE = /\.codeBlockWrapper_[-\w]+ pre\s*\{/;
 const CHAT_CODE_HASH_RE = /\.codeBlockWrapper_([-\w]+) pre\s*\{/;
-const CHAT_CODE_PX_RE = /\/\*cc-ui-patch:chatCode\*\/[^\n]*?font-size:(\d+(?:\.\d+)?)px/;
 const CHAT_CODE_LINE_RE = /\n?\/\*cc-ui-patch:chatCode\*\/[^\n]*/;
 
 function applyChatCodeCss(css: string, px: string): string {
   const hash = css.match(CHAT_CODE_HASH_RE)?.[1];
   if (!hash) return css; // wrapper rule gone (version changed): nothing to anchor
-  const line = `\n${CHAT_CODE_MARKER}.codeBlockWrapper_${hash} pre,.codeBlockWrapper_${hash} pre code{font-size:${px}px !important}`;
+  const line = `\n${CHAT_CODE_MARKER}.codeBlockWrapper_${hash} pre,.codeBlockWrapper_${hash} pre code,.root_${hash} code{font-size:${px}px !important}`;
   return css.includes(CHAT_CODE_MARKER)
     ? css.replace(CHAT_CODE_LINE_RE, line)
     : css + line;
@@ -129,21 +165,31 @@ function diffFontSet(c: string, px: string): string {
   return c.replace(DIFF_FONT_RE, (_w, p, _v, s) => `${p}${px}${s}`);
 }
 function diffFontRestore(c: string): string {
-  return c.replace(DIFF_FONT_RE, (_w, p, _v, s) => `${p}${DIFF_FONT_STOCK}${s}`);
+  return c.replace(
+    DIFF_FONT_RE,
+    (_w, p, _v, s) => `${p}${DIFF_FONT_STOCK}${s}`,
+  );
 }
 
 const PATCH_POINTS: PatchPoint[] = [
   {
     id: "chatCode",
     section: "Chat Panel or Tab",
-    label: "code",
+    label: "code block",
     key: "chatCodeblockFontSize",
     defaultPx: 11,
     maxPx: 24,
     file: "webview/index.css",
     originalPx: 11,
     fnPresent: (c) => c.includes(CHAT_CODE_MARKER) || CHAT_CODE_WRAP_RE.test(c),
-    fnCurrentPx: (c) => c.match(CHAT_CODE_PX_RE)?.[1],
+    // A pre-inline-code patch line lacks `.root_`; report it as not-current so the
+    // reconcile upgrades it in place to the selector list that also covers inline
+    // code (rather than leaving inline code at the stock 0.9em).
+    fnCurrentPx: (c) => {
+      const line = c.match(CHAT_CODE_LINE_RE)?.[0];
+      if (!line || !line.includes(".root_")) return undefined;
+      return line.match(/font-size:(\d+(?:\.\d+)?)px/)?.[1];
+    },
     fnApply: (c, px) => applyChatCodeCss(c, px),
     fnRestore: (c) => c.replace(CHAT_CODE_LINE_RE, ""),
   },
@@ -164,7 +210,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "text",
     section: "Plan Mode Markdown Preview",
-    label: "text",
+    label: "agent response",
     key: "planPreviewFontSize",
     defaultPx: 14,
     maxPx: 24,
@@ -172,14 +218,18 @@ const PATCH_POINTS: PatchPoint[] = [
     originalPx: 14,
     style: "value",
     originalValue: "var(--vscode-markdown-font-size, 14px)",
+    // Anchor on the plan-preview `body` rule's font-size, tolerating any
+    // font-family value before it, so this composes with the planPreviewFontFamily
+    // injection (which rewrites that same rule's font-family). extension.js has a
+    // single `body {` rule, so this stays unambiguous.
     res: [
-      /(font-family: var\(--vscode-markdown-font-family, var\(--vscode-font-family\)\);\s*font-size:\s*)(var\(--vscode-markdown-font-size, \d+(?:\.\d+)?px\)|\d+(?:\.\d+)?px)(;)/,
+      /(body \{\s*font-family:[^;]+;\s*font-size:\s*)(var\(--vscode-markdown-font-size, \d+(?:\.\d+)?px\)|\d+(?:\.\d+)?px)(;)/,
     ],
   },
   {
     id: "code",
     section: "Plan Mode Markdown Preview",
-    label: "code",
+    label: "code block",
     key: "planPreviewCodeblockFontSize",
     defaultPx: 13,
     maxPx: 24,
@@ -194,26 +244,30 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "preview",
     section: "Plan Mode Markdown Preview",
-    label: "selected quote",
+    label: "comment quote",
     key: "planPreviewCommentQuoteFontSize",
     defaultPx: 12,
     maxPx: 24,
     file: "extension.js",
     originalPx: 12,
     style: "number",
-    res: [/(\.selected-text-preview\s*\{[^}]*?font-size:\s*)(\d+(?:\.\d+)?)(px)/],
+    res: [
+      /(\.selected-text-preview\s*\{[^}]*?font-size:\s*)(\d+(?:\.\d+)?)(px)/,
+    ],
   },
   {
     id: "input",
     section: "Plan Mode Markdown Preview",
-    label: "comment input",
+    label: "comment input box",
     key: "planPreviewCommentInputFontSize",
     defaultPx: 13,
     maxPx: 24,
     file: "extension.js",
     originalPx: 13,
     style: "number",
-    res: [/(#comment-input textarea\s*\{[^}]*?font-size:\s*)(\d+(?:\.\d+)?)(px)/],
+    res: [
+      /(#comment-input textarea\s*\{[^}]*?font-size:\s*)(\d+(?:\.\d+)?)(px)/,
+    ],
   },
   {
     id: "badge",
@@ -295,12 +349,60 @@ function effortSyncCurrentOn(c: string): boolean | undefined {
 }
 function effortSyncSet(c: string, on: boolean): string {
   if (on) {
-    return c.replace(EFFORT_SYNC_OFF_RE, (_w, v: string) =>
-      `if(${v}&&!this.effortLevel.value){this.effortLevel.value=${v};${EFFORT_SYNC_MARKER}this.queueSettingsApply(()=>this.applySettings({effortLevel:${v}},{flagsOnly:!0}).catch(()=>{}));}`);
+    return c.replace(
+      EFFORT_SYNC_OFF_RE,
+      (_w, v: string) =>
+        `if(${v}&&!this.effortLevel.value){this.effortLevel.value=${v};${EFFORT_SYNC_MARKER}this.queueSettingsApply(()=>this.applySettings({effortLevel:${v}},{flagsOnly:!0}).catch(()=>{}));}`,
+    );
   }
-  return c.replace(EFFORT_SYNC_ON_RE, (_w, v: string) =>
-    `if(${v}&&!this.effortLevel.value)this.effortLevel.value=${v};`);
+  return c.replace(
+    EFFORT_SYNC_ON_RE,
+    (_w, v: string) =>
+      `if(${v}&&!this.effortLevel.value)this.effortLevel.value=${v};`,
+  );
 }
+
+// Permission-code size match (ON): the permission "Allow this command?" dialog
+// renders the command in .bashCommand_<hash> at 0.9em, larger than the tool
+// input (IN) block (0.85em). When ON we append a scoped rule pinning the
+// permission block to 0.85em so it matches the IN block (both remain em-relative
+// to the chat font size). The hash is read from the stylesheet; if the anchor is
+// gone we skip (native). The /*cc-ui-patch:permCode*/ marker makes it detectable.
+// This is a pure-CSS toggle (no JS anchor): its "file" is the stylesheet and the
+// fn* transforms append/remove the marked line, so it rides the toggle machinery
+// without a JS side.
+const PERM_CODE_MARKER = "/*cc-ui-patch:permCode*/";
+const BASH_CMD_HASH_RE = /\.bashCommand_([-\w]+)\{/;
+
+function permCodePresent(c: string): boolean {
+  return c.includes(PERM_CODE_MARKER) || BASH_CMD_HASH_RE.test(c);
+}
+function permCodeCurrentOn(c: string): boolean | undefined {
+  if (c.includes(PERM_CODE_MARKER)) return true;
+  if (BASH_CMD_HASH_RE.test(c)) return false;
+  return undefined; // anchor gone
+}
+function permCodeSet(c: string, on: boolean): string {
+  if (!on) return cssRemoveLine(c, PERM_CODE_MARKER);
+  const hash = c.match(BASH_CMD_HASH_RE)?.[1];
+  if (!hash) return c; // anchor gone: leave native
+  return cssApplyLine(
+    c,
+    PERM_CODE_MARKER,
+    `${PERM_CODE_MARKER}.bashCommand_${hash}{font-size:.85em !important}`,
+  );
+}
+
+// The chat message "Show more" (.expandButton_<hash>) and "Show less"
+// (.collapseButton_<hash>) buttons live in the expandable-content module. "Show
+// more" is position:absolute with no positioned parent, so it drifts; "Show less"
+// is a flex item defaulting to the container's right edge. The
+// chatShowMoreAndLessAlign inject point (below) pins BOTH to the same side: drop
+// them into normal flow (position:static) and force the side with an auto margin.
+// "" = leave native. Anchor on the buttonContainer rule to recover the hash.
+const SHOW_MORE_MARKER = "/*cc-ui-patch:showMoreRight*/";
+const SHOW_MORE_HASH_RE =
+  /\.buttonContainer_([-\w]+)\{display:flex;opacity:\.9;justify-content:flex-end/;
 
 interface TogglePoint {
   id: string;
@@ -361,13 +463,24 @@ const TOGGLE_POINTS: TogglePoint[] = [
   {
     id: "effortSyncFix",
     section: "Chat Panel or Tab",
-    label: "effort reload sync",
+    label: "effort-level indicator sync",
     key: "effortSyncFix",
     defaultOn: false,
     file: "webview/index.js",
     fnPresent: effortSyncPresent,
     fnCurrentOn: effortSyncCurrentOn,
     fnSet: effortSyncSet,
+  },
+  {
+    id: "permCode",
+    section: "Chat Panel or Tab",
+    label: "permission code fontsize sync",
+    key: "chatPermissionCodeMatchChatCodeblock",
+    defaultOn: false,
+    file: "webview/index.css",
+    fnPresent: permCodePresent,
+    fnCurrentOn: permCodeCurrentOn,
+    fnSet: permCodeSet,
   },
 ];
 
@@ -388,6 +501,7 @@ const LEGACY_KEY_RENAMES: [string, string][] = [
   ["chatDiffFontSize", "chatDiffCardFontSize"],
   ["chatDiffLineNumbers", "chatDiffCardLineNumbers"],
   ["chatDiffThemeSync", "chatDiffCardThemeSync"],
+  ["chatCodeFontSize", "chatCodeblockFontSize"],
 ];
 
 export async function migrateLegacyKeys(): Promise<void> {
@@ -428,7 +542,7 @@ function toggleCurrentOn(content: string, t: TogglePoint): boolean | undefined {
 // and therefore gets reconciled — the fix for the CSS half being skipped.
 function toggleStateStr(
   read: (rel: string) => string | undefined,
-  t: TogglePoint
+  t: TogglePoint,
 ): string | undefined {
   const js = read(t.file);
   if (js === undefined || !togglePresent(js, t)) return undefined;
@@ -441,7 +555,10 @@ function toggleStateStr(
   let cssState = "nocss";
   if (css !== undefined && css.includes(t.cssMarker)) {
     const want = t.cssBuild ? t.cssBuild(css) : undefined;
-    cssState = want !== undefined && cssMarkedLine(css, t.cssMarker) === want ? "css" : "stale";
+    cssState =
+      want !== undefined && cssMarkedLine(css, t.cssMarker) === want
+        ? "css"
+        : "stale";
   }
   return `${jsOn}+${cssState}`;
 }
@@ -475,7 +592,8 @@ function diffLinesCssBuild(css: string): string | undefined {
     ...new Set([...css.matchAll(DIFF_CONTAINER_HASH_RE)].map((m) => m[1])),
   ];
   if (!hashes.length) return undefined;
-  const asText = "font-family:var(--vscode-editor-font-family),monospace !important";
+  const asText =
+    "font-family:var(--vscode-editor-font-family),monospace !important";
   const perContainer = (hash: string): string => {
     const c = `.diffEditorContainer_${hash}`;
     const ins = `${c} .codicon-diff-insert`;
@@ -514,17 +632,370 @@ function cssMarkedLine(css: string, marker: string): string | undefined {
   return css.slice(i, end < 0 ? undefined : end);
 }
 
+// ---------------------------------------------------------------------------
+// Injection points: settings that are neither a px slot nor a boolean toggle
+// (a font-family string, a decoupled chat size, a textarea row count). Each maps
+// its setting to a self-contained CSS/JS injection with an "off" state
+// (undefined) meaning "leave the bundle native". They ride the same file-write /
+// drift / pending-reload machinery, but carry their own value type and
+// transforms so the px and toggle models are untouched.
+//
+//   read()    -> the EFFECTIVE value, or undefined for "off" (size 0 = inherit
+//                chat.fontSize; family "" = native; rows 0 = native).
+//   current() -> the value currently written into the bundle, or undefined when
+//                native. So (current === read) means in sync.
+// ---------------------------------------------------------------------------
+type InjectValue = string | number;
+
+interface InjectPoint {
+  id: string;
+  section: Section;
+  label: string;
+  key: string; // settings sub-key under the claudeCodeUiPatch namespace
+  kind: "size" | "family" | "rows" | "align";
+  file: string;
+  showInPanel: boolean; // size shows as a knob; strings/rows are settings-only
+  max: number; // upper clamp for a size knob (unused otherwise)
+  defaultRaw: InjectValue; // config default
+  effective: (raw: InjectValue) => InjectValue | undefined; // undefined = off
+  inheritFrom?: string; // PATCH_POINT id whose size this follows when off (panel display)
+  present: (c: string) => boolean; // anchor patchable in this file?
+  current: (c: string) => InjectValue | undefined; // value in bundle, or undefined
+  apply: (c: string, v: InjectValue) => string;
+  remove: (c: string) => string;
+}
+
+// chatHistoryFontSize: size the agent message body only (.root_<hash>), NOT the
+// whole webview. Everything else (user messages, input box, interface
+// chrome, other extensions' chats) stays on the shared native chat.fontSize, so
+// the agent transcript can be enlarged (e.g. to compensate for a proportional
+// reading font) without inflating the textarea or Codex. 0 = inherit (no rule).
+const CHAT_SIZE_MARKER = "/*cc-ui-patch:chatSize*/";
+const CHAT_SIZE_PX_RE =
+  /\/\*cc-ui-patch:chatSize\*\/\.root_[-\w]+[^{\n]*\{font-size:(\d+(?:\.\d+)?)px/;
+
+// chatHistoryFontFamily: apply a font to the agent message body only
+// (.root_<hash>). Reset the whole webview's chat family to the native UI font
+// (so the interface, input box, user messages, attachments, and diff-card chrome
+// stay native, which also fixes caret drift under a proportional font), then
+// apply the chosen family to the agent markdown, re-asserting a monospace family
+// so code blocks and inline code stay monospace. User messages are left native
+// on purpose: the file-name attachment chip renders INSIDE .userMessage_, so
+// scoping there would drag the reading font onto that chrome.
+const CHAT_FAMILY_MARKER = "/*cc-ui-patch:chatFamily*/";
+const CHAT_FAMILY_VAL_RE =
+  /\/\*cc-ui-patch:chatFamily\*\/[^\n]*?\.root_[-\w]+[^{\n]*\{font-family:(.+?) !important\}/;
+// The agent message body is the rich markdown module: the only .root_ with
+// element rules, anchored via its inline-code rule.
+const CHAT_MD_HASH_RE = /\.root_([-\w]+) code\{font-family/;
+
+// Selector the family/size scope to: the agent markdown body only. undefined if
+// the markdown module is gone (leave native).
+function chatContentSelector(c: string): string | undefined {
+  const md = c.match(CHAT_MD_HASH_RE)?.[1];
+  return md ? `.root_${md}` : undefined;
+}
+
+// planPreviewFontFamily: the plan preview is its own webview; swap its <body>
+// font-family (stock is the markdown var). Composes with the planPreviewFontSize
+// point, which anchors on the same rule's font-size independent of the family.
+const PLAN_FAMILY_STOCK =
+  "var(--vscode-markdown-font-family, var(--vscode-font-family))";
+const PLAN_FAMILY_RE =
+  /(body \{\s*font-family:\s*)(var\(--vscode-markdown-font-family, var\(--vscode-font-family\)\)|[^;]+?)(;\s*font-size:)/;
+
+// planPreviewCommentInputRows: the select-and-comment textarea has no rows
+// attribute (defaults to ~3 lines via min-height); inject one so it opens taller.
+const PLAN_ROWS_RE =
+  /(<textarea id="comment-textarea")(?: rows="\d+")?( placeholder=)/;
+const PLAN_ROWS_READ_RE = /<textarea id="comment-textarea" rows="(\d+)"/;
+
+function clampSizePx(n: number): number {
+  return Math.min(MAX_PX, Math.max(MIN_PX, Math.round(n * 100) / 100));
+}
+
+// chatCodeInlineFontSize / planPreviewCodeInlineFontSize: add-on overrides that
+// size ONLY inline code (a <code> whose parent is not <pre>), so blocks and
+// inline can be tuned separately. 0 = off, inline then follows the block/code
+// knob (chatCodeblockFontSize / planPreviewCodeblockFontSize), which is left
+// unchanged. `:not(pre) > code` wins over the base code rule by specificity and
+// never matches block code (parent <pre>), so block sizing is untouched.
+const CHAT_CODE_INLINE_MARKER = "/*cc-ui-patch:chatCodeInline*/";
+const CHAT_CODE_INLINE_PX_RE =
+  /\/\*cc-ui-patch:chatCodeInline\*\/[^\n]*?font-size:(\d+(?:\.\d+)?)px/;
+
+// Plan preview: the inline override is spliced in right after the general
+// `code {}` rule (anchored on its editor-font-family declaration).
+const PLAN_CODE_INLINE_MARKER = "/*cc-ui-patch:planCodeInline*/";
+const PLAN_CODE_INLINE_PX_RE =
+  /\/\*cc-ui-patch:planCodeInline\*\/:not\(pre\) > code\{font-size:(\d+(?:\.\d+)?)px/;
+const PLAN_CODE_RULE_RE =
+  /code \{\s*font-family: var\(--vscode-editor-font-family\);[^}]*\}/;
+
+function planRemoveCodeInline(c: string): string {
+  const i = c.indexOf(PLAN_CODE_INLINE_MARKER);
+  if (i < 0) return c;
+  const end = c.indexOf("}", i);
+  return end < 0 ? c : c.slice(0, i) + c.slice(end + 1);
+}
+
+function planInjectCodeInline(c: string, v: InjectValue): string {
+  const cleaned = planRemoveCodeInline(c);
+  const m = cleaned.match(PLAN_CODE_RULE_RE);
+  if (!m) return c; // general code rule gone: leave native
+  const idx = (m.index ?? 0) + m[0].length;
+  const rule = `${PLAN_CODE_INLINE_MARKER}:not(pre) > code{font-size:${v}px !important}`;
+  return cleaned.slice(0, idx) + rule + cleaned.slice(idx);
+}
+
+const INJECT_POINTS: InjectPoint[] = [
+  {
+    id: "chatHistorySize",
+    section: "Chat Panel or Tab",
+    label: "agent response",
+    key: "chatHistoryFontSize",
+    kind: "size",
+    file: "webview/index.css",
+    showInPanel: true,
+    max: 48,
+    defaultRaw: 0,
+    effective: (raw) =>
+      typeof raw === "number" && raw > 0 ? clampSizePx(raw) : undefined,
+    present: (c) => CHAT_MD_HASH_RE.test(c),
+    current: (c) => {
+      const m = c.match(CHAT_SIZE_PX_RE);
+      return m ? Number(m[1]) : undefined;
+    },
+    apply: (c, v) => {
+      const sel = chatContentSelector(c);
+      if (!sel) return c; // markdown anchor gone: leave native
+      return cssApplyLine(
+        c,
+        CHAT_SIZE_MARKER,
+        `${CHAT_SIZE_MARKER}${sel}{font-size:${v}px !important}`,
+      );
+    },
+    remove: (c) => cssRemoveLine(c, CHAT_SIZE_MARKER),
+  },
+  {
+    id: "chatHistoryFamily",
+    section: "Chat Panel or Tab",
+    label: "font family",
+    key: "chatHistoryFontFamily",
+    kind: "family",
+    file: "webview/index.css",
+    showInPanel: false,
+    max: 0,
+    defaultRaw: "",
+    effective: (raw) =>
+      typeof raw === "string" && raw.trim() ? raw.trim() : undefined,
+    present: (c) => CHAT_MD_HASH_RE.test(c),
+    current: (c) => c.match(CHAT_FAMILY_VAL_RE)?.[1],
+    apply: (c, v) => {
+      const sel = chatContentSelector(c);
+      const md = c.match(CHAT_MD_HASH_RE)?.[1];
+      if (!sel || !md) return c; // markdown anchor gone: leave native
+      return cssApplyLine(
+        c,
+        CHAT_FAMILY_MARKER,
+        `${CHAT_FAMILY_MARKER}:root{--vscode-chat-font-family:var(--vscode-font-family) !important}` +
+          `${sel}{font-family:${v} !important}` +
+          `.root_${md} code,.root_${md} pre{font-family:var(--app-monospace-font-family) !important}`,
+      );
+    },
+    remove: (c) => cssRemoveLine(c, CHAT_FAMILY_MARKER),
+  },
+  {
+    id: "planFamily",
+    section: "Plan Mode Markdown Preview",
+    label: "font family",
+    key: "planPreviewFontFamily",
+    kind: "family",
+    file: "extension.js",
+    showInPanel: false,
+    max: 0,
+    defaultRaw: "",
+    effective: (raw) =>
+      typeof raw === "string" && raw.trim() ? raw.trim() : undefined,
+    present: (c) => PLAN_FAMILY_RE.test(c),
+    current: (c) => {
+      const m = c.match(PLAN_FAMILY_RE);
+      if (!m) return undefined;
+      return m[2] === PLAN_FAMILY_STOCK ? undefined : m[2];
+    },
+    apply: (c, v) =>
+      c.replace(PLAN_FAMILY_RE, (_w, p, _v, s) => `${p}${v}${s}`),
+    remove: (c) =>
+      c.replace(
+        PLAN_FAMILY_RE,
+        (_w, p, _v, s) => `${p}${PLAN_FAMILY_STOCK}${s}`,
+      ),
+  },
+  {
+    id: "planCommentRows",
+    section: "Plan Mode Markdown Preview",
+    label: "comment rows",
+    key: "planPreviewCommentInputRows",
+    kind: "rows",
+    file: "extension.js",
+    showInPanel: false,
+    max: 0,
+    defaultRaw: 0,
+    effective: (raw) =>
+      typeof raw === "number" && raw >= 1
+        ? Math.min(40, Math.round(raw))
+        : undefined,
+    present: (c) => PLAN_ROWS_RE.test(c),
+    current: (c) => {
+      const m = c.match(PLAN_ROWS_READ_RE);
+      return m ? Number(m[1]) : undefined;
+    },
+    apply: (c, v) =>
+      c.replace(PLAN_ROWS_RE, (_w, p, s) => `${p} rows="${v}"${s}`),
+    remove: (c) => c.replace(PLAN_ROWS_RE, (_w, p, s) => `${p}${s}`),
+  },
+  {
+    id: "chatCodeInline",
+    section: "Chat Panel or Tab",
+    label: "inline code",
+    key: "chatCodeInlineFontSize",
+    kind: "size",
+    file: "webview/index.css",
+    showInPanel: true,
+    max: 24,
+    defaultRaw: 0,
+    effective: (raw) =>
+      typeof raw === "number" && raw > 0 ? clampSizePx(raw) : undefined,
+    inheritFrom: "chatCode",
+    present: (c) => CHAT_MD_HASH_RE.test(c),
+    current: (c) => {
+      const m = c.match(CHAT_CODE_INLINE_PX_RE);
+      return m ? Number(m[1]) : undefined;
+    },
+    apply: (c, v) => {
+      const hash = c.match(CHAT_MD_HASH_RE)?.[1];
+      if (!hash) return c; // markdown anchor gone: leave native
+      return cssApplyLine(
+        c,
+        CHAT_CODE_INLINE_MARKER,
+        `${CHAT_CODE_INLINE_MARKER}.root_${hash} :not(pre) > code{font-size:${v}px !important}`,
+      );
+    },
+    remove: (c) => cssRemoveLine(c, CHAT_CODE_INLINE_MARKER),
+  },
+  {
+    id: "planCodeInline",
+    section: "Plan Mode Markdown Preview",
+    label: "inline code",
+    key: "planPreviewCodeInlineFontSize",
+    kind: "size",
+    file: "extension.js",
+    showInPanel: true,
+    max: 24,
+    defaultRaw: 0,
+    effective: (raw) =>
+      typeof raw === "number" && raw > 0 ? clampSizePx(raw) : undefined,
+    inheritFrom: "code",
+    present: (c) => PLAN_CODE_RULE_RE.test(c),
+    current: (c) => {
+      const m = c.match(PLAN_CODE_INLINE_PX_RE);
+      return m ? Number(m[1]) : undefined;
+    },
+    apply: (c, v) => planInjectCodeInline(c, v),
+    remove: (c) => planRemoveCodeInline(c),
+  },
+  {
+    id: "showMoreAlign",
+    section: "Chat Panel or Tab",
+    label: "show more/less align",
+    key: "chatShowMoreAndLessAlign",
+    kind: "align",
+    file: "webview/index.css",
+    showInPanel: false,
+    max: 0,
+    defaultRaw: "",
+    effective: (raw) => (raw === "left" || raw === "right" ? raw : undefined),
+    present: (c) => SHOW_MORE_HASH_RE.test(c),
+    current: (c) => {
+      const i = c.indexOf(SHOW_MORE_MARKER);
+      if (i < 0) return undefined; // native (no rule)
+      const end = c.indexOf("\n", i);
+      return c.slice(i, end < 0 ? c.length : end).includes("margin-left:auto")
+        ? "right"
+        : "left";
+    },
+    apply: (c, v) => {
+      const hash = c.match(SHOW_MORE_HASH_RE)?.[1];
+      if (!hash) return c; // anchor gone: leave native
+      const align = v === "right" ? "margin-left:auto" : "margin-right:auto";
+      return cssApplyLine(
+        c,
+        SHOW_MORE_MARKER,
+        `${SHOW_MORE_MARKER}.expandButton_${hash},.collapseButton_${hash}{position:static !important;${align} !important}`,
+      );
+    },
+    remove: (c) => cssRemoveLine(c, SHOW_MORE_MARKER),
+  },
+];
+
+function readInject(ip: InjectPoint): InjectValue | undefined {
+  const raw = vscode.workspace
+    .getConfiguration(CONFIG_NS)
+    .get<InjectValue>(ip.key, ip.defaultRaw);
+  return ip.effective(raw);
+}
+
+function injectByFile(): Map<string, InjectPoint[]> {
+  const m = new Map<string, InjectPoint[]>();
+  for (const ip of INJECT_POINTS) {
+    (m.get(ip.file) ?? m.set(ip.file, []).get(ip.file)!).push(ip);
+  }
+  return m;
+}
+
+function injectEq(
+  a: InjectValue | undefined,
+  b: InjectValue | undefined,
+): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return String(a) === String(b);
+}
+
+// The value a point currently has on disk ("off" when native), for pending-reload
+// and activation-floor tracking. undefined when the anchor is absent.
+function injectStateStr(
+  content: string | undefined,
+  ip: InjectPoint,
+): string | undefined {
+  if (content === undefined || !ip.present(content)) return undefined;
+  const cur = ip.current(content);
+  return cur === undefined ? "off" : String(cur);
+}
+
+// Map an activation-floor string (from injectStateStr) back to a config value.
+function injectFloorToRaw(
+  ip: InjectPoint,
+  floor: string | undefined,
+): InjectValue {
+  if (floor === undefined || floor === "off") return ip.defaultRaw;
+  return ip.kind === "family" || ip.kind === "align" ? floor : Number(floor);
+}
+
 export type SizeMap = Record<string, number>;
 
 export function readSizes(): SizeMap {
   const c = vscode.workspace.getConfiguration(CONFIG_NS);
   const m: SizeMap = {};
-  for (const p of PATCH_POINTS) m[p.id] = Number(formatPx(c.get<number>(p.key, p.defaultPx)));
+  for (const p of PATCH_POINTS)
+    m[p.id] = Number(formatPx(c.get<number>(p.key, p.defaultPx)));
   return m;
 }
 
 export function formatPx(n: number): string {
-  const clamped = Math.min(MAX_PX, Math.max(MIN_PX, Number.isFinite(n) ? n : 14));
+  const clamped = Math.min(
+    MAX_PX,
+    Math.max(MIN_PX, Number.isFinite(n) ? n : 14),
+  );
   return String(Math.round(clamped * 100) / 100);
 }
 
@@ -538,7 +1009,9 @@ export function formatNativePx(n: number): string {
 // --- per-point primitives (dispatch to custom fns or the value-slot model) ---
 
 function pointPresent(content: string, p: PatchPoint): boolean {
-  return p.fnPresent ? p.fnPresent(content) : p.res!.some((re) => re.test(content));
+  return p.fnPresent
+    ? p.fnPresent(content)
+    : p.res!.some((re) => re.test(content));
 }
 
 // px string if a fixed size is in place, or undefined for the stock/native form.
@@ -563,11 +1036,18 @@ function pointSet(content: string, p: PatchPoint, px: string): string {
   return out;
 }
 
-function pointRestore(content: string, p: PatchPoint, stockValue: string): string {
+function pointRestore(
+  content: string,
+  p: PatchPoint,
+  stockValue: string,
+): string {
   if (p.fnRestore) return p.fnRestore(content);
   let out = content;
   for (const re of p.res!) {
-    out = out.replace(re, (_w, prefix, _v, suffix) => prefix + stockValue + suffix);
+    out = out.replace(
+      re,
+      (_w, prefix, _v, suffix) => prefix + stockValue + suffix,
+    );
   }
   return out;
 }
@@ -661,7 +1141,7 @@ function compareVersions(a: string, b: string): number {
 }
 
 export function findLatestClaudeExt(
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
 ): ClaudeExt | undefined {
   const verRe = /^anthropic\.claude-code-(\d+(?:\.\d+)*)/;
   let best: ClaudeExt | undefined;
@@ -687,7 +1167,13 @@ export function findLatestClaudeExt(
 }
 
 export type PointState =
-  | { id: string; label: string; section: Section; status: "current"; px: string }
+  | {
+      id: string;
+      label: string;
+      section: Section;
+      status: "current";
+      px: string;
+    }
   | {
       id: string;
       label: string;
@@ -709,7 +1195,7 @@ function readFileSafe(ext: ClaudeExt, rel: string): string | undefined {
 export function analyze(
   ext: ClaudeExt,
   sizes: SizeMap,
-  capture: StockCapture
+  capture: StockCapture,
 ): PointState[] {
   const cache = new Map<string, string | undefined>();
   const read = (rel: string) => {
@@ -729,8 +1215,10 @@ export function analyze(
     const isStock =
       p.style === "number" ? cur === formatPx(stockNum) : cur === undefined;
 
-    if (stockWant && isStock) return { ...base, status: "current", px: `${stockNum}` };
-    if (!stockWant && cur === want) return { ...base, status: "current", px: cur };
+    if (stockWant && isStock)
+      return { ...base, status: "current", px: `${stockNum}` };
+    if (!stockWant && cur === want)
+      return { ...base, status: "current", px: cur };
     if (isStock) return { ...base, status: "stock", px: `${stockNum}`, want };
     return { ...base, status: "custom", px: cur ?? `${stockNum}`, want };
   });
@@ -748,7 +1236,10 @@ export interface ToggleState {
 // Same shape as analyze() but for on/off points: "stock" = bundle at native and
 // the setting wants it flipped; "custom" = bundle flipped the other way from the
 // setting (e.g. a leftover patch the setting no longer wants).
-export function analyzeToggles(ext: ClaudeExt, toggles: ToggleMap): ToggleState[] {
+export function analyzeToggles(
+  ext: ClaudeExt,
+  toggles: ToggleMap,
+): ToggleState[] {
   const cache = new Map<string, string | undefined>();
   const read = (rel: string) => {
     if (!cache.has(rel)) cache.set(rel, readFileSafe(ext, rel));
@@ -759,9 +1250,43 @@ export function analyzeToggles(ext: ClaudeExt, toggles: ToggleMap): ToggleState[
     const wantOn = toggles[t.id];
     const cur = toggleStateStr(read, t);
     if (cur === undefined) return { ...base, status: "missing", wantOn };
-    if (cur === toggleWantStr(t, wantOn)) return { ...base, status: "current", wantOn };
-    if (cur === toggleWantStr(t, t.defaultOn)) return { ...base, status: "stock", wantOn };
+    if (cur === toggleWantStr(t, wantOn))
+      return { ...base, status: "current", wantOn };
+    if (cur === toggleWantStr(t, t.defaultOn))
+      return { ...base, status: "stock", wantOn };
     return { ...base, status: "custom", wantOn };
+  });
+}
+
+export type InjectStatus = "current" | "stock" | "custom" | "missing";
+export interface InjectState {
+  id: string;
+  label: string;
+  section: Section;
+  status: InjectStatus;
+  value: InjectValue | undefined; // the setting value (undefined = off)
+}
+
+// Same shape as analyze()/analyzeToggles() for the string/size/rows injections:
+// "stock" = bundle native and the setting wants an injection; "custom" = the
+// bundle carries an injection differing from the setting (leftover or drifted).
+export function analyzeInjects(ext: ClaudeExt): InjectState[] {
+  const cache = new Map<string, string | undefined>();
+  const read = (rel: string) => {
+    if (!cache.has(rel)) cache.set(rel, readFileSafe(ext, rel));
+    return cache.get(rel);
+  };
+  return INJECT_POINTS.map((ip): InjectState => {
+    const base = { id: ip.id, label: ip.label, section: ip.section };
+    const want = readInject(ip);
+    const content = read(ip.file);
+    if (content === undefined || !ip.present(content)) {
+      return { ...base, status: "missing", value: want };
+    }
+    const cur = ip.current(content);
+    if (injectEq(cur, want)) return { ...base, status: "current", value: want };
+    if (cur === undefined) return { ...base, status: "stock", value: want };
+    return { ...base, status: "custom", value: want };
   });
 }
 
@@ -808,11 +1333,12 @@ export function applyPatch(
   ext: ClaudeExt,
   sizes: SizeMap,
   toggles: ToggleMap,
-  capture: StockCapture
+  capture: StockCapture,
 ): PatchReport {
   const changed: string[] = [];
   const pointsByFile = byFile();
   const togglesByFile = toggleByFile();
+  const injectsByFile = injectByFile();
   const files = allPatchedFiles();
   for (const file of files) {
     const abs = filePath(ext, file);
@@ -836,7 +1362,21 @@ export function applyPatch(
         changed.push(
           stockWant
             ? `${p.label} ${cur}px→stock`
-            : `${p.label} ${cur ?? "stock"}→${want}px`
+            : `${p.label} ${cur ?? "stock"}→${want}px`,
+        );
+      }
+    }
+    for (const ip of injectsByFile.get(file) ?? []) {
+      if (!ip.present(out)) continue;
+      const want = readInject(ip);
+      const cur = ip.current(out);
+      const next = want === undefined ? ip.remove(out) : ip.apply(out, want);
+      if (next !== out) {
+        out = next;
+        changed.push(
+          want === undefined
+            ? `${ip.label} ${cur}→native`
+            : `${ip.label} ${cur ?? "native"}→${want}`,
         );
       }
     }
@@ -847,7 +1387,9 @@ export function applyPatch(
       const next = toggleSet(out, t, wantOn);
       if (next !== out) {
         out = next;
-        changed.push(`${t.label} ${cur ? "on" : "off"}→${wantOn ? "on" : "off"}`);
+        changed.push(
+          `${t.label} ${cur ? "on" : "off"}→${wantOn ? "on" : "off"}`,
+        );
       }
     }
     for (const t of TOGGLE_POINTS) {
@@ -867,7 +1409,8 @@ export function applyPatch(
   return { version: ext.version, changed };
 }
 
-// Every file any point or toggle (including a toggle's CSS side-effect) touches.
+// Every file any point, toggle (including a toggle's CSS side-effect), or
+// injection touches.
 function allPatchedFiles(): Set<string> {
   const files = new Set<string>();
   for (const p of PATCH_POINTS) files.add(p.file);
@@ -875,16 +1418,18 @@ function allPatchedFiles(): Set<string> {
     files.add(t.file);
     if (t.cssFile) files.add(t.cssFile);
   }
+  for (const ip of INJECT_POINTS) files.add(ip.file);
   return files;
 }
 
 export function restorePatch(
   ext: ClaudeExt,
-  capture: StockCapture
+  capture: StockCapture,
 ): PatchReport {
   const changed: string[] = [];
   const pointsByFile = byFile();
   const togglesByFile = toggleByFile();
+  const injectsByFile = injectByFile();
   const files = allPatchedFiles();
   for (const file of files) {
     const abs = filePath(ext, file);
@@ -901,6 +1446,14 @@ export function restorePatch(
       if (next !== out) {
         out = next;
         changed.push(`${p.label} restored`);
+      }
+    }
+    for (const ip of injectsByFile.get(file) ?? []) {
+      if (!ip.present(out)) continue;
+      const next = ip.remove(out);
+      if (next !== out) {
+        out = next;
+        changed.push(`${ip.label} restored`);
       }
     }
     for (const t of togglesByFile.get(file) ?? []) {
@@ -956,6 +1509,7 @@ export class Patcher {
   private ext: ClaudeExt | undefined;
   private states: PointState[] = [];
   private toggleStates: ToggleState[] = [];
+  private injectStates: InjectState[] = [];
   private stockCapture: StockCapture = {};
   private pendingReload = new Set<string>(); // point IDs written but not reloaded
   private activationPx = new Map<string, string | undefined>(); // on-disk px at activation
@@ -970,7 +1524,9 @@ export class Patcher {
       s.status === "stock" || s.status === "custom";
     if (
       this.ext &&
-      (this.states.some(drifted) || this.toggleStates.some(drifted))
+      (this.states.some(drifted) ||
+        this.toggleStates.some(drifted) ||
+        this.injectStates.some(drifted))
     ) {
       void this.autoApply();
     }
@@ -980,11 +1536,14 @@ export class Patcher {
     const patchKeys = [
       ...PATCH_POINTS.map((p) => p.key),
       ...TOGGLE_POINTS.map((t) => t.key),
+      ...INJECT_POINTS.map((ip) => ip.key),
     ].map((k) => `${CONFIG_NS}.${k}`);
+    // chat.fontSize is no longer a knob, but the chatHistoryFontSize knob shows it
+    // while inheriting, so a native change should refresh (not re-patch) the view.
     const nativeKeys = NATIVE_KNOBS.map((k) => k.vscodeKey);
     return [
       vscode.commands.registerCommand("claudeCodeUiPatch.restore", () =>
-        this.restore(false)
+        this.restore(false),
       ),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (patchKeys.some((k) => e.affectsConfiguration(k))) {
@@ -1002,22 +1561,42 @@ export class Patcher {
     const sizes = readSizes();
     const toggles = readToggles();
     const statusById = new Map(this.states.map((s) => [s.id, s.status]));
-    const toggleStatusById = new Map(this.toggleStates.map((s) => [s.id, s.status]));
-    const chat: Knob[] = NATIVE_KNOBS.map((k) => ({
-      id: k.id,
-      section: "Chat Panel or Tab" as Section,
-      label: k.label,
-      kind: "size" as const,
-      px: formatNativePx(nativePx(k)),
-      on: false,
-      max: 100,
-      native: true,
-      state: "current" as const,
-      pendingReload: false,
-      nativeKey: k.vscodeKey,
-    }));
+    const toggleStatusById = new Map(
+      this.toggleStates.map((s) => [s.id, s.status]),
+    );
+    const injectStatusById = new Map(
+      this.injectStates.map((s) => [s.id, s.status]),
+    );
+    // The chat text size knob (formerly the native chat.fontSize knob) is now the
+    // chatHistoryFontSize injection: it shows the effective size (its own value, or
+    // the inherited chat.fontSize when unset) and adjusting it takes control.
+    const chat: Knob[] = INJECT_POINTS.filter(
+      (ip) => ip.showInPanel && injectStatusById.get(ip.id) !== "missing",
+    ).map((ip) => {
+      const eff = readInject(ip);
+      return {
+        id: ip.id,
+        section: ip.section,
+        label: ip.label,
+        kind: "size" as const,
+        px: formatNativePx(
+          typeof eff === "number"
+            ? eff
+            : ip.inheritFrom
+              ? sizes[ip.inheritFrom]
+              : nativeChatFontSizePx(),
+        ),
+        on: false,
+        max: ip.max,
+        native: false,
+        state:
+          (injectStatusById.get(ip.id) as "current" | "stock" | "custom") ??
+          "stock",
+        pendingReload: this.pendingReload.has(ip.id),
+      };
+    });
     const patch: Knob[] = PATCH_POINTS.filter(
-      (p) => statusById.get(p.id) !== "missing"
+      (p) => statusById.get(p.id) !== "missing",
     ).map((p) => ({
       id: p.id,
       section: p.section,
@@ -1027,11 +1606,12 @@ export class Patcher {
       on: false,
       max: p.maxPx,
       native: false,
-      state: (statusById.get(p.id) as "current" | "stock" | "custom") ?? "stock",
+      state:
+        (statusById.get(p.id) as "current" | "stock" | "custom") ?? "stock",
       pendingReload: this.pendingReload.has(p.id),
     }));
     const toggleKnobs: Knob[] = TOGGLE_POINTS.filter(
-      (t) => toggleStatusById.get(t.id) !== "missing"
+      (t) => toggleStatusById.get(t.id) !== "missing",
     ).map((t) => ({
       id: t.id,
       section: t.section,
@@ -1041,20 +1621,31 @@ export class Patcher {
       on: toggles[t.id],
       max: 0,
       native: false,
-      state: (toggleStatusById.get(t.id) as "current" | "stock" | "custom") ?? "stock",
+      state:
+        (toggleStatusById.get(t.id) as "current" | "stock" | "custom") ??
+        "stock",
       pendingReload: this.pendingReload.has(t.id),
     }));
     const presentSizes = this.states.filter((s) => s.status !== "missing");
-    const presentToggles = this.toggleStates.filter((s) => s.status !== "missing");
-    const anyPresent = presentSizes.length + presentToggles.length > 0;
+    const presentToggles = this.toggleStates.filter(
+      (s) => s.status !== "missing",
+    );
+    const presentInjects = this.injectStates.filter(
+      (s) => s.status !== "missing",
+    );
+    const anyPresent =
+      presentSizes.length + presentToggles.length + presentInjects.length > 0;
     const allCurrent =
       presentSizes.every((s) => s.status === "current") &&
-      presentToggles.every((s) => s.status === "current");
+      presentToggles.every((s) => s.status === "current") &&
+      presentInjects.every((s) => s.status === "current");
     return {
       available: true,
       supported: anyPresent,
       version: this.ext.version,
-      knobs: [...chat, ...patch, ...toggleKnobs],
+      knobs: [...chat, ...patch, ...toggleKnobs].sort(
+        (a, b) => knobOrder(a.id) - knobOrder(b.id),
+      ),
       applied: anyPresent && allCurrent,
       actionable: !allCurrent,
       needsReload: this.pendingReload.size > 0,
@@ -1067,10 +1658,12 @@ export class Patcher {
       this.refreshStockCapture(this.ext);
       this.states = analyze(this.ext, readSizes(), this.stockCapture);
       this.toggleStates = analyzeToggles(this.ext, readToggles());
+      this.injectStates = analyzeInjects(this.ext);
       if (this.activationPx.size === 0) this.captureActivationPx();
     } else {
       this.states = [];
       this.toggleStates = [];
+      this.injectStates = [];
     }
     this.emitter.fire();
   }
@@ -1086,11 +1679,14 @@ export class Patcher {
       const content = read(p.file);
       this.activationPx.set(
         p.id,
-        content ? pointCurrentPx(content, p) : undefined
+        content ? pointCurrentPx(content, p) : undefined,
       );
     }
     for (const t of TOGGLE_POINTS) {
       this.activationPx.set(t.id, toggleStateStr(read, t));
+    }
+    for (const ip of INJECT_POINTS) {
+      this.activationPx.set(ip.id, injectStateStr(read(ip.file), ip));
     }
   }
 
@@ -1110,7 +1706,7 @@ export class Patcher {
       this.reconcilePendingReload();
     } catch (err) {
       void vscode.window.showErrorMessage(
-        `Claude Code UI Patch: failed to patch Claude Code: ${(err as Error).message}`
+        `Claude Code UI Patch: failed to patch Claude Code: ${(err as Error).message}`,
       );
     }
     this.refresh();
@@ -1134,6 +1730,9 @@ export class Patcher {
     for (const t of TOGGLE_POINTS) {
       reconcile(t.id, toggleStateStr(read, t));
     }
+    for (const ip of INJECT_POINTS) {
+      reconcile(ip.id, injectStateStr(read(ip.file), ip));
+    }
   }
 
   // Capture the real native stock values from the bundle. Only force-capture
@@ -1144,9 +1743,14 @@ export class Patcher {
   // capture value-style points (reliably detected as stock via var()) and fall
   // back to hardcoded originalPx for number-style points.
   private refreshStockCapture(ext: ClaudeExt): void {
-    const savedVersion = this.context.globalState.get<string>(STOCK_VERSION_KEY);
-    const savedValues = this.context.globalState.get<StockCapture>(STOCK_VALUES_KEY, {});
-    const realVersionChange = savedVersion !== undefined && savedVersion !== ext.version;
+    const savedVersion =
+      this.context.globalState.get<string>(STOCK_VERSION_KEY);
+    const savedValues = this.context.globalState.get<StockCapture>(
+      STOCK_VALUES_KEY,
+      {},
+    );
+    const realVersionChange =
+      savedVersion !== undefined && savedVersion !== ext.version;
 
     let capture: StockCapture;
     if (realVersionChange) {
@@ -1166,6 +1770,22 @@ export class Patcher {
   // race. The setting update triggers onDidChangeConfiguration → autoApply,
   // which writes the bundle and refreshes.
   async setSize(target: string, value: number): Promise<void> {
+    // The chat text size knob is an injection (chatHistoryFontSize): adjusting it
+    // from the inherited display writes an absolute px, taking control from the
+    // native chat.fontSize.
+    const ip = INJECT_POINTS.find((x) => x.id === target && x.kind === "size");
+    if (ip) {
+      const next = Math.min(
+        ip.max,
+        Math.max(MIN_PX, Math.round(value * 100) / 100),
+      );
+      const cur = readInject(ip);
+      if (typeof cur === "number" && cur === next) return;
+      await vscode.workspace
+        .getConfiguration(CONFIG_NS)
+        .update(ip.key, next, vscode.ConfigurationTarget.Global);
+      return;
+    }
     const p = PATCH_POINTS.find((x) => x.id === target);
     if (!p) return;
     const next = Math.min(p.maxPx, Math.max(MIN_PX, Number(formatPx(value))));
@@ -1219,9 +1839,17 @@ export class Patcher {
         // floor is the full state string (e.g. "on+css" / "off+nocss"); its on/off
         // is the leading token.
         const floor = this.activationPx.get(t.id);
-        const value = floor !== undefined ? floor.startsWith("on") : t.defaultOn;
+        const value =
+          floor !== undefined ? floor.startsWith("on") : t.defaultOn;
         return cfg.update(t.key, value, vscode.ConfigurationTarget.Global);
       }),
+      ...INJECT_POINTS.map((ip) =>
+        cfg.update(
+          ip.key,
+          injectFloorToRaw(ip, this.activationPx.get(ip.id)),
+          vscode.ConfigurationTarget.Global,
+        ),
+      ),
     ]);
     this.refresh();
   }
@@ -1229,7 +1857,7 @@ export class Patcher {
   async restore(silent = false): Promise<void> {
     if (!this.ext) {
       void vscode.window.showErrorMessage(
-        "Claude Code UI Patch: couldn't find an installed Claude Code extension."
+        "Claude Code UI Patch: couldn't find an installed Claude Code extension.",
       );
       return;
     }
@@ -1239,7 +1867,7 @@ export class Patcher {
       this.reconcilePendingReload();
     } catch (err) {
       void vscode.window.showErrorMessage(
-        `Claude Code UI Patch: failed to restore Claude Code v${this.ext.version}: ${(err as Error).message}`
+        `Claude Code UI Patch: failed to restore Claude Code v${this.ext.version}: ${(err as Error).message}`,
       );
       return;
     }
@@ -1248,17 +1876,20 @@ export class Patcher {
     const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
     await Promise.all([
       ...PATCH_POINTS.map((p) =>
-        cfg.update(p.key, p.originalPx, vscode.ConfigurationTarget.Global)
+        cfg.update(p.key, p.originalPx, vscode.ConfigurationTarget.Global),
       ),
       ...TOGGLE_POINTS.map((t) =>
-        cfg.update(t.key, t.defaultOn, vscode.ConfigurationTarget.Global)
+        cfg.update(t.key, t.defaultOn, vscode.ConfigurationTarget.Global),
+      ),
+      ...INJECT_POINTS.map((ip) =>
+        cfg.update(ip.key, ip.defaultRaw, vscode.ConfigurationTarget.Global),
       ),
     ]);
     this.refresh();
     if (silent) return;
     if (report.changed.length > 0) {
       reloadPrompt(
-        `Claude Code UI Patch: restored Claude Code v${report.version}. Reload to take effect.`
+        `Claude Code UI Patch: restored Claude Code v${report.version}. Reload to take effect.`,
       );
     }
   }
@@ -1300,7 +1931,9 @@ export function tooltipLines(snap: Snapshot | undefined): string[] {
     k.kind === "toggle" ? (k.on ? "on" : "off") : `${k.px}px`;
   const rows = snap.knobs;
   const labelW = rows.length ? Math.max(...rows.map((k) => k.label.length)) : 0;
-  const pxW = rows.length ? Math.max(...rows.map((k) => valueStr(k).length)) : 0;
+  const pxW = rows.length
+    ? Math.max(...rows.map((k) => valueStr(k).length))
+    : 0;
   const gap = "        "; // 8 spaces
 
   for (const section of SECTION_ORDER) {
@@ -1313,10 +1946,18 @@ export function tooltipLines(snap: Snapshot | undefined): string[] {
     out.push("```");
   }
 
-  out.push("", "---", "", cmdLink("$(gear) Settings", "workbench.action.openSettings", ["claudeCodeUiPatch"]));
+  out.push(
+    "",
+    "---",
+    "",
+    `${cmdLink("$(gear) Open VS Code Settings", "workbench.action.openSettings", ["claudeCodeUiPatch"])}  ·  ${cmdLink("$(refresh) Reload Window", "workbench.action.reloadWindow")}`,
+  );
 
   if (!snap.supported) {
-    out.push("", `$(circle-slash) patch not supported on Claude Code v${snap.version}`);
+    out.push(
+      "",
+      `$(circle-slash) patch not supported on Claude Code v${snap.version}`,
+    );
   }
 
   return out;

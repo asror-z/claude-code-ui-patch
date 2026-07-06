@@ -50,69 +50,127 @@
     "configuration": {
       "title": "Claude Code UI Patch",
       "properties": {
+        "claudeCodeUiPatch.chatHistoryFontSize": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 48,
+          "markdownDescription": "Chat font size in px, private to Claude Code so other chat panels are unaffected. `0` follows `#chat.fontSize#`."
+        },
+        "claudeCodeUiPatch.chatHistoryFontFamily": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Font family for the chat history only; the interface and input box stay native. Empty = native."
+        },
         "claudeCodeUiPatch.chatCodeblockFontSize": {
           "type": "number",
           "default": 11,
           "minimum": 6,
           "maximum": 24,
-          "markdownDescription": "Chat panel code block size in px. Chat text stays native via `#chat.fontSize#`."
+          "markdownDescription": "Chat fenced code block size in px."
+        },
+        "claudeCodeUiPatch.chatCodeInlineFontSize": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 24,
+          "markdownDescription": "Chat inline code size in px. `0` follows `#claudeCodeUiPatch.chatCodeblockFontSize#`."
         },
         "claudeCodeUiPatch.chatDiffCardFontSize": {
           "type": "number",
           "default": 12,
           "minimum": 6,
           "maximum": 24,
-          "markdownDescription": "Diff card size in px (the side-by-side diff in Edit/MultiEdit tool cards, and its expanded modal)."
+          "markdownDescription": "Diff card code size in px (Edit/MultiEdit cards and the expand modal)."
         },
         "claudeCodeUiPatch.chatDiffCardLineNumbers": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs and a de-emphasized first line. Line numbers count from the top of the shown change, not the file."
+          "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs."
         },
         "claudeCodeUiPatch.chatDiffCardThemeSync": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Match the diff card theme to the current VS Code light/dark theme instead of the forced dark theme, updating live on theme change."
+          "markdownDescription": "Sync the diff card theme to the VS Code light/dark theme instead of forcing dark."
+        },
+        "claudeCodeUiPatch.chatPermissionCodeMatchChatCodeblock": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Size the permission command block to match the tool input block (`0.85em` instead of `0.9em`)."
+        },
+        "claudeCodeUiPatch.chatShowMoreAndLessAlign": {
+          "type": "string",
+          "enum": [
+            "",
+            "left",
+            "right"
+          ],
+          "enumDescriptions": [
+            "Native (drifting) position",
+            "Pin to the left",
+            "Pin to the right"
+          ],
+          "default": "",
+          "markdownDescription": "Pin the chat message \"Show more\" and \"Show less\" buttons to a side. Empty = native (drifting) position; `left` or `right` places them deterministically."
         },
         "claudeCodeUiPatch.effortSyncFix": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "The effort button shows the persisted level but the call could silently run at the CLI default. Set to true to ensure in-sync."
+          "markdownDescription": "On window reload, push the persisted effort level to the CLI so it does not silently run at the default."
         },
         "claudeCodeUiPatch.planPreviewFontSize": {
           "type": "number",
           "default": 14,
           "minimum": 6,
           "maximum": 24,
-          "markdownDescription": "Plan-preview rendered text size in px (headings scale with it)."
+          "markdownDescription": "Plan preview text size in px (headings scale with it)."
+        },
+        "claudeCodeUiPatch.planPreviewFontFamily": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Font family for the Plan Mode preview panel. Empty = native."
         },
         "claudeCodeUiPatch.planPreviewCodeblockFontSize": {
           "type": "number",
           "default": 13,
           "minimum": 6,
           "maximum": 24,
-          "markdownDescription": "Plan-preview code size in px (code blocks and inline code)."
+          "markdownDescription": "Plan preview fenced code block size in px."
+        },
+        "claudeCodeUiPatch.planPreviewCodeInlineFontSize": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 24,
+          "markdownDescription": "Plan preview inline code size in px. `0` follows `#claudeCodeUiPatch.planPreviewCodeblockFontSize#`."
         },
         "claudeCodeUiPatch.planPreviewCommentInputFontSize": {
           "type": "number",
           "default": 13,
           "minimum": 6,
           "maximum": 24,
-          "markdownDescription": "Plan-preview select-and-comment input size in px."
+          "markdownDescription": "Plan preview comment box text size in px."
+        },
+        "claudeCodeUiPatch.planPreviewCommentInputRows": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 40,
+          "markdownDescription": "Plan preview comment box height in rows. `0` = native (about 3)."
         },
         "claudeCodeUiPatch.planPreviewCommentQuoteFontSize": {
           "type": "number",
           "default": 12,
           "minimum": 6,
           "maximum": 24,
-          "markdownDescription": "Plan-preview selected-text quote size in px."
+          "markdownDescription": "Plan preview selected-quote size in px."
         },
         "claudeCodeUiPatch.planPreviewCommentBadgeFontSize": {
           "type": "number",
           "default": 10,
           "minimum": 6,
           "maximum": 12,
-          "markdownDescription": "Plan-preview comment-count badge size in px (fixed 14px circle, keep <= 12)."
+          "markdownDescription": "Plan preview comment badge size in px (14px circle, keep <= 12)."
         }
       }
     }

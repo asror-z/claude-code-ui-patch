@@ -162,7 +162,7 @@ ${sections}
     <button class="btn btn-red" data-cmd="restore" title="Reset every setting to Claude Code's native values">Factory Reset</button>
   </div>
   <a class="link" data-cmd="openSettings">&#9881; Open VS Code Settings</a>
-  <a class="link" data-cmd="reload">&#8635; Reload Window</a>
+  <a class="link${snap.needsReload ? " link-reload-pending" : ""}" data-cmd="reload">&#8635; Reload Window</a>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const pending = {}; // knob id -> last optimistic value we sent (ignore stale echoes until it matches)
@@ -232,6 +232,8 @@ ${sections}
         const st = document.querySelector('.header-status');
         if (st) st.innerHTML = m.status;
       }
+      const rl = document.querySelector('a[data-cmd="reload"]');
+      if (rl) rl.classList.toggle('link-reload-pending', !!m.reloadPending);
     });
   </script>
 </body>
@@ -262,12 +264,13 @@ function statusInner(snap: Snapshot): string {
 function syncPayload(snap: Snapshot): {
   knobs: Array<{ id: string; px: string; on: boolean; dotOk: boolean; dotTitle: string }>;
   status: string;
+  reloadPending: boolean;
 } {
   const knobs = snap.knobs.map((k) => {
     const dotOk = k.native ? true : !k.pendingReload;
     return { id: k.id, px: k.px, on: k.on, dotOk, dotTitle: dotTitleFor(k.native, dotOk) };
   });
-  return { knobs, status: statusInner(snap) };
+  return { knobs, status: statusInner(snap), reloadPending: snap.needsReload };
 }
 
 const baseCss = `
@@ -312,6 +315,7 @@ const baseCss = `
   .dot-ok { color: var(--vscode-gitDecoration-addedResourceForeground); }
   .dot-warn { color: var(--vscode-editorWarning-foreground); }
   a.link { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; font-size: 1.1em; margin-top: 12px; display: block; }
+  a.link.link-reload-pending { display: inline-block; background: var(--vscode-statusBarItem-warningBackground, #b7791f); color: #fff; padding: 3px 12px; border-radius: 3px; font-weight: 700; }
 `;
 
 // Per-render nonce so the Content-Security-Policy can allow only this panel's

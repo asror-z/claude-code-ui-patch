@@ -6,7 +6,7 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 
 | Claude Code | UI Patch |
 | ----------- | -------- |
-| 2.1.201+    | 1.0.x    |
+| 2.1.201+    | 1.1.x    |
 
 ## Every Knob, One Panel
 
@@ -16,64 +16,85 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 |     Adjust the knobs, then **Reload Window**      | Hover the `aA` to show summary, and click to open panel |
 
 1. Open the configuration panel  
-   Press `Cmd+Shift+P` / `Ctrl+Shift+P` (or `F1`) to open the Command Palette, then run **Claude Code UI Patch: Open Panel**. Or alternatively, click the `aA` item at the far right of the status bar (boxed in red above).
+   Press `Cmd+Shift+P` / `Ctrl+Shift+P` (or `F1`) to open the Command Palette, then run **Claude Code UI Patch: Open Panel**. Or alternatively, click the `aA` item at the far right of the status bar.
 2. Modify the settings.  
    The yellow light in front of the item and the yellow highlight of the status bar icon will indicate that a **Reload Window** is needed in order for the configurations to fully apply.
 3. **Reload Window**  
-   Click it at the bottom of the panel (red arrow above) for the changes to take effect. Or alternatively, open the Command Palette, then run **Developer: Reload Window**.
+   Click it at the bottom of the panel for the changes to take effect. Or alternatively, open the Command Palette, then run **Developer: Reload Window**.
 4. Repeat until satisfied.
 
 ## What This Extension Patches
 
-Claude Code hard-codes a handful of UI details that no setting reaches. This extension edits them in the installed bundle and reverts cleanly on demand.
+Settings live under the `claudeCodeUiPatch.*` namespace (prefix omitted below) and each defaults to Claude Code's native value. The tree shows every knob, what it targets, and what scales with what: an indented child follows its parent until you give it a value.
 
-- **Nothing changes until you ask.** Every setting starts at Claude Code's native value, so installing does nothing on its own. Adjust a size or flip a toggle to change something, reset it to default to revert. Changes apply on save; reload the window to see them.
-- **Sticks across updates.** The patch re-applies itself after Claude Code updates, so your settings survive.
+```text
+chat.fontSize & chat.fontFamily        # native VS Code settings, shared by every chat extension
+   │                                   # therefore, this patch does NOT override them
+   ├── input box
+   ├── interface chrome (buttons, headers, token counts)
+   ├── your messages + attachment chips (e.g. image.png)
+   └── other chat extensions (Codex, Copilot, ...)
 
-### 1. Chat Panel and Tab
+Chat Panel and Tab                     # agent messages only
+   ├── chatHistoryFontSize             # agent message text, 0 -> follows chat.fontSize
+   ├── chatHistoryFontFamily           # agent message font, empty -> native UI font
+   ├── chatCodeblockFontSize           # fenced code blocks (stay monospace)
+   │      └── chatCodeInlineFontSize   # inline code, 0 -> follows chatCodeblockFontSize
+   └── diff cards                      # Edit / MultiEdit tool cards + expand modal
+          ├── chatDiffCardFontSize     # diff code size
+          ├── chatDiffCardLineNumbers  # +/- gutter line numbers if On
+          └── chatDiffCardThemeSync    # follow VS Code light/dark theme if On
 
-| Setting                                     | Native  | Target                                                                 |
-| ------------------------------------------- | ------- | ---------------------------------------------------------------------- |
-| `chat.fontSize`                             | `~14px` | chat panel/tab text, input, IN/OUT blocks                              |
-| `claudeCodeUiPatch.chatCodeblockFontSize`   | `~11px` | chat panel/tab fenced code blocks                                      |
-| `claudeCodeUiPatch.chatDiffCardFontSize`    | `12px`  | diff card (Edit/MultiEdit tool cards and their expand modal)           |
-| `claudeCodeUiPatch.chatDiffCardLineNumbers` | `off`   | diff-card line numbers, with real `+`/`-` gutter signs                 |
-| `claudeCodeUiPatch.chatDiffCardThemeSync`   | `off`   | diff card follows the VS Code light/dark theme                         |
-| `claudeCodeUiPatch.effortSyncFix`           | `off`   | syncs the interface effort button and the actual API call effort level |
+Plan Mode Markdown Preview
+   ├── planPreviewFontSize             # preview text (headings scale with it)
+   ├── planPreviewFontFamily           # preview font, empty -> native
+   ├── planPreviewCodeblockFontSize    # fenced code blocks (stay monospace)
+   │      └── planPreviewCodeInlineFontSize      # 0 -> follows planPreviewCodeblockFontSize
+   └── select-and-comment UI
+          ├── planPreviewCommentInputFontSize    # comment box text
+          ├── planPreviewCommentInputRows        # comment box height in rows, 0 -> native
+          ├── planPreviewCommentQuoteFontSize    # selected-text quote
+          └── planPreviewCommentBadgeFontSize    # comment badge (14px circle, keep <= 12)
 
-### 2. Plan Mode Markdown Preview
-
-| Setting                                             | Native | Target                                         |
-| --------------------------------------------------- | ------ | ---------------------------------------------- |
-| `claudeCodeUiPatch.planPreviewFontSize`             | `14px` | Markdown preview text (headings scale with it) |
-| `claudeCodeUiPatch.planPreviewCodeblockFontSize`    | `13px` | code blocks and inline code                    |
-| `claudeCodeUiPatch.planPreviewCommentQuoteFontSize` | `12px` | selected-text quote                            |
-| `claudeCodeUiPatch.planPreviewCommentInputFontSize` | `13px` | select-and-comment input                       |
-| `claudeCodeUiPatch.planPreviewCommentBadgeFontSize` | `10px` | comment badge (fixed 14px circle, keep <= 12)  |
+Behavior
+   ├── chatShowMoreAndLessAlign        # "left" / "right", empty "" -> native
+   ├── chatPermissionCodeMatchChatCodeblock      # chatCodeblockFontSize (On) or chat.fontSize (Off)
+   └── effortSyncFix                   # push persisted effort level to a reloaded session if On
+```
 
 ## Using This UI Patch
 
-- **Status bar:** hover for current sizes, click to open the configuration panel.
-- **Configuration panel:** per-knob `▼`/`▲` for sizes and an On/Off switch for toggles, each with a leading sync dot (green = in effect, amber = window reload needed), plus Restore Last Applied / Factory Reset / Open Settings / Reload. The native `chat.fontSize` appears here too.
-- **Settings:** edit any `claudeCodeUiPatch.*` value; it applies automatically. Reload the window for changes to take effect.
-- **Commands:** `Claude Code UI Patch: Open Panel`, `... Restore Font Sizes`.
+- **Panel controls:** sizes use `▼`/`▲`, toggles an On/Off switch, and each row's sync dot shows green (in effect) or yellow (reload needed).
+- **Direct edits:** Font families, comment-box rows, and the "Show more/less" button alignment have no panel control, set them in VS Code Settings via direct edits. `claudeCodeUiPatch.*` settings apply upon a window reload. Example:
+
+  ```json
+  {
+    "chat.fontFamily": "default",
+    "chat.fontSize": 15,
+    "claudeCodeUiPatch.chatCodeblockFontSize": 14,
+    "claudeCodeUiPatch.chatCodeInlineFontSize": 14,
+    "claudeCodeUiPatch.chatDiffCardFontSize": 13.5,
+    "claudeCodeUiPatch.chatDiffCardLineNumbers": true,
+    "claudeCodeUiPatch.chatDiffCardThemeSync": true,
+    "claudeCodeUiPatch.chatHistoryFontFamily": "times",
+    "claudeCodeUiPatch.chatHistoryFontSize": 16.5,
+    "claudeCodeUiPatch.chatShowMoreAndLessAlign": "right",
+    "claudeCodeUiPatch.chatPermissionCodeMatchChatCodeblock": true,
+    "claudeCodeUiPatch.effortSyncFix": true,
+    "claudeCodeUiPatch.planPreviewFontFamily": "times",
+    "claudeCodeUiPatch.planPreviewFontSize": 16.25,
+    "claudeCodeUiPatch.planPreviewCodeblockFontSize": 13.75,
+    "claudeCodeUiPatch.planPreviewCodeInlineFontSize": 13.75,
+    "claudeCodeUiPatch.planPreviewCommentInputFontSize": 15,
+    "claudeCodeUiPatch.planPreviewCommentInputRows": 7,
+    "claudeCodeUiPatch.planPreviewCommentBadgeFontSize": 12,
+    "claudeCodeUiPatch.planPreviewCommentQuoteFontSize": 12.5
+  }
+  ```
+
+- **Commands:** `Claude Code UI Patch: Open Panel` and `... Restore Font Sizes`.
 
 ## Caveats
 
-- **Effort reload sync** (`effortSyncFix`): Claude Code persists `effortLevel` to `~/.claude/settings.json` and the effort button seeds from it, but a freshly spawned session does not re-read it — effort is only pushed live when you toggle the button. So after a reload the button can show `max` while the call silently runs at the default (`high`) until you flip the button. Enabling this toggle makes the init seed also push the persisted level to the session, so the call matches the button without a manual toggle. It mirrors the button's own push path and is opt-in (native behavior by default).
-- The patch reverts on Claude Code updates (re-applied on the next window load; reload once more to see it). VS Code may show a one-time "corrupt installation" warning that is safe to dismiss.
-- Diff-card line numbers count from the top of the shown change, not from the file: the card only receives the changed snippet, never its position in the file, so true file line numbers aren't available.
-- The comment badge sits in a fixed 14px circle, so values above ~12 overflow.
-- Targets the highest-version `anthropic.claude-code-*` install found.
-
-## Development
-
-```bash
-npm ci                          # install from the lockfile
-npm run compile                 # rebuild out/
-npx @vscode/vsce package        # build the .vsix
-mv claude-code-ui-patch-*.*.*.vsix claude-code-ui-patch-latest.vsix
-code --install-extension claude-code-ui-patch-latest.vsix --force
-```
-
-Then run **Developer: Reload Window**.
+- **The patch reverts when Claude Code updates.** Your settings re-apply on the next window reload (reload once more to see them). VS Code may show a one-time "corrupt installation" warning, which is safe to dismiss.
+- **`chatHistoryFontSize` / `chatHistoryFontFamily` restyle the agent transcript only** (deliberate design, not a bug). Your own messages, the input box, the interface, and other extensions' chats (Codex, Copilot, etc.) stay native, and can be configured with `chat.fontSize` and `chat.fontFamily`.
