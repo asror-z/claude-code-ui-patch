@@ -11,7 +11,8 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 ## 1.1.2
 
 - Retire the `Claude Code UI Patch: Restore Font Sizes` command. Use the panel's **Factory Reset** button instead, which reverts every setting (not just font sizes) to Claude Code's native values.
-- Panel polish: the "Reload Window" link is always a badge now (green when everything is applied, amber when a reload is pending), so it no longer changes size between states. "Restore Last Applied" recedes to a quiet outline when there is nothing to revert, and turns solid green only while a reload is pending.
+- Panel polish: the "Reload Window" link is always a badge now (green when everything is applied, yellow when a reload is pending), so it no longer changes size between states. "Restore Last Applied" recedes to a quiet outline when there is nothing to revert, and turns solid green only while a reload is pending.
+- Panel header: the target version reads as a light "Patching: " followed by a clay-colored "Claude Code v…" rather than a filled badge, and the status line is now a full-width banner (green when applied, yellow when a reload is due or the version is unsupported) rather than tinted text.
 
 ## 1.1.1
 

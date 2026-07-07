@@ -152,7 +152,7 @@ ${csp}
 <body>
   <h1>Claude Code UI Patch</h1>
   <div class="spacer"></div>
-  <span class="badge-clay">Claude Code v${snap.version}</span>
+  <div class="version-line">Patching: <span class="version-value">Claude Code v${snap.version}</span></div>
   <div class="header-status">${statusInner(snap)}</div>
   <hr class="divider">
 ${sections}
@@ -256,10 +256,10 @@ function dotTitleFor(native: boolean, ok: boolean): string {
 
 function statusInner(snap: Snapshot): string {
   if (!snap.supported)
-    return `<span class="status-warn">Patch not supported on Claude Code v${snap.version}</span>`;
+    return `<span class="status-banner warn">Patch not supported on Claude Code v${snap.version}</span>`;
   if (snap.needsReload)
-    return `<span class="status-warn">Reload window to apply changes</span>`;
-  return `<span class="status-ok">All settings applied</span>`;
+    return `<span class="status-banner warn">Reload window to apply changes</span>`;
+  return `<span class="status-banner ok">All settings applied</span>`;
 }
 
 // Lightweight per-knob state + header status for in-place DOM updates.
@@ -286,8 +286,9 @@ const baseCss = `
   }
   h1 { font-size: 1.7em; font-weight: 700; margin: 0; }
   .spacer { height: 4px; }
-  .badge-clay { display: inline-block; background: #d97757; color: #fff; padding: 2px 10px; border-radius: 3px; font-size: 1.1em; font-weight: 700; margin-bottom: 4px; }
-  .header-status { margin-bottom: 2px; font-size: 1.1em; font-weight: 500; }
+  .version-line { font-size: 1.1em; font-weight: 400; margin-bottom: 4px; }
+  .version-value { color: #d97757; }
+  .header-status { margin-top: 10px; margin-bottom: 2px; font-size: 1.1em; font-weight: 500; }
   h2 { font-size: 1.1em; margin: 12px 0 5px; }
   .knob { display: flex; align-items: center; padding: 3px 0; }
   .knob .dot-slot { width: 14px; flex-shrink: 0; text-align: center; margin-right: 14px; }
@@ -317,15 +318,19 @@ const baseCss = `
   .knob .btn-toggle.off:hover { background: var(--vscode-button-secondaryHoverBackground); }
   .actions { margin-top: 12px; display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; }
   .divider { border: none; border-top: 1px solid var(--vscode-panel-border); margin: 9px 0; }
-  .status-ok { color: var(--vscode-gitDecoration-addedResourceForeground); }
-  .status-warn { color: var(--vscode-editorWarning-foreground); }
+  /* Every header status is a full-width banner so the strip never changes height
+     between states: green when everything is applied, yellow when a reload is due
+     or the version is unsupported. */
+  .status-banner { display: block; color: #fff; padding: 4px 12px; border-radius: 3px; font-weight: 700; }
+  .status-banner.ok { background: #3fa34d; }
+  .status-banner.warn { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
   .dot { font-size: .8em; }
   .dot-ok { color: var(--vscode-gitDecoration-addedResourceForeground); }
   .dot-warn { color: var(--vscode-editorWarning-foreground); }
   a.link { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; font-size: 1.1em; margin-top: 12px; display: block; }
   /* The reload link is always a badge with the same box in both states, so it
      never jitters when the pending state flips: green while everything is
-     applied, amber when a reload is due. */
+     applied, yellow when a reload is due. */
   a.link.link-reload { display: inline-block; background: #3fa34d; color: #fff; padding: 3px 12px; border-radius: 3px; font-weight: 700; }
   a.link.link-reload.link-reload-pending { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
 `;
