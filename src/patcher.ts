@@ -1559,9 +1559,6 @@ export class Patcher {
     // while inheriting, so a native change should refresh (not re-patch) the view.
     const nativeKeys = NATIVE_KNOBS.map((k) => k.vscodeKey);
     return [
-      vscode.commands.registerCommand("claudeCodeUiPatch.restore", () =>
-        this.restore(false),
-      ),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (patchKeys.some((k) => e.affectsConfiguration(k))) {
           this.autoApply();
@@ -1871,16 +1868,18 @@ export class Patcher {
     this.refresh();
   }
 
-  async restore(silent = false): Promise<void> {
+  // Factory reset (the panel's red button): revert every knob to Claude Code's
+  // native value. Writes the native bundle and resets the settings; the panel's
+  // "Reload Window" link lights up to apply it, so no separate prompt is needed.
+  async restore(): Promise<void> {
     if (!this.ext) {
       void vscode.window.showErrorMessage(
         "Claude Code UI Patch: couldn't find an installed Claude Code extension.",
       );
       return;
     }
-    let report: PatchReport;
     try {
-      report = restorePatch(this.ext, this.stockCapture);
+      restorePatch(this.ext, this.stockCapture);
       this.reconcilePendingReload();
     } catch (err) {
       void vscode.window.showErrorMessage(
@@ -1903,23 +1902,7 @@ export class Patcher {
       ),
     ]);
     this.refresh();
-    if (silent) return;
-    if (report.changed.length > 0) {
-      reloadPrompt(
-        `Claude Code UI Patch: restored Claude Code v${report.version}. Reload to take effect.`,
-      );
-    }
   }
-}
-
-function reloadPrompt(message: string): void {
-  void vscode.window
-    .showInformationMessage(message, "Reload Window")
-    .then((choice) => {
-      if (choice === "Reload Window") {
-        void vscode.commands.executeCommand("workbench.action.reloadWindow");
-      }
-    });
 }
 
 function cmdLink(label: string, command: string, args?: unknown[]): string {

@@ -69,19 +69,16 @@ Behavior
 
   ```json
   {
-    "chat.fontFamily": "default",
-    "chat.fontSize": 15,
+    // These settings affect ALL native chats, including Claude Code, Codex, Copilot, etc.
+    // Therefore, UI Patch does not touch them
+    // "chat.fontFamily": "default",
+    // "chat.fontSize": 15,
+
+    // UI Patch font size settings in a unified namespace `claudeCodeUiPatch`
     "claudeCodeUiPatch.chatCodeblockFontSize": 14,
     "claudeCodeUiPatch.chatCodeInlineFontSize": 14,
     "claudeCodeUiPatch.chatDiffCardFontSize": 13.5,
-    "claudeCodeUiPatch.chatDiffCardLineNumbers": true,
-    "claudeCodeUiPatch.chatDiffCardThemeSync": true,
-    "claudeCodeUiPatch.chatHistoryFontFamily": "times",
     "claudeCodeUiPatch.chatHistoryFontSize": 16.5,
-    "claudeCodeUiPatch.chatShowMoreAndLessAlign": "right",
-    "claudeCodeUiPatch.chatPermissionCodeMatchChatCodeblock": true,
-    "claudeCodeUiPatch.effortSyncFix": true,
-    "claudeCodeUiPatch.planPreviewFontFamily": "times",
     "claudeCodeUiPatch.planPreviewFontSize": 16.25,
     "claudeCodeUiPatch.planPreviewCodeblockFontSize": 13.75,
     "claudeCodeUiPatch.planPreviewCodeInlineFontSize": 13.75,
@@ -92,7 +89,7 @@ Behavior
   }
   ```
 
-- **Commands:** `Claude Code UI Patch: Open Panel` and `... Restore Font Sizes`.
+- **Commands:** `Claude Code UI Patch: Open Panel`.
 
 ## Caveats
 

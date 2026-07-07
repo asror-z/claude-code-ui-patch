@@ -3,8 +3,8 @@ import { Patcher, Snapshot, Knob, SECTION_ORDER, STEP, MIN_PX } from "./patcher"
 
 // A webview panel that serves as the detailed control surface (opened by
 // clicking the status-bar item). The hover tooltip is a compact read-only
-// summary; this panel adds per-knob ▼/▲ adjust, Discard / Restore, and per-knob
-// sync-state dots. Communication uses postMessage.
+// summary; this panel adds per-knob ▼/▲ adjust, Restore Last Applied / Factory
+// Reset, and per-knob sync-state dots. Communication uses postMessage.
 //
 // Snappiness: clicking an arrow updates the px display in the webview
 // immediately (optimistically) and posts the absolute target value. The full
@@ -79,7 +79,7 @@ export class PatchPanel {
         await this.patcher.discard();
         break;
       case "restore":
-        await this.patcher.restore(true);
+        await this.patcher.restore();
         break;
       case "reload":
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
@@ -158,11 +158,11 @@ ${csp}
 ${sections}
   <hr class="divider">
   <div class="actions">
-    <button class="btn btn-green" data-cmd="discard" title="Revert to the values on disk at the last window reload">Restore Last Applied</button>
+    <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">Restore Last Applied</button>
     <button class="btn btn-red" data-cmd="restore" title="Reset every setting to Claude Code's native values">Factory Reset</button>
   </div>
   <a class="link" data-cmd="openSettings">&#9881; Open VS Code Settings</a>
-  <a class="link${snap.needsReload ? " link-reload-pending" : ""}" data-cmd="reload">&#8635; Reload Window</a>
+  <a class="link link-reload${snap.needsReload ? " link-reload-pending" : ""}" data-cmd="reload">&#8635; Reload Window</a>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const pending = {}; // knob id -> last optimistic value we sent (ignore stale echoes until it matches)
@@ -234,6 +234,8 @@ ${sections}
       }
       const rl = document.querySelector('a[data-cmd="reload"]');
       if (rl) rl.classList.toggle('link-reload-pending', !!m.reloadPending);
+      const disc = document.querySelector('button[data-cmd="discard"]');
+      if (disc) disc.classList.toggle('quiet', !m.reloadPending);
     });
   </script>
 </body>
@@ -298,6 +300,12 @@ const baseCss = `
   .btn:hover { background: var(--vscode-button-hoverBackground); }
   .btn-green { background: #3fa34d; color: #fff; }
   .btn-green:hover { background: #368c42; }
+  /* Quiet (nothing pending): "Restore Last Applied" has nothing to revert, so it
+     recedes to an outline instead of shouting in solid green. The border is an
+     inset box-shadow, not a real border, so the box stays the same size as the
+     solid state and toggling between them never shifts layout. */
+  .btn-green.quiet { background: transparent; color: #3fa34d; box-shadow: inset 0 0 0 1px #3fa34d; }
+  .btn-green.quiet:hover { background: rgba(63, 163, 77, 0.12); }
   .btn-red { background: #c74e39; color: #fff; }
   .btn-red:hover { background: #b13f2c; }
   .btn-sm { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 2px 0; border-radius: 2px; cursor: pointer; font-size: inherit; font-weight: bold; }
@@ -315,7 +323,11 @@ const baseCss = `
   .dot-ok { color: var(--vscode-gitDecoration-addedResourceForeground); }
   .dot-warn { color: var(--vscode-editorWarning-foreground); }
   a.link { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; font-size: 1.1em; margin-top: 12px; display: block; }
-  a.link.link-reload-pending { display: inline-block; background: var(--vscode-statusBarItem-warningBackground, #b7791f); color: #fff; padding: 3px 12px; border-radius: 3px; font-weight: 700; }
+  /* The reload link is always a badge with the same box in both states, so it
+     never jitters when the pending state flips: green while everything is
+     applied, amber when a reload is due. */
+  a.link.link-reload { display: inline-block; background: #3fa34d; color: #fff; padding: 3px 12px; border-radius: 3px; font-weight: 700; }
+  a.link.link-reload.link-reload-pending { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
 `;
 
 // Per-render nonce so the Content-Security-Policy can allow only this panel's

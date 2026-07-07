@@ -39,10 +39,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "claudeCodeUiPatch.restore",
-        "title": "Claude Code UI Patch: Restore Font Sizes"
-      },
-      {
         "command": "claudeCodeUiPatch.panel",
         "title": "Claude Code UI Patch: Open Panel"
       }
