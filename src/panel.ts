@@ -470,9 +470,9 @@ const baseCss = `
   .feature-row:hover { background: var(--vscode-list-hoverBackground); }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; accent-color: var(--ccp-accent); width: 14px; height: 14px; }
   .feature-label { flex: 1 1 auto; }
-  .knob .controls { display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 136px; flex-shrink: 0; margin-left: 16px; }
+  .knob .controls { display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 84px; flex-shrink: 0; margin-left: 16px; }
   .knob .px-input {
-    width: 104px; text-align: right; font-family: var(--vscode-editor-font-family);
+    width: 52px; text-align: right; font-family: var(--vscode-editor-font-family);
     font-variant-numeric: tabular-nums; color: var(--vscode-input-foreground);
     background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent);
     border-radius: var(--ccp-radius-sm); padding: 3px 6px; font-size: inherit; transition: border-color .12s ease;
