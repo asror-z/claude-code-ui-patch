@@ -34,19 +34,20 @@ const JS = `
   var COUNT_KEY = "cc-autocontinue-count"; // localStorage session counter
   var OFF_KEY = "cc-autocontinue";         // localStorage 'off' override
 
-  // SPECIFIC stream-drop / transient-throttle / server-error phrases. TIGHTENED after a
-  // live false-fire: the old bare "\\bAPI Error\\b" alternative matched ANY sentence
-  // containing those two words (it fired on a user message quoting "> API Error: …" and
-  // on an unrelated "CopyTool permission request failed" line). Every alternative here is
-  // a concrete stream-drop/throttle/server-error phrase — never a bare generic "Error:" —
-  // so plain prose can't match. "api error:\\s*5\\d\\d\\b" additionally covers a real
-  // "API Error: 500 Internal server error..." banner (a 5xx status is always transient/
-  // server-side, unlike a 4xx client error), which the earlier connection-closed-only
-  // pattern missed.
+  // ANY "API Error:" banner auto-continues (explicit user requirement), plus a few
+  // stream-drop/throttle phrases that a real error banner uses WITHOUT necessarily
+  // leading with the literal words "API Error:" (a stall/abort/reset banner). The bare
+  // "\\bAPI Error\\b" alternative previously false-fired when matched against ANY
+  // sentence containing those two words anywhere in the page — but that hazard is
+  // guarded structurally, not by narrowing this regex: isBannerEl() requires an actual
+  // role=alert/status or error/banner/alert/toast-classed element, insideMessage()
+  // excludes anything inside a chat message/blockquote container, and phraseLeads()
+  // requires the match to be within the first 40 chars of that banner's own short text.
+  // A user message merely quoting "> API Error: …" is inside a message container and is
+  // rejected by insideMessage() regardless of how broad this regex is.
   var DROP_RE = new RegExp(
     [
-      "api error:\\\\s*connection closed",
-      "api error:\\\\s*5\\\\d\\\\d\\\\b",
+      "\\\\bAPI Error\\\\b",
       "connection closed mid-?response",
       "connection (?:reset|aborted) by peer",
       "stream (?:disconnected|closed|error|stall)",

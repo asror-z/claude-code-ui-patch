@@ -8,3 +8,4 @@ out/
 # scratch/export folders); this extension's Activity Bar icon is a real tracked
 # source asset, not a generated/scratch file, so it needs an explicit exception.
 !media/*.svg
+/.claude/Chat Patch Extend/Tests/

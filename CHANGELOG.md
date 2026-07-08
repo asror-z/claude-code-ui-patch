@@ -8,6 +8,14 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.2.x    |
 
+## 1.2.5
+
+- Auto-continue on error now treats ANY "API Error:" banner as a trigger, not just a
+  known list of stream-drop/5xx phrases — any real error banner starting with
+  "API Error:" auto-continues. The existing structural guards (must be an actual
+  role=alert/banner-classed element, and must not be inside a chat message/blockquote)
+  still prevent a chat message that merely quotes "API Error:" from false-firing.
+
 ## 1.2.4
 
 - Fix Auto-continue on error: broaden the stream-drop detection regex to catch a generic
