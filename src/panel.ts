@@ -143,27 +143,34 @@ ${csp}
       sec,
       knobs: snap.knobs.filter((k) => k.section === sec),
     })).filter((g) => g.knobs.length);
-    // A divider sits between sections (above every group after the first), not
-    // under each title, so section headings read as headings, not underlines.
-    const sections = groups
-      .map(
-        (g, i) =>
-          `${i > 0 ? '    <hr class="divider">\n' : ""}    <h2>${g.sec}</h2>\n${g.knobs
-            .map((k) => this.knobHtml(k))
-            .join("\n")}`
-      )
-      .join("\n");
 
     // Chat Enhancement Features: one real checkbox per feature, shown only while the
     // chatEnhancements master switch is on. Checking/unchecking writes straight to
     // claudeCodeUiPatch.feature.<id> (a seed setting — see Patcher.setFeature), so
     // this is the ONE control surface for per-feature on/off (no in-webview gear).
+    // Rendered immediately under the "chat enhancements" knob itself (not appended at
+    // the panel's end), so it needs no scrolling to reach.
     const chatEnhOn = snap.knobs.some((k) => k.id === "chatEnhancements" && k.on);
-    const featuresSection = chatEnhOn
-      ? `    <hr class="divider">\n    <h2>Chat Enhancement Features</h2>\n    <div class="feature-grid">\n${snap.features
+    const featuresBlock = chatEnhOn
+      ? `      <div class="feature-grid">\n${snap.features
           .map((f) => this.featureHtml(f))
-          .join("\n")}\n    </div>`
+          .join("\n")}\n      </div>\n`
       : "";
+
+    // A divider sits between sections (above every group after the first), not
+    // under each title, so section headings read as headings, not underlines.
+    const sections = groups
+      .map((g, i) => {
+        const rows = g.knobs
+          .map((k) => {
+            const row = this.knobHtml(k);
+            // Splice the feature checkboxes right after the chatEnhancements row.
+            return k.id === "chatEnhancements" ? `${row}\n${featuresBlock}` : row;
+          })
+          .join("\n");
+        return `${i > 0 ? '    <hr class="divider">\n' : ""}    <h2>${g.sec}</h2>\n${rows}`;
+      })
+      .join("\n");
 
     return `<!DOCTYPE html>
 <html>
@@ -178,7 +185,6 @@ ${csp}
   <div class="header-status">${statusInner(snap)}</div>
   <hr class="divider">
 ${sections}
-${featuresSection}
   <hr class="divider">
   <div class="actions">
     <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">Restore Last Applied</button>
@@ -288,8 +294,9 @@ ${featuresSection}
 // Structure signature: a full re-render happens only when this changes.
 function shapeOf(snap: Snapshot | undefined): string {
   if (!snap || !snap.available) return "none";
-  // chatEnhancements' on/off also gates the "Chat Enhancement Features" settings
-  // link below, so a flip must trigger a full re-render, not just a value sync.
+  // chatEnhancements' on/off also gates whether the Chat Enhancement Features
+  // checkboxes render under it, so a flip must trigger a full re-render, not just a
+  // value sync.
   const chatEnh = snap.knobs.find((k) => k.id === "chatEnhancements");
   return [
     snap.supported,
@@ -337,19 +344,19 @@ const baseCss = `
     padding: 16px 28px;
   }
   h1 { font-size: 1.7em; font-weight: 700; margin: 0; }
-  .spacer { height: 4px; }
-  .version-line { font-size: 1.1em; font-weight: 400; margin-bottom: 4px; }
+  .spacer { height: 2px; }
+  .version-line { font-size: 1.1em; font-weight: 400; margin-bottom: 2px; }
   .version-value { color: #d97757; }
-  .header-status { margin-top: 10px; margin-bottom: 2px; font-size: 1.1em; font-weight: 500; }
-  h2 { font-size: 1.1em; margin: 12px 0 5px; }
-  .knob { display: flex; align-items: center; padding: 3px 0; }
+  .header-status { margin-top: 4px; margin-bottom: 1px; font-size: 1.1em; font-weight: 500; }
+  h2 { font-size: 1.1em; margin: 6px 0 3px; }
+  .knob { display: flex; align-items: center; padding: 1px 0; line-height: 1.15; }
   .knob .dot-slot { width: 14px; flex-shrink: 0; text-align: center; margin-right: 14px; }
   .knob .label { flex: 1 1 auto; min-width: 160px; }
   /* Two columns whenever there's room (>= ~340px per column), one column in a
      narrow panel — auto-fit avoids a forced 2-up layout that would overflow or
      leave an awkward gap in a resized/narrow window. */
-  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); column-gap: 20px; padding-left: 28px; }
-  .feature-row { display: flex; align-items: center; padding: 3px 0; cursor: pointer; }
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); column-gap: 20px; row-gap: 0; padding-left: 28px; }
+  .feature-row { display: flex; align-items: center; padding: 1px 0; line-height: 1.15; cursor: pointer; }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; }
   .feature-label { flex: 1 1 auto; }
   .knob .controls { display: flex; align-items: center; justify-content: center; width: 168px; flex-shrink: 0; margin-left: 16px; }
@@ -375,8 +382,8 @@ const baseCss = `
   .knob .btn-toggle.off { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
   .knob .btn-toggle.on:hover { background: var(--vscode-button-hoverBackground); }
   .knob .btn-toggle.off:hover { background: var(--vscode-button-secondaryHoverBackground); }
-  .actions { margin-top: 12px; display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; }
-  .divider { border: none; border-top: 1px solid var(--vscode-panel-border); margin: 9px 0; }
+  .actions { margin-top: 6px; display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; }
+  .divider { border: none; border-top: 1px solid var(--vscode-panel-border); margin: 4px 0; }
   /* Every header status is a full-width banner so the strip never changes height
      between states: green when everything is applied, yellow when a reload is due
      or the version is unsupported. */
