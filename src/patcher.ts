@@ -618,10 +618,18 @@ const TOGGLE_POINTS: TogglePoint[] = [
 
 export type ToggleMap = Record<string, boolean>;
 
+// Toggle ids with no user-facing setting: always forced to this value regardless of
+// claudeCodeUiPatch.* config. chatEnhancements is one of these — the individual
+// claudeCodeUiPatch.feature.<id> checkboxes are the only per-feature control; there
+// is no separate master on/off (removed per user feedback: "doim on bo'ladi").
+const ALWAYS_ON_TOGGLES = new Set(["chatEnhancements"]);
+
 export function readToggles(): ToggleMap {
   const c = vscode.workspace.getConfiguration(CONFIG_NS);
   const m: ToggleMap = {};
-  for (const t of TOGGLE_POINTS) m[t.id] = c.get<boolean>(t.key, t.defaultOn);
+  for (const t of TOGGLE_POINTS) {
+    m[t.id] = ALWAYS_ON_TOGGLES.has(t.id) ? true : c.get<boolean>(t.key, t.defaultOn);
+  }
   return m;
 }
 
@@ -1759,7 +1767,7 @@ export class Patcher {
       pendingReload: this.pendingReload.has(p.id),
     }));
     const toggleKnobs: Knob[] = TOGGLE_POINTS.filter(
-      (t) => toggleStatusById.get(t.id) !== "missing",
+      (t) => toggleStatusById.get(t.id) !== "missing" && !ALWAYS_ON_TOGGLES.has(t.id),
     ).map((t) => ({
       id: t.id,
       section: t.section,
@@ -2004,7 +2012,7 @@ export class Patcher {
             : stockNumberFor(p, this.stockCapture);
         return cfg.update(p.key, value, vscode.ConfigurationTarget.Global);
       }),
-      ...TOGGLE_POINTS.map((t) => {
+      ...TOGGLE_POINTS.filter((t) => !ALWAYS_ON_TOGGLES.has(t.id)).map((t) => {
         // floor is the full state string (e.g. "on+css" / "off+nocss"); its on/off
         // is the leading token.
         const floor = this.activationPx.get(t.id);
@@ -2049,7 +2057,7 @@ export class Patcher {
       ...PATCH_POINTS.map((p) =>
         cfg.update(p.key, p.originalPx, vscode.ConfigurationTarget.Global),
       ),
-      ...TOGGLE_POINTS.map((t) =>
+      ...TOGGLE_POINTS.filter((t) => !ALWAYS_ON_TOGGLES.has(t.id)).map((t) =>
         cfg.update(t.key, t.defaultOn, vscode.ConfigurationTarget.Global),
       ),
       ...INJECT_POINTS.map((ip) =>

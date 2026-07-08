@@ -8,6 +8,16 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.2.x    |
 
+## 1.2.1
+
+- Remove `claudeCodeUiPatch.chatEnhancements`. The chat enhancement pack (Reply, Search,
+  DateTime, and the rest) is now always injected — there is no master on/off switch, only
+  the per-feature `claudeCodeUiPatch.feature.<id>` settings from 1.2.0.
+- The panel's two sections (**Chat Panel or Tab**, **Plan Mode Markdown Preview**) now lay
+  out side-by-side in a 2-column grid instead of one long vertical list, and the Chat
+  Enhancement Features checkboxes sit at the top of the first column (a 2-column grid of
+  their own on a wide-enough panel) instead of requiring a scroll to reach.
+
 ## 1.2.0
 
 - Add `claudeCodeUiPatch.chatEnhancements`: a pack of 15 chat-webview features — Reply on

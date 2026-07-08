@@ -62,8 +62,8 @@ Behavior
    ├── effortSyncFix                   # push persisted effort level to a reloaded session if On
    └── chatHideUsageWarning            # permanently hide the "X% of your weekly limit" banner if On
 
-chatEnhancements                       # master switch, Off by default; each feature below
-   │                                   # also has its own claudeCodeUiPatch.feature.<id> setting
+Chat Enhancement Features              # always injected; each feature has its own
+   │                                   # claudeCodeUiPatch.feature.<id> on/off setting
    ├── reply           # Reply on selection: quote selected chat text into the prompt
    ├── search           # Chat Search (Ctrl+F)
    ├── datetime         # date/time stamps + day separators on every message
@@ -114,10 +114,9 @@ chatEnhancements                       # master switch, Off by default; each fea
 
 A pack of 15 chat-webview features (Reply on selection, Chat Search, message date/time
 stamps, per-message and per-code-block Copy buttons, an outline/export/scroll toolbar, and
-more), turned on with `claudeCodeUiPatch.chatEnhancements` (default off — a window reload
-is required after enabling). Once on:
+more) is always injected — no master on/off switch.
 
-- The panel (see [Every Knob, One Panel](#every-knob-one-panel)) grows a **Chat Enhancement
+- The panel (see [Every Knob, One Panel](#every-knob-one-panel)) has a **Chat Enhancement
   Features** section: one real checkbox per feature. Checking/unchecking writes straight to
   its `claudeCodeUiPatch.feature.<id>` setting (see the tree above for the full id list) and
   re-patches the bundle immediately — the panel is the one place to turn individual
