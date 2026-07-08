@@ -486,6 +486,19 @@ interface TogglePoint {
   fnPresent?: (c: string) => boolean;
   fnCurrentOn?: (c: string) => boolean | undefined; // undefined => anchor gone
   fnSet?: (c: string, on: boolean) => string;
+  // Optional content digest beyond a plain on/off boolean — for a toggle whose ON
+  // state can itself carry different CONTENT (e.g. chatEnhancements: the injected
+  // script's per-feature seed values), so toggleStateStr()'s equality check (used by
+  // both analyzeToggles' status and reconcilePendingReload's "needs reload" flag)
+  // notices a content-only change, not just an on/off flip. Returns a short string
+  // that changes whenever the meaningful content differs; undefined defers to the
+  // plain jsOn boolean (the default for every other toggle).
+  fnContentDigest?: (c: string) => string | undefined;
+  // The digest toggleWantStr() should compare against when ON — computed from
+  // CURRENT settings alone (no file content available yet), so it must mirror
+  // fnContentDigest's derivation exactly. Only meaningful when fnContentDigest is
+  // also set.
+  fnWantDigest?: () => string;
   // Optional secondary CSS side-effect (a different file) applied when ON.
   cssFile?: string;
   cssMarker?: string; // comment tagging the appended rule
@@ -520,6 +533,26 @@ function chatEnhancementsCurrentOn(c: string): boolean | undefined {
   if (cur === undefined) return false; // anchor present, no block: OFF
   return true; // block present (content drift, if any, is reconciled by re-apply)
 }
+// A plain on/off boolean can't tell "the injected script is present" apart from
+// "the injected script is present WITH THE CURRENTLY-WANTED per-feature seed
+// values" — a claudeCodeUiPatch.feature.<id> flip changes only the latter. These
+// two functions give toggleStateStr()/toggleWantStr() a real content comparison
+// (a fast, cheap length+char-sum digest — the actual scripts run tens of KB, so
+// hashing the full string on every analyze/reconcile pass is unnecessary), so a
+// feature-only change is correctly flagged as "needs reload" instead of silently
+// looking identical to the already-applied state.
+function cheapDigest(s: string): string {
+  let sum = 0;
+  for (let i = 0; i < s.length; i += 7) sum = (sum + s.charCodeAt(i) * (i + 1)) % 0xfffffff;
+  return `${s.length}-${sum.toString(36)}`;
+}
+function chatEnhancementsContentDigest(c: string): string | undefined {
+  const cur = currentBehaviorScript(c);
+  return cur === undefined ? undefined : cheapDigest(cur);
+}
+function chatEnhancementsWantDigest(): string {
+  return cheapDigest(wantedBehaviorScript(readFeatureDefaults()));
+}
 function chatEnhancementsSet(c: string, on: boolean): string {
   if (!on) return removeBehaviorScript(c);
   const defaults = readFeatureDefaults();
@@ -546,6 +579,8 @@ const TOGGLE_POINTS: TogglePoint[] = [
     fnPresent: chatEnhancementsPresent,
     fnCurrentOn: chatEnhancementsCurrentOn,
     fnSet: chatEnhancementsSet,
+    fnContentDigest: chatEnhancementsContentDigest,
+    fnWantDigest: chatEnhancementsWantDigest,
     cssFile: "webview/index.css",
     cssMarker: BEHAVIOR_CSS_MARKER,
     cssBuild: chatEnhancementsCssBuild,
@@ -686,7 +721,8 @@ function toggleStateStr(
 ): string | undefined {
   const js = read(t.file);
   if (js === undefined || !togglePresent(js, t)) return undefined;
-  const jsOn = toggleCurrentOn(js, t) ? "on" : "off";
+  const digest = t.fnContentDigest?.(js);
+  const jsOn = digest !== undefined ? `on:${digest}` : toggleCurrentOn(js, t) ? "on" : "off";
   if (!t.cssFile || !t.cssMarker) return jsOn;
   const css = read(t.cssFile);
   // "css" only when the EXACT current rule matches what we'd build now. A missing
@@ -705,7 +741,7 @@ function toggleStateStr(
 
 // The full-state string a toggle should have for a given on/off setting.
 function toggleWantStr(t: TogglePoint, on: boolean): string {
-  const js = on ? "on" : "off";
+  const js = on ? (t.fnWantDigest ? `on:${t.fnWantDigest()}` : "on") : "off";
   if (!t.cssFile || !t.cssMarker) return js;
   return `${js}+${on ? "css" : "nocss"}`;
 }
