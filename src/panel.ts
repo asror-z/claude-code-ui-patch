@@ -80,22 +80,17 @@ abstract class PatchWebviewHost {
   // --- HTML generation ---
 
   private knobHtml(k: Knob): string {
-    const dotOk = k.native ? true : !k.pendingReload;
-    const dotTitle = dotTitleFor(k.native, dotOk);
-    const dot = `<span class="dot-slot"><span class="dot ${dotOk ? "dot-ok" : "dot-warn"}" title="${dotTitle}">●</span></span>`;
     if (k.kind === "toggle") {
       return `      <div class="knob" data-id="${k.id}" data-kind="toggle">
-        ${dot}
         <span class="label">${k.label}</span>
         <span class="controls"><button class="switch ${k.on ? "on" : "off"}" data-cmd="toggle" role="switch" aria-checked="${k.on}"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-text">${k.on ? "On" : "Off"}</span></button></span>
       </div>`;
     }
     const cmd = k.native ? "nativeSet" : "set";
     return `      <div class="knob" data-id="${k.id}" data-min="${MIN_PX}" data-max="${k.max}" data-cmd="${cmd}">
-        ${dot}
         <span class="label">${k.label}</span>
         <span class="controls">
-          <input type="number" class="px-input" value="${k.px}" min="${MIN_PX}" max="${k.max}" step="${STEP}">
+          <input type="number" class="px-input" value="${k.px}" min="${MIN_PX}" max="${k.max}" step="1">
           <span class="px-unit">px</span>
         </span>
       </div>`;
