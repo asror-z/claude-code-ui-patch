@@ -8,6 +8,19 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.2.x    |
 
+## 1.2.6
+
+- Fix the Activity Bar sidebar's narrow (`<= 500px`) responsive layout: its
+  `@media` overrides for knob rows, the feature grid, and the footer action
+  buttons were silently losing the CSS cascade to later same-specificity base
+  rules (a leftover margin/gap and truncated labels persisted regardless of
+  width). The media block is now the last rule in the stylesheet, so its
+  overrides always win when the sidebar is narrow.
+- The footer's two action buttons ("Restore Last Applied" / "Open VS Code
+  Settings") now stack full-width (one per row) instead of sitting two-up in
+  the narrow sidebar, with a taller button and a smaller icon/font so the
+  whole label fits on one line instead of truncating to an unreadable sliver.
+
 ## 1.2.5
 
 - Auto-continue on error now treats ANY "API Error:" banner as a trigger, not just a

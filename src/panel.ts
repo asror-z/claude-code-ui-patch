@@ -445,32 +445,6 @@ const baseCss = `
   .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 28px; row-gap: 18px; align-items: start; }
   .section-col { min-width: 0; }
   .section-col + .section-col { border-left: 1px solid var(--vscode-panel-border); padding-left: 28px; }
-  /* Below ~500px (the Activity Bar sidebar's typical width, far narrower than the
-     editor-tab panel this layout was originally designed for) a knob row's fixed
-     168px control group + 160px label simply cannot fit side-by-side. Stack each
-     row's label above its controls instead of letting it clip or forcing a
-     horizontal scrollbar — a real responsive layout, not a scroll-escape hatch. */
-  @media (max-width: 500px) {
-    .feature-grid, .section-grid { grid-template-columns: 1fr; }
-    .section-col + .section-col { border-left: none; padding-left: 0; border-top: 1px solid var(--vscode-panel-border); padding-top: 12px; margin-top: 4px; }
-    /* Stay on ONE row (not stacked) even at this width, but put the controls
-       (the input/switch) BEFORE the label visually via CSS order, without
-       reordering the actual DOM/data-cmd wiring — the label shrinks/truncates
-       instead of pushing the row wider than the sidebar. */
-    .knob { flex-wrap: nowrap; gap: 8px; padding: 6px 4px; }
-    .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* The wide-view .controls box is a fixed 84px so a size-input and a
-       toggle-switch line up in a column; at this width there's no column to
-       line up (one knob per row), so let it shrink to its actual content
-       instead of reserving 84px of now-empty space before the switch/input. */
-    .knob .controls { order: 1; margin-left: 0; flex-shrink: 0; width: auto; }
-    .knob .switch { width: auto; }
-    /* 4 action buttons as a real 2x2 grid (2 rows, 2 columns) instead of a row
-       that overflows/wraps unpredictably — smaller font/padding so each button
-       fits its half-width cell without its label wrapping onto 3+ lines. */
-    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .btn { padding: 6px 8px; font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  }
   .feature-row { display: flex; align-items: center; padding: 3px 4px; line-height: 1.32; cursor: pointer; border-radius: var(--ccp-radius-sm); transition: background-color .12s ease; }
   .feature-row:hover { background: var(--vscode-list-hoverBackground); }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; accent-color: var(--ccp-accent); width: 14px; height: 14px; }
@@ -555,6 +529,45 @@ const baseCss = `
   a.link.link-reload { background: var(--ccp-green); color: #fff; padding: 4px 13px; border-radius: 999px; font-weight: 700; }
   a.link.link-reload:hover { text-decoration: none; filter: brightness(1.08); }
   a.link.link-reload.link-reload-pending { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
+
+  /* Below ~500px (the Activity Bar sidebar's typical width, far narrower than the
+     editor-tab panel this layout was originally designed for) a knob row's fixed
+     168px control group + 160px label simply cannot fit side-by-side, and the two
+     footer buttons' full label text ("Restore Last Applied" / "Open VS Code
+     Settings") cannot fit two-up either. THIS BLOCK MUST BE THE VERY LAST THING IN
+     baseCss — a same-specificity override loses to a rule that appears LATER in
+     the stylesheet regardless of whether the media condition is active, so any
+     rule added below this comment in the future must go ABOVE this media block,
+     never after it (a prior bug: this same block sat above the later .link-icon/
+     a.link.link-reload rules and got silently overridden by them at every width). */
+  @media (max-width: 500px) {
+    .feature-grid, .section-grid { grid-template-columns: 1fr; }
+    .section-col + .section-col { border-left: none; padding-left: 0; border-top: 1px solid var(--vscode-panel-border); padding-top: 12px; margin-top: 4px; }
+    /* Stay on ONE row (not stacked) even at this width, but put the controls
+       (the input/switch) BEFORE the label visually via CSS order, without
+       reordering the actual DOM/data-cmd wiring — the label shrinks/truncates
+       instead of pushing the row wider than the sidebar. */
+    .knob { flex-wrap: nowrap; gap: 8px; padding: 6px 4px; }
+    .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* The wide-view .controls box is a fixed 84px so a size-input and a
+       toggle-switch line up in a column; at this width there's no column to
+       line up (one knob per row), so let it shrink to its actual content
+       instead of reserving 84px of now-empty space before the switch/input. */
+    .knob .controls { order: 1; margin-left: 0; flex-shrink: 0; width: auto; }
+    .knob .switch { width: auto; }
+    /* Footer buttons: a 2-up row truncated "Restore Last Applied" / "Open VS Code
+       Settings" down to unreadable slivers ("Rest…" / "Open VS C…") because there
+       simply isn't enough width for both side by side, even with a smaller font.
+       Stack them full-width instead (1 column), and grow the button's height
+       while shrinking its icon/font so the whole label fits on one line without
+       wrapping or clipping. */
+    .actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .btn {
+      padding: 10px 8px; font-size: 0.8em; white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; display: flex; align-items: center; justify-content: center;
+    }
+    .link-icon { font-size: 0.95em; }
+  }
 `;
 
 // Per-render nonce so the Content-Security-Policy can allow only this panel's
