@@ -172,8 +172,6 @@ ${sections}
   <div class="actions">
     <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">&#8617; Restore Last Applied</button>
     <button class="btn btn-outline" data-cmd="openSettings" title="Open the claudeCodeUiPatch.* settings in VS Code Settings"><span class="link-icon">&#9881;</span>Open VS Code Settings</button>
-    <button class="btn btn-outline${snap.needsReload ? " btn-reload-pending" : ""}" data-cmd="reload" title="Reload the window to apply changes">&#8635; Reload Window</button>
-    <button class="btn btn-red" data-cmd="restore" title="Reset every setting to Claude Code's native values">&#8635; Factory Reset</button>
   </div>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
