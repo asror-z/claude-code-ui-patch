@@ -1,7 +1,10 @@
 .vscode/**
+.claude/**
 src/**
 node_modules/**
 **/*.map
 **/tsconfig.json
 .gitignore
 .DS_Store
+CLAUDE.md
+.vscodeignore

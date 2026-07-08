@@ -8,6 +8,15 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.2.x    |
 
+## 1.2.8
+
+- Change the shipped defaults for four settings to match the values the
+  extension is actually meant to apply on first install: `chatCodeblockFontSize`
+  11 -> 14, `chatDiffCardFontSize` 12 -> 14, `chatDiffCardLineNumbers`
+  Off -> On, `chatDiffCardThemeSync` Off -> On. Every other setting (font
+  sizes, the 15 chat-enhancement features, `chatHideUsageWarning`,
+  `effortSyncFix`) already defaulted to its intended out-of-the-box value.
+
 ## 1.2.7
 
 - The "Reload window to apply changes" status banner (a real `<button>` since it

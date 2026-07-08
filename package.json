@@ -2,7 +2,7 @@
   "name": "claude-code-ui-patch",
   "displayName": "Claude Code UI Patch",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "publisher": "zeyutang",
   "icon": "icon.png",
   "license": "MIT",
@@ -78,7 +78,7 @@
         },
         "claudeCodeUiPatch.chatCodeblockFontSize": {
           "type": "number",
-          "default": 11,
+          "default": 14,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Chat fenced code block size in px."
@@ -92,19 +92,19 @@
         },
         "claudeCodeUiPatch.chatDiffCardFontSize": {
           "type": "number",
-          "default": 12,
+          "default": 14,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Diff card code size in px (Edit/MultiEdit cards and the expand modal)."
         },
         "claudeCodeUiPatch.chatDiffCardLineNumbers": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs."
         },
         "claudeCodeUiPatch.chatDiffCardThemeSync": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Sync the diff card theme to the VS Code light/dark theme instead of forcing dark."
         },
         "claudeCodeUiPatch.chatPermissionCodeMatchChatCodeblock": {
