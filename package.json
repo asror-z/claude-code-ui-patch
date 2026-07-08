@@ -2,7 +2,7 @@
   "name": "claude-code-ui-patch",
   "displayName": "Claude Code UI Patch",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "publisher": "zeyutang",
   "icon": "icon.png",
   "license": "MIT",
@@ -43,6 +43,24 @@
         "title": "Claude Code UI Patch: Open Panel"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claudeCodeUiPatch",
+          "title": "Claude Code UI Patch",
+          "icon": "media/activitybar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "claudeCodeUiPatch": [
+        {
+          "id": "claudeCodeUiPatch.sidebarView",
+          "name": "Claude Code UI Patch",
+          "type": "webview"
+        }
+      ]
+    },
     "configuration": {
       "title": "Claude Code UI Patch",
       "properties": {

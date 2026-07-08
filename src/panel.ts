@@ -1,61 +1,41 @@
 import * as vscode from "vscode";
 import { Patcher, Snapshot, Knob, FeatureState, SECTION_ORDER, STEP, MIN_PX } from "./patcher";
 
-// A webview panel that serves as the detailed control surface (opened by
-// clicking the status-bar item). The hover tooltip is a compact read-only
-// summary; this panel adds per-knob ▼/▲ adjust, Restore Last Applied / Factory
-// Reset, and per-knob sync-state dots. Communication uses postMessage.
+// Shared rendering + message-handling logic for the control surface, hosted by
+// EITHER a floating editor-tab WebviewPanel (PatchPanel, opened via the Command
+// Palette / status-bar click) OR an Activity Bar-docked WebviewView
+// (PatchSidebarView, opened via its own icon in the Activity Bar) — VS Code's
+// vscode.Webview interface (.html, .postMessage, .onDidReceiveMessage,
+// .cspSource) is identical for both host types, so one base class drives both;
+// only how each host is created/revealed differs.
 //
 // Snappiness: clicking an arrow updates the px display in the webview
 // immediately (optimistically) and posts the absolute target value. The full
-// HTML is rebuilt only when the panel's structure changes (version, which knobs
-// exist); ordinary value/dot/status updates are pushed as lightweight "sync"
-// messages that patch the DOM in place, so nothing reloads on each click.
-export class PatchPanel {
-  private static current: PatchPanel | undefined;
-  private readonly panel: vscode.WebviewPanel;
-  private readonly sub: vscode.Disposable;
-  private shape = ""; // signature of the last full render's structure
+// HTML is rebuilt only when the structure changes (version, which knobs exist);
+// ordinary value/dot/status updates are pushed as lightweight "sync" messages
+// that patch the DOM in place, so nothing reloads on each click.
+abstract class PatchWebviewHost {
+  protected shape = ""; // signature of the last full render's structure
 
-  private constructor(private readonly patcher: Patcher) {
-    this.panel = vscode.window.createWebviewPanel(
-      "claudeCodeUiPatch.panel",
-      "Claude Code UI Patch",
-      vscode.ViewColumn.Active,
-      { enableScripts: true, localResourceRoots: [], retainContextWhenHidden: true }
-    );
-    this.sub = vscode.Disposable.from(
-      patcher.onDidChange(() => this.update()),
-      this.panel.onDidDispose(() => {
-        PatchPanel.current = undefined;
-        this.sub.dispose();
-      }),
-      this.panel.webview.onDidReceiveMessage((m) => this.onMessage(m))
-    );
-    this.update();
-  }
+  protected constructor(protected readonly patcher: Patcher) {}
 
-  static show(patcher: Patcher): void {
-    if (PatchPanel.current) {
-      PatchPanel.current.panel.reveal();
-      return;
-    }
-    PatchPanel.current = new PatchPanel(patcher);
-  }
+  protected abstract get webview(): vscode.Webview | undefined;
 
   // Full re-render on a structural change; otherwise patch the DOM in place.
-  private update(): void {
+  protected update(): void {
+    const webview = this.webview;
+    if (!webview) return; // view not yet resolved (sidebar view before first reveal)
     const snap = this.patcher.snapshot();
     const shape = shapeOf(snap);
     if (shape !== this.shape) {
       this.shape = shape;
-      this.panel.webview.html = this.html(snap);
+      webview.html = this.html(webview, snap);
     } else if (snap) {
-      void this.panel.webview.postMessage({ type: "sync", ...syncPayload(snap) });
+      void webview.postMessage({ type: "sync", ...syncPayload(snap) });
     }
   }
 
-  private async onMessage(msg: {
+  protected async onMessage(msg: {
     command: string;
     target?: string;
     value?: number;
@@ -129,9 +109,9 @@ export class PatchPanel {
       </label>`;
   }
 
-  private html(snap: Snapshot | undefined): string {
+  private html(webview: vscode.Webview, snap: Snapshot | undefined): string {
     const nonce = getNonce();
-    const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${this.panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">`;
+    const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">`;
     if (!snap || !snap.available) {
       return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 ${csp}
@@ -294,6 +274,73 @@ ${sections}
   }
 }
 
+// Floating editor-tab host (opened via the Command Palette or status-bar click).
+export class PatchPanel extends PatchWebviewHost {
+  private static current: PatchPanel | undefined;
+  private readonly panel: vscode.WebviewPanel;
+  private readonly sub: vscode.Disposable;
+
+  private constructor(patcher: Patcher) {
+    super(patcher);
+    this.panel = vscode.window.createWebviewPanel(
+      "claudeCodeUiPatch.panel",
+      "Claude Code UI Patch",
+      vscode.ViewColumn.Active,
+      { enableScripts: true, localResourceRoots: [], retainContextWhenHidden: true }
+    );
+    this.sub = vscode.Disposable.from(
+      patcher.onDidChange(() => this.update()),
+      this.panel.onDidDispose(() => {
+        PatchPanel.current = undefined;
+        this.sub.dispose();
+      }),
+      this.panel.webview.onDidReceiveMessage((m) => this.onMessage(m))
+    );
+    this.update();
+  }
+
+  protected get webview(): vscode.Webview {
+    return this.panel.webview;
+  }
+
+  static show(patcher: Patcher): void {
+    if (PatchPanel.current) {
+      PatchPanel.current.panel.reveal();
+      return;
+    }
+    PatchPanel.current = new PatchPanel(patcher);
+  }
+}
+
+// Activity Bar sidebar host — the SAME control surface, docked in the sidebar
+// under its own Activity Bar icon (media/activitybar-icon.svg) instead of a
+// floating editor tab. VS Code resolves the WebviewView lazily, the first time
+// the user opens the view (clicks the icon or expands it), not at activation.
+export class PatchSidebarView extends PatchWebviewHost implements vscode.WebviewViewProvider {
+  static readonly viewId = "claudeCodeUiPatch.sidebarView";
+  private view: vscode.WebviewView | undefined;
+
+  constructor(patcher: Patcher) {
+    super(patcher);
+    patcher.onDidChange(() => this.update());
+  }
+
+  protected get webview(): vscode.Webview | undefined {
+    return this.view?.webview;
+  }
+
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.view = webviewView;
+    webviewView.webview.options = { enableScripts: true, localResourceRoots: [] };
+    webviewView.onDidDispose(() => {
+      if (this.view === webviewView) this.view = undefined;
+    });
+    webviewView.webview.onDidReceiveMessage((m) => this.onMessage(m));
+    this.shape = ""; // force a full render for the newly-resolved webview
+    this.update();
+  }
+}
+
 // Structure signature: a full re-render happens only when this changes.
 function shapeOf(snap: Snapshot | undefined): string {
   if (!snap || !snap.available) return "none";
@@ -351,7 +398,7 @@ const baseCss = `
   /* Two columns whenever there's room (>= ~340px per column), one column in a
      narrow panel — auto-fit avoids a forced 2-up layout that would overflow or
      leave an awkward gap in a resized/narrow window. */
-  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); column-gap: 20px; row-gap: 0; padding-left: 28px; }
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 20px; row-gap: 0; padding-left: 28px; }
   /* Inside its OWN section-col (narrower than the whole panel), the feature list
      stays a single column — a nested 2-up auto-fit would cramp each label. */
   .feature-grid-1col { grid-template-columns: 1fr; padding-left: 0; }
@@ -362,7 +409,12 @@ const baseCss = `
   /* 3 columns whenever there's room (feature checkboxes, Chat Panel or Tab knobs,
      Plan Mode Markdown Preview knobs); wraps down to 2, then 1, in a narrower
      window rather than ever overflowing or leaving an awkward gap. */
-  .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); column-gap: 32px; align-items: start; }
+  .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 32px; align-items: start; }
+  /* A knob row's ▼/▲/px control group needs real horizontal room; in a narrow
+     Activity Bar sidebar (as opposed to the wide editor-tab panel) a column can
+     still be less than that, so let a knob row scroll its own controls
+     horizontally rather than the whole sidebar overflowing/wrapping oddly. */
+  .section-col { min-width: 0; overflow-x: auto; }
   .section-col + .section-col { border-left: 1px solid var(--vscode-panel-border); padding-left: 32px; }
   .feature-row { display: flex; align-items: center; padding: 1px 0; line-height: 1.32; cursor: pointer; }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; }

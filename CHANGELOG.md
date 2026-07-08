@@ -8,6 +8,14 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.2.x    |
 
+## 1.2.2
+
+- Add an Activity Bar icon for Claude Code UI Patch, opening the same control surface as
+  a sidebar view (`registerWebviewViewProvider`) instead of only a floating editor tab.
+  The rendering/message-handling logic is now shared between the editor-tab panel
+  (`PatchPanel`, still opened via the Command Palette or status-bar click) and the new
+  sidebar view (`PatchSidebarView`) through a common base class.
+
 ## 1.2.1
 
 - Remove `claudeCodeUiPatch.chatEnhancements`. The chat enhancement pack (Reply, Search,

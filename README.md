@@ -16,7 +16,7 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 |     Adjust the knobs, then **Reload Window**      | Hover the `aA` to show summary, and click to open panel |
 
 1. Open the configuration panel  
-   Press `Cmd+Shift+P` / `Ctrl+Shift+P` (or `F1`) to open the Command Palette, then run **Claude Code UI Patch: Open Panel**. Or alternatively, click the `aA` item at the far right of the status bar.
+   Press `Cmd+Shift+P` / `Ctrl+Shift+P` (or `F1`) to open the Command Palette, then run **Claude Code UI Patch: Open Panel**. Or alternatively, click the `aA` item at the far right of the status bar, or click the Claude Code UI Patch icon in the Activity Bar to open the same controls docked in the sidebar.
 2. Modify the settings.  
    The yellow light in front of the item and the yellow highlight of the status bar icon will indicate that a **Reload Window** is needed in order for the configurations to fully apply.
 3. **Reload Window**  
