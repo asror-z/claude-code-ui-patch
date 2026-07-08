@@ -431,7 +431,6 @@ const baseCss = `
   /* --- Knob rows --- */
   .knob { display: flex; align-items: center; padding: 5px 4px; line-height: 1.5; border-radius: var(--ccp-radius-sm); transition: background-color .12s ease; }
   .knob:hover { background: var(--vscode-list-hoverBackground); }
-  .knob .dot-slot { width: 14px; flex-shrink: 0; text-align: center; margin-right: 12px; }
   .knob .label { flex: 1 1 auto; min-width: 160px; }
   /* Two columns whenever there's room (>= ~340px per column), one column in a
      narrow panel — auto-fit avoids a forced 2-up layout that would overflow or
