@@ -160,9 +160,9 @@ ${csp}
     // this is the ONE control surface for per-feature on/off (no in-webview gear).
     const chatEnhOn = snap.knobs.some((k) => k.id === "chatEnhancements" && k.on);
     const featuresSection = chatEnhOn
-      ? `    <hr class="divider">\n    <h2>Chat Enhancement Features</h2>\n${snap.features
+      ? `    <hr class="divider">\n    <h2>Chat Enhancement Features</h2>\n    <div class="feature-grid">\n${snap.features
           .map((f) => this.featureHtml(f))
-          .join("\n")}`
+          .join("\n")}\n    </div>`
       : "";
 
     return `<!DOCTYPE html>
@@ -333,7 +333,7 @@ const baseCss = `
     font-size: calc(var(--vscode-font-size) * 1.2);
     color: var(--vscode-foreground);
     background: var(--vscode-editor-background);
-    max-width: 480px;
+    max-width: 640px;
     padding: 16px 28px;
   }
   h1 { font-size: 1.7em; font-weight: 700; margin: 0; }
@@ -345,8 +345,12 @@ const baseCss = `
   .knob { display: flex; align-items: center; padding: 3px 0; }
   .knob .dot-slot { width: 14px; flex-shrink: 0; text-align: center; margin-right: 14px; }
   .knob .label { flex: 1 1 auto; min-width: 160px; }
-  .feature-row { display: flex; align-items: center; padding: 3px 0 3px 28px; cursor: pointer; }
-  .feature-cb { margin: 0 10px 0 0; cursor: pointer; }
+  /* Two columns whenever there's room (>= ~340px per column), one column in a
+     narrow panel — auto-fit avoids a forced 2-up layout that would overflow or
+     leave an awkward gap in a resized/narrow window. */
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); column-gap: 20px; padding-left: 28px; }
+  .feature-row { display: flex; align-items: center; padding: 3px 0; cursor: pointer; }
+  .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; }
   .feature-label { flex: 1 1 auto; }
   .knob .controls { display: flex; align-items: center; justify-content: center; width: 168px; flex-shrink: 0; margin-left: 16px; }
   .knob .btn-sm { width: 34px; flex-shrink: 0; text-align: center; margin: 0 2px; }
