@@ -34,14 +34,19 @@ const JS = `
   var COUNT_KEY = "cc-autocontinue-count"; // localStorage session counter
   var OFF_KEY = "cc-autocontinue";         // localStorage 'off' override
 
-  // SPECIFIC stream-drop / transient-throttle phrases. TIGHTENED after a live false-fire:
-  // the old bare "\\bAPI Error\\b" alternative matched ANY sentence containing those two
-  // words (it fired on a user message quoting "> API Error: …" and on an unrelated
-  // "CopyTool permission request failed" line). Every alternative here is a concrete
-  // stream-drop/throttle phrase — never a generic "Error:" — so plain prose can't match.
+  // SPECIFIC stream-drop / transient-throttle / server-error phrases. TIGHTENED after a
+  // live false-fire: the old bare "\\bAPI Error\\b" alternative matched ANY sentence
+  // containing those two words (it fired on a user message quoting "> API Error: …" and
+  // on an unrelated "CopyTool permission request failed" line). Every alternative here is
+  // a concrete stream-drop/throttle/server-error phrase — never a bare generic "Error:" —
+  // so plain prose can't match. "api error:\\s*5\\d\\d\\b" additionally covers a real
+  // "API Error: 500 Internal server error..." banner (a 5xx status is always transient/
+  // server-side, unlike a 4xx client error), which the earlier connection-closed-only
+  // pattern missed.
   var DROP_RE = new RegExp(
     [
       "api error:\\\\s*connection closed",
+      "api error:\\\\s*5\\\\d\\\\d\\\\b",
       "connection closed mid-?response",
       "connection (?:reset|aborted) by peer",
       "stream (?:disconnected|closed|error|stall)",
@@ -54,6 +59,7 @@ const JS = `
       "server is temporarily limiting requests",
       "temporarily limiting requests",
       "\\\\bRate limited\\\\b",
+      "internal server error",
     ].join("|"),
     "i"
   );
@@ -239,41 +245,92 @@ const JS = `
   }
 
   // ---- main sweep -----------------------------------------------------------------
+  //
+  // TWO-PHASE fire, matching "5 soniya davomida yangi message kelmasa — Automatically
+  // continue deb yozvoradi" (if no new message arrives for 5 seconds, auto-type
+  // "continue"): detecting an error banner does NOT submit "continue" immediately — it
+  // arms a QUIET_MS countdown. The countdown RESTARTS whenever the chat's message count
+  // increases (a real new message/turn appearing — not just any DOM churn, which would
+  // make the timer effectively never fire in a live, constantly-repainting chat UI), and
+  // is cancelled outright if the banner itself clears (the run recovered on its own).
+  // Only once QUIET_MS has elapsed with NO new message AND the same banner still present
+  // does it actually submit "continue".
+  var QUIET_MS = 5000;
+  var quietTimer = null;
+  var armedBanner = null; // the banner element the current quiet-timer is waiting on
+  var lastMsgCount = -1;  // message-container count as of the last successful arm/restart
 
-  function run() {
-    var banners = findErrorBanners();
-    if (!banners.length) {
-      // a clean sweep (no error banner visible) resets the per-session budget so a
-      // later, unrelated drop gets a fresh cap. If near-misses were rejected this sweep,
-      // log WHY so a future false-fire (or missed banner) is observable.
-      if (rejected) diagLog({ kind: "cc.autocontinue", action: "rejected-candidates", rejected: rejected });
-      resetCount();
+  // A cheap count of real chat message containers (turns/bubbles), used ONLY to detect
+  // "a new message arrived" — reuses the same container-class heuristic as
+  // insideMessage()'s MSG_CONTAINER_RE so it tracks genuine chat content, not incidental
+  // DOM noise (cursor blink, hover states, timestamp re-renders).
+  function messageCount() {
+    try {
+      return chatRoot().querySelectorAll(
+        "[class*='userMessageContainer'],[class*='timelineMessage'],[class*='turn_']"
+      ).length;
+    } catch (e) { return -1; }
+  }
+
+  function cancelQuietTimer(reason) {
+    if (!quietTimer) return;
+    W.clearTimeout(quietTimer);
+    quietTimer = null;
+    if (armedBanner) {
+      diagLog({ kind: "cc.autocontinue", action: "quiet-wait-cancelled", reason: reason || "activity" });
+    }
+    armedBanner = null;
+  }
+
+  function armQuietTimer(banner) {
+    if (quietTimer) W.clearTimeout(quietTimer);
+    armedBanner = banner;
+    lastMsgCount = messageCount();
+    quietTimer = W.setTimeout(onQuietTimeout, QUIET_MS);
+  }
+
+  function onQuietTimeout() {
+    quietTimer = null;
+    var stillArmed = armedBanner;
+    armedBanner = null;
+    if (!stillArmed) return;
+    // A new message arrived at some point during the wait but the observer's debounced
+    // run() didn't get a chance to restart the timer before it fired (a race at the
+    // boundary) — re-check the count directly here too, belt-and-braces.
+    if (messageCount() !== lastMsgCount) {
+      diagLog({ kind: "cc.autocontinue", action: "quiet-wait-resolved", reason: "new-message-detected" });
       return;
     }
-    if (offOverride()) {
-      for (var m = 0; m < banners.length; m++) banners[m].setAttribute(DONE_ATTR, "1");
-      diagLog({ kind: "cc.autocontinue", action: "disabled", reason: "off-override", banners: banners.length });
+    // Re-check the banner is STILL present/undone after the full quiet period — a run
+    // that resumed mid-wait already cleared/removed it (covered by cancelQuietTimer in
+    // run() too, but this is a defensive second check at fire-time).
+    var recheck = findErrorBanners();
+    var stillThere = false;
+    for (var i = 0; i < recheck.length; i++) {
+      if (recheck[i] === stillArmed || stillArmed.contains(recheck[i]) || recheck[i].contains(stillArmed)) {
+        stillThere = true;
+        break;
+      }
+    }
+    if (!stillThere) {
+      diagLog({ kind: "cc.autocontinue", action: "quiet-wait-resolved", reason: "banner-gone-by-timeout" });
       return;
     }
+    try { fireContinue(stillArmed); } catch (e) {}
+  }
 
-    // mark every banner handled up-front so we never fire twice for the same one, even
-    // if the submit path below decides not to act.
-    var fresh = banners[0];
-    for (var i = 0; i < banners.length; i++) banners[i].setAttribute(DONE_ATTR, "1");
-
+  function fireContinue(banner) {
     var count = getCount();
     var maxN = cap();
     if (count >= maxN) {
       diagLog({ kind: "cc.autocontinue", action: "capped", attempts: count, cap: maxN });
-      return; // budget exhausted this session
+      return;
     }
-
     var now = (W.performance && W.performance.now) ? W.performance.now() : Date.parse(new Date().toString());
     if (lastFireAt && now - lastFireAt < COOLDOWN_MS) {
       diagLog({ kind: "cc.autocontinue", action: "cooldown", sinceMs: Math.round(now - lastFireAt) });
       return;
     }
-
     var input = findComposer();
     if (!input) {
       diagLog({ kind: "cc.autocontinue", action: "no-composer" });
@@ -283,8 +340,8 @@ const JS = `
       diagLog({ kind: "cc.autocontinue", action: "composer-busy" });
       return; // never clobber a half-typed message
     }
-
-    var matched = (fresh.textContent || "").trim().slice(0, 120);
+    banner.setAttribute(DONE_ATTR, "1"); // mark handled only once we actually act
+    var matched = (banner.textContent || "").trim().slice(0, 120);
     var sent = submitContinue(input);
     lastFireAt = now;
     setCount(count + 1);
@@ -293,8 +350,47 @@ const JS = `
       action: sent ? "continued" : "insert-only",
       attempt: count + 1,
       cap: maxN,
+      quietMs: QUIET_MS,
       matched: matched,
     });
+  }
+
+  function run() {
+    var banners = findErrorBanners();
+    if (!banners.length) {
+      // a clean sweep (no error banner visible) means the run recovered on its own —
+      // cancel any pending quiet-wait and reset the per-session budget so a later,
+      // unrelated drop gets a fresh cap. If near-misses were rejected this sweep, log
+      // WHY so a future false-fire (or missed banner) is observable.
+      cancelQuietTimer("banner-cleared");
+      if (rejected) diagLog({ kind: "cc.autocontinue", action: "rejected-candidates", rejected: rejected });
+      resetCount();
+      return;
+    }
+    if (offOverride()) {
+      cancelQuietTimer("off-override");
+      for (var m = 0; m < banners.length; m++) banners[m].setAttribute(DONE_ATTR, "1");
+      diagLog({ kind: "cc.autocontinue", action: "disabled", reason: "off-override", banners: banners.length });
+      return;
+    }
+
+    var fresh = banners[0];
+    var curMsgCount = messageCount();
+
+    if (armedBanner === fresh) {
+      // Same banner still pending: restart the QUIET_MS countdown only if a genuinely
+      // NEW message arrived since we last armed (not on incidental DOM churn) — this is
+      // the literal "no new message for 5 seconds" condition.
+      if (curMsgCount !== lastMsgCount) {
+        diagLog({ kind: "cc.autocontinue", action: "quiet-wait-restarted", reason: "new-message", quietMs: QUIET_MS });
+        armQuietTimer(fresh);
+      }
+      return;
+    }
+
+    // A NEW (or different) banner arrived — arm/restart the wait against it.
+    diagLog({ kind: "cc.autocontinue", action: "quiet-wait-started", quietMs: QUIET_MS });
+    armQuietTimer(fresh);
   }
 
   var pending = null;

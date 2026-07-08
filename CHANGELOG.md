@@ -8,6 +8,16 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.2.x    |
 
+## 1.2.4
+
+- Fix Auto-continue on error: broaden the stream-drop detection regex to catch a generic
+  "API Error: 5XX" / "internal server error" banner (a real "API Error: 500 Internal
+  server error" banner was not being detected before this fix).
+- Auto-continue now waits for 5 seconds of genuine chat inactivity (tracked by message
+  count, not raw DOM mutations) after an error banner appears before auto-submitting
+  "continue", instead of firing immediately on detection. The wait restarts whenever a
+  new message actually arrives and cancels outright if the banner clears on its own.
+
 ## 1.2.3
 
 - Redesign the control panel: a card-style layout with icons on the header, section
