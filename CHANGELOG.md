@@ -8,6 +8,19 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.2.x    |
 
+## 1.2.3
+
+- Redesign the control panel: a card-style layout with icons on the header, section
+  headings, and status banner, a version pill, and a real sliding switch (pill + thumb)
+  replacing the plain On/Off button.
+- Replace the ▼/▲ spinner buttons for font-size knobs with a plain single-line number
+  input, matching the compact single-line layout the Chat Enhancement Features
+  checkboxes already use.
+- The bottom action row (Restore Last Applied / Open VS Code Settings / Reload Window /
+  Factory Reset) is now four uniform buttons instead of a mix of buttons and bare links;
+  Reload Window highlights as a warning-colored button only while a reload is actually
+  pending.
+
 ## 1.2.2
 
 - Add an Activity Bar icon for Claude Code UI Patch, opening the same control surface as
