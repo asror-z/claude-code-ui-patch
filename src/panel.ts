@@ -355,11 +355,6 @@ function shapeOf(snap: Snapshot | undefined): string {
   );
 }
 
-function dotTitleFor(native: boolean, ok: boolean): string {
-  if (native) return "live";
-  return ok ? "in effect" : "reload window to take effect";
-}
-
 function sectionIcon(sec: string): string {
   const glyph = sec === "Plan Mode Markdown Preview" ? "&#128221;" : "&#128172;";
   return `<span class="h2-icon">${glyph}</span>`;
