@@ -402,20 +402,28 @@ const baseCss = `
   /* Inside its OWN section-col (narrower than the whole panel), the feature list
      stays a single column — a nested 2-up auto-fit would cramp each label. */
   .feature-grid-1col { grid-template-columns: 1fr; padding-left: 0; }
-  /* The two top-level sections (Chat Panel or Tab, Plan Mode Markdown Preview) sit
-     side-by-side, each its own column, so the panel's full width is used instead of
-     a single long vertical flow with an empty right half. Wraps to one stacked
-     column automatically once the panel is too narrow for two ~420px columns. */
   /* 3 columns whenever there's room (feature checkboxes, Chat Panel or Tab knobs,
      Plan Mode Markdown Preview knobs); wraps down to 2, then 1, in a narrower
      window rather than ever overflowing or leaving an awkward gap. */
   .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 32px; align-items: start; }
-  /* A knob row's ▼/▲/px control group needs real horizontal room; in a narrow
-     Activity Bar sidebar (as opposed to the wide editor-tab panel) a column can
-     still be less than that, so let a knob row scroll its own controls
-     horizontally rather than the whole sidebar overflowing/wrapping oddly. */
-  .section-col { min-width: 0; overflow-x: auto; }
+  .section-col { min-width: 0; }
   .section-col + .section-col { border-left: 1px solid var(--vscode-panel-border); padding-left: 32px; }
+  /* Below ~500px (the Activity Bar sidebar's typical width, far narrower than the
+     editor-tab panel this layout was originally designed for) a knob row's fixed
+     168px control group + 160px label simply cannot fit side-by-side. Stack each
+     row's label above its controls instead of letting it clip or forcing a
+     horizontal scrollbar — a real responsive layout, not a scroll-escape hatch. */
+  @media (max-width: 500px) {
+    .feature-grid, .section-grid { grid-template-columns: 1fr; }
+    .section-col + .section-col { border-left: none; padding-left: 0; border-top: 1px solid var(--vscode-panel-border); padding-top: 10px; margin-top: 6px; }
+    .knob { flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 0; }
+    .knob .dot-slot { position: absolute; margin-right: 0; }
+    .knob .label { padding-left: 20px; min-width: 0; }
+    .knob .controls { width: 100%; justify-content: flex-start; margin-left: 20px; }
+    .knob { position: relative; }
+    .actions { flex-direction: column; align-items: stretch; gap: 8px; }
+    .actions-right { flex-wrap: wrap; justify-content: flex-start; }
+  }
   .feature-row { display: flex; align-items: center; padding: 1px 0; line-height: 1.32; cursor: pointer; }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; }
   .feature-label { flex: 1 1 auto; }
