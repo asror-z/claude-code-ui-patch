@@ -246,8 +246,6 @@ ${sections}
       (m.knobs || []).forEach(function (k) {
         const knob = document.querySelector('.knob[data-id="' + k.id + '"]');
         if (!knob) return;
-        const dot = knob.querySelector('.dot');
-        if (dot) { dot.className = 'dot ' + (k.dotOk ? 'dot-ok' : 'dot-warn'); dot.title = k.dotTitle; }
         const pxEl = knob.querySelector('.px-input');
         if (pxEl && document.activeElement !== pxEl) {
           if (pending[k.id] === undefined) { pxEl.value = k.px; }
