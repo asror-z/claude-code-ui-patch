@@ -469,21 +469,26 @@ const baseCss = `
   @media (max-width: 500px) {
     .feature-grid, .section-grid { grid-template-columns: 1fr; }
     .section-col + .section-col { border-left: none; padding-left: 0; border-top: 1px solid var(--vscode-panel-border); padding-top: 12px; margin-top: 4px; }
-    .knob { flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 4px; }
-    .knob .dot-slot { position: absolute; margin-right: 0; }
-    .knob .label { padding-left: 20px; min-width: 0; }
-    .knob .controls { width: 100%; justify-content: flex-start; margin-left: 20px; }
-    .knob { position: relative; }
-    .actions { flex-direction: column; align-items: stretch; gap: 10px; }
-    .actions-right { flex-wrap: wrap; justify-content: flex-start; }
+    /* Stay on ONE row (not stacked) even at this width, but put the controls
+       (the input/switch) BEFORE the label visually via CSS order, without
+       reordering the actual DOM/data-cmd wiring — the label shrinks/truncates
+       instead of pushing the row wider than the sidebar. */
+    .knob { flex-wrap: nowrap; gap: 8px; padding: 6px 4px; }
+    .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .knob .controls { order: 1; margin-left: 0; flex-shrink: 0; }
+    /* 4 action buttons as a real 2x2 grid (2 rows, 2 columns) instead of a row
+       that overflows/wraps unpredictably — smaller font/padding so each button
+       fits its half-width cell without its label wrapping onto 3+ lines. */
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn { padding: 6px 8px; font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   }
   .feature-row { display: flex; align-items: center; padding: 3px 4px; line-height: 1.32; cursor: pointer; border-radius: var(--ccp-radius-sm); transition: background-color .12s ease; }
   .feature-row:hover { background: var(--vscode-list-hoverBackground); }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; accent-color: var(--ccp-accent); width: 14px; height: 14px; }
   .feature-label { flex: 1 1 auto; }
-  .knob .controls { display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 84px; flex-shrink: 0; margin-left: 16px; }
+  .knob .controls { display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 136px; flex-shrink: 0; margin-left: 16px; }
   .knob .px-input {
-    width: 52px; text-align: right; font-family: var(--vscode-editor-font-family);
+    width: 104px; text-align: right; font-family: var(--vscode-editor-font-family);
     font-variant-numeric: tabular-nums; color: var(--vscode-input-foreground);
     background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent);
     border-radius: var(--ccp-radius-sm); padding: 3px 6px; font-size: inherit; transition: border-color .12s ease;
