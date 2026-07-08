@@ -364,7 +364,9 @@ function statusInner(snap: Snapshot): string {
   if (!snap.supported)
     return `<span class="status-banner warn"><span class="status-icon">&#9888;</span>Patch not supported on Claude Code v${snap.version}</span>`;
   if (snap.needsReload)
-    return `<span class="status-banner warn"><span class="status-icon">&#8635;</span>Reload window to apply changes</span>`;
+    // Clickable: the pending-reload banner IS the Reload Window action, so
+    // there is no separate Reload button in the footer to reach for.
+    return `<button class="status-banner warn status-banner-btn" data-cmd="reload" title="Reload the window to apply changes"><span class="status-icon">&#8635;</span>Reload window to apply changes</button>`;
   return `<span class="status-banner ok"><span class="status-icon">&#10003;</span>All settings applied</span>`;
 }
 
