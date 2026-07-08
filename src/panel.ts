@@ -251,7 +251,7 @@ ${sections}
           if (pending[k.id] === undefined) { pxEl.value = k.px; }
           else if (pending[k.id] === k.px) { pxEl.value = k.px; delete pending[k.id]; }
         }
-        const tg = knob.querySelector('.btn-toggle');
+        const tg = knob.querySelector('.switch');
         if (tg && typeof k.on === 'boolean') {
           if (pendingToggle[k.id] === undefined) { setToggleBtn(tg, k.on); }
           else if (pendingToggle[k.id] === k.on) { setToggleBtn(tg, k.on); delete pendingToggle[k.id]; }
