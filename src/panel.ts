@@ -345,7 +345,7 @@ const baseCss = `
   .version-value { color: #d97757; }
   .header-status { margin-top: 4px; margin-bottom: 1px; font-size: 1.1em; font-weight: 500; }
   h2 { font-size: 1.1em; margin: 6px 0 3px; }
-  .knob { display: flex; align-items: center; padding: 1px 0; line-height: 1.32; }
+  .knob { display: flex; align-items: center; padding: 4px 0; line-height: 1.6; }
   .knob .dot-slot { width: 14px; flex-shrink: 0; text-align: center; margin-right: 14px; }
   .knob .label { flex: 1 1 auto; min-width: 160px; }
   /* Two columns whenever there's room (>= ~340px per column), one column in a
