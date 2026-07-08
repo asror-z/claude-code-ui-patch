@@ -147,25 +147,29 @@ ${csp}
     // Chat Enhancement Features: one real checkbox per feature. Checking/unchecking
     // writes straight to claudeCodeUiPatch.feature.<id> (see Patcher.setFeature) —
     // this is the ONE control surface for per-feature on/off (no in-webview gear).
-    // The pack is always injected now (no master switch — see CLAUDE.md), so this
-    // renders unconditionally at the top of "Chat Panel or Tab", not gated on any
-    // knob's on/off state.
-    const featuresBlock = `      <div class="feature-grid">\n${snap.features
-      .map((f) => this.featureHtml(f))
-      .join("\n")}\n      </div>\n`;
+    // The pack is always injected now (no master switch — see CLAUDE.md). It is a
+    // self-contained, single-column list (unlike the ▼/▲ knob rows, which need
+    // horizontal room for their controls), so it gets its OWN column rather than
+    // being crammed above a knob section.
+    const featuresCol = `    <div class="section-col">
+      <h2>Chat Enhancement Features</h2>
+      <div class="feature-grid feature-grid-1col">
+${snap.features.map((f) => this.featureHtml(f)).join("\n")}
+      </div>
+    </div>`;
 
-    // Each section (Chat Panel or Tab, Plan Mode Markdown Preview) renders as its
-    // own column side-by-side in a 2-column grid, rather than one long vertical
-    // flow — this fills the panel's full width instead of leaving the right half
-    // empty. Columns wrap to a single stacked column automatically in a narrow
-    // window (see .section-grid below).
-    const sections = groups
+    // The 3 columns: the feature checkboxes, then each real Section (Chat Panel or
+    // Tab, Plan Mode Markdown Preview) with its own ▼/▲ knob rows — this fills the
+    // panel's full width with three coherent blocks instead of one long vertical
+    // flow. Columns wrap to fewer/stacked automatically in a narrow window (see
+    // .section-grid below).
+    const sectionCols = groups
       .map((g) => {
         const rows = g.knobs.map((k) => this.knobHtml(k)).join("\n");
-        const features = g.sec === "Chat Panel or Tab" ? featuresBlock : "";
-        return `    <div class="section-col">\n      <h2>${g.sec}</h2>\n${features}${rows}\n    </div>`;
+        return `    <div class="section-col">\n      <h2>${g.sec}</h2>\n${rows}\n    </div>`;
       })
       .join("\n");
+    const sections = `${featuresCol}\n${sectionCols}`;
 
     return `<!DOCTYPE html>
 <html>
@@ -330,7 +334,7 @@ const baseCss = `
     font-size: calc(var(--vscode-font-size) * 1.2);
     color: var(--vscode-foreground);
     background: var(--vscode-editor-background);
-    max-width: 1080px;
+    max-width: 1400px;
     padding: 16px 28px;
   }
   h1 { font-size: 1.7em; font-weight: 700; margin: 0; }
@@ -346,11 +350,17 @@ const baseCss = `
      narrow panel — auto-fit avoids a forced 2-up layout that would overflow or
      leave an awkward gap in a resized/narrow window. */
   .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); column-gap: 20px; row-gap: 0; padding-left: 28px; }
+  /* Inside its OWN section-col (narrower than the whole panel), the feature list
+     stays a single column — a nested 2-up auto-fit would cramp each label. */
+  .feature-grid-1col { grid-template-columns: 1fr; padding-left: 0; }
   /* The two top-level sections (Chat Panel or Tab, Plan Mode Markdown Preview) sit
      side-by-side, each its own column, so the panel's full width is used instead of
      a single long vertical flow with an empty right half. Wraps to one stacked
      column automatically once the panel is too narrow for two ~420px columns. */
-  .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); column-gap: 32px; align-items: start; }
+  /* 3 columns whenever there's room (feature checkboxes, Chat Panel or Tab knobs,
+     Plan Mode Markdown Preview knobs); wraps down to 2, then 1, in a narrower
+     window rather than ever overflowing or leaving an awkward gap. */
+  .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); column-gap: 32px; align-items: start; }
   .section-col + .section-col { border-left: 1px solid var(--vscode-panel-border); padding-left: 32px; }
   .feature-row { display: flex; align-items: center; padding: 1px 0; line-height: 1.15; cursor: pointer; }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; }
