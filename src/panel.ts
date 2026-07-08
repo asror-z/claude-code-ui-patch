@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Patcher, Snapshot, Knob, SECTION_ORDER, STEP, MIN_PX } from "./patcher";
+import { Patcher, Snapshot, Knob, FeatureState, SECTION_ORDER, STEP, MIN_PX } from "./patcher";
 
 // A webview panel that serves as the detailed control surface (opened by
 // clicking the status-bar item). The hover tooltip is a compact read-only
@@ -75,6 +75,10 @@ export class PatchPanel {
         if (msg.target !== undefined && msg.on !== undefined)
           await this.patcher.setToggle(msg.target, msg.on);
         break;
+      case "featureSet":
+        if (msg.target !== undefined && msg.on !== undefined)
+          await this.patcher.setFeature(msg.target, msg.on);
+        break;
       case "discard":
         await this.patcher.discard();
         break;
@@ -118,6 +122,13 @@ export class PatchPanel {
       </div>`;
   }
 
+  private featureHtml(f: FeatureState): string {
+    return `      <label class="feature-row" data-feature-id="${f.id}">
+        <input type="checkbox" class="feature-cb"${f.on ? " checked" : ""}>
+        <span class="feature-label">${f.label}</span>
+      </label>`;
+  }
+
   private html(snap: Snapshot | undefined): string {
     const nonce = getNonce();
     const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${this.panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">`;
@@ -143,6 +154,17 @@ ${csp}
       )
       .join("\n");
 
+    // Chat Enhancement Features: one real checkbox per feature, shown only while the
+    // chatEnhancements master switch is on. Checking/unchecking writes straight to
+    // claudeCodeUiPatch.feature.<id> (a seed setting — see Patcher.setFeature), so
+    // this is the ONE control surface for per-feature on/off (no in-webview gear).
+    const chatEnhOn = snap.knobs.some((k) => k.id === "chatEnhancements" && k.on);
+    const featuresSection = chatEnhOn
+      ? `    <hr class="divider">\n    <h2>Chat Enhancement Features</h2>\n${snap.features
+          .map((f) => this.featureHtml(f))
+          .join("\n")}`
+      : "";
+
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8">
@@ -156,6 +178,7 @@ ${csp}
   <div class="header-status">${statusInner(snap)}</div>
   <hr class="divider">
 ${sections}
+${featuresSection}
   <hr class="divider">
   <div class="actions">
     <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">Restore Last Applied</button>
@@ -167,6 +190,7 @@ ${sections}
     const vscode = acquireVsCodeApi();
     const pending = {}; // knob id -> last optimistic value we sent (ignore stale echoes until it matches)
     const pendingToggle = {}; // toggle id -> last optimistic on/off we sent
+    const pendingFeature = {}; // feature id -> last optimistic on/off we sent
     function fmt(n) { return String(Math.round(n * 100) / 100); }
     function setToggleBtn(btn, on) {
       btn.classList.toggle('on', on);
@@ -209,6 +233,16 @@ ${sections}
       vscode.postMessage({ command: cmd, key: el.dataset.key });
     });
 
+    document.addEventListener('change', function (e) {
+      const cb = e.target.closest('.feature-cb');
+      if (!cb) return;
+      const row = cb.closest('.feature-row');
+      if (!row) return;
+      const id = row.dataset.featureId;
+      pendingFeature[id] = cb.checked; // optimistic: the checkbox already shows the new state
+      vscode.postMessage({ command: 'featureSet', target: id, on: cb.checked });
+    });
+
     window.addEventListener('message', function (e) {
       const m = e.data;
       if (!m || m.type !== 'sync') return;
@@ -228,6 +262,14 @@ ${sections}
           else if (pendingToggle[k.id] === k.on) { setToggleBtn(tg, k.on); delete pendingToggle[k.id]; }
         }
       });
+      (m.features || []).forEach(function (f) {
+        const row = document.querySelector('.feature-row[data-feature-id="' + f.id + '"]');
+        if (!row) return;
+        const cb = row.querySelector('.feature-cb');
+        if (!cb) return;
+        if (pendingFeature[f.id] === undefined) { cb.checked = f.on; }
+        else if (pendingFeature[f.id] === f.on) { cb.checked = f.on; delete pendingFeature[f.id]; }
+      });
       if (typeof m.status === 'string') {
         const st = document.querySelector('.header-status');
         if (st) st.innerHTML = m.status;
@@ -246,7 +288,15 @@ ${sections}
 // Structure signature: a full re-render happens only when this changes.
 function shapeOf(snap: Snapshot | undefined): string {
   if (!snap || !snap.available) return "none";
-  return [snap.supported, snap.version, snap.knobs.map((k) => k.id).join(",")].join("|");
+  // chatEnhancements' on/off also gates the "Chat Enhancement Features" settings
+  // link below, so a flip must trigger a full re-render, not just a value sync.
+  const chatEnh = snap.knobs.find((k) => k.id === "chatEnhancements");
+  return [
+    snap.supported,
+    snap.version,
+    snap.knobs.map((k) => k.id).join(","),
+    chatEnh ? chatEnh.on : "",
+  ].join("|");
 }
 
 function dotTitleFor(native: boolean, ok: boolean): string {
@@ -265,6 +315,7 @@ function statusInner(snap: Snapshot): string {
 // Lightweight per-knob state + header status for in-place DOM updates.
 function syncPayload(snap: Snapshot): {
   knobs: Array<{ id: string; px: string; on: boolean; dotOk: boolean; dotTitle: string }>;
+  features: Array<{ id: string; on: boolean }>;
   status: string;
   reloadPending: boolean;
 } {
@@ -272,7 +323,8 @@ function syncPayload(snap: Snapshot): {
     const dotOk = k.native ? true : !k.pendingReload;
     return { id: k.id, px: k.px, on: k.on, dotOk, dotTitle: dotTitleFor(k.native, dotOk) };
   });
-  return { knobs, status: statusInner(snap), reloadPending: snap.needsReload };
+  const features = snap.features.map((f) => ({ id: f.id, on: f.on }));
+  return { knobs, features, status: statusInner(snap), reloadPending: snap.needsReload };
 }
 
 const baseCss = `
@@ -293,6 +345,9 @@ const baseCss = `
   .knob { display: flex; align-items: center; padding: 3px 0; }
   .knob .dot-slot { width: 14px; flex-shrink: 0; text-align: center; margin-right: 14px; }
   .knob .label { flex: 1 1 auto; min-width: 160px; }
+  .feature-row { display: flex; align-items: center; padding: 3px 0 3px 28px; cursor: pointer; }
+  .feature-cb { margin: 0 10px 0 0; cursor: pointer; }
+  .feature-label { flex: 1 1 auto; }
   .knob .controls { display: flex; align-items: center; justify-content: center; width: 168px; flex-shrink: 0; margin-left: 16px; }
   .knob .btn-sm { width: 34px; flex-shrink: 0; text-align: center; margin: 0 2px; }
   .knob .px { width: 72px; flex-shrink: 0; text-align: center; font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; color: var(--vscode-textLink-foreground); }

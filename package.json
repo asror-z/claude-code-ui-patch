@@ -2,7 +2,7 @@
   "name": "claude-code-ui-patch",
   "displayName": "Claude Code UI Patch",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "publisher": "zeyutang",
   "icon": "icon.png",
   "license": "MIT",
@@ -167,6 +167,91 @@
           "minimum": 6,
           "maximum": 12,
           "markdownDescription": "Plan preview comment badge size in px (14px circle, keep <= 12)."
+        },
+        "claudeCodeUiPatch.chatEnhancements": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable the chat enhancement pack: Reply on selection, Chat Search, date/time stamps, copy buttons, an outline/export/scroll toolbar, and more. Requires a window reload after turning on. Toggle individual features below, or via the panel's Chat Enhancement Features checkboxes."
+        },
+        "claudeCodeUiPatch.chatHideUsageWarning": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Permanently hide the \"You've used X% of your weekly limit\" usage banner and its \"View usage\" link, instead of it reappearing after each dismissal."
+        },
+        "claudeCodeUiPatch.feature.reply": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Reply on selection: quote selected chat text into the prompt input. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.search": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Chat Search (Ctrl+F): find text within the chat. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.datetime": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Date/time stamps on chat messages, with day separators. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.askquestion": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "AskUserQuestion render fix (Markdown/newline rendering). Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.userstyle": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Restyle user messages as a distinct bubble. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.blockquote": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Restyle Markdown blockquote callouts (and tool-interrupt notices). Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.copybuttons": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Per-message date/time + Copy as Markdown/HTML buttons. Requires `#claudeCodeUiPatch.chatEnhancements#` and `#claudeCodeUiPatch.feature.datetime#`."
+        },
+        "claudeCodeUiPatch.feature.codeblock": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "A Copy button on every fenced code block. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.toc": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Outline panel: jump to any earlier prompt. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.export": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Export the whole chat to Markdown, HTML, or the clipboard. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.scroll": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Toolbar buttons to jump to the first/latest message. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.askcollapse": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Collapse/expand the AskUserQuestion dialog. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.autocontinue": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically submit \"continue\" when a stream-error banner appears. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.draftsave": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Autosave and restore the composer's draft text per chat. Requires `#claudeCodeUiPatch.chatEnhancements#`."
+        },
+        "claudeCodeUiPatch.feature.usernav": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Toolbar buttons to jump between your own messages. Requires `#claudeCodeUiPatch.chatEnhancements#`."
         }
       }
     }

@@ -6,7 +6,7 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 
 | Claude Code | UI Patch |
 | ----------- | -------- |
-| 2.1.201+    | 1.1.x    |
+| 2.1.201+    | 1.2.x    |
 
 ## Every Knob, One Panel
 
@@ -59,7 +59,26 @@ Plan Mode Markdown Preview
 Behavior
    ├── chatShowMoreAndLessAlign        # "left" / "right", empty "" -> native
    ├── chatPermissionCodeMatchChatCodeblock      # chatCodeblockFontSize (On) or chat.fontSize (Off)
-   └── effortSyncFix                   # push persisted effort level to a reloaded session if On
+   ├── effortSyncFix                   # push persisted effort level to a reloaded session if On
+   └── chatHideUsageWarning            # permanently hide the "X% of your weekly limit" banner if On
+
+chatEnhancements                       # master switch, Off by default; each feature below
+   │                                   # also has its own claudeCodeUiPatch.feature.<id> setting
+   ├── reply           # Reply on selection: quote selected chat text into the prompt
+   ├── search           # Chat Search (Ctrl+F)
+   ├── datetime         # date/time stamps + day separators on every message
+   ├── askquestion      # AskUserQuestion Markdown/newline render fix
+   ├── userstyle        # restyle your own messages as a distinct bubble
+   ├── blockquote       # restyle Markdown blockquote callouts + tool-interrupt notices
+   ├── copybuttons      # per-message date/time + Copy as Markdown/HTML (needs datetime)
+   ├── codeblock        # a Copy button on every fenced code block
+   ├── toc              # outline panel: jump to any earlier prompt
+   ├── export           # export the whole chat to Markdown / HTML / clipboard
+   ├── scroll           # jump to the first / latest message
+   ├── askcollapse      # collapse/expand the AskUserQuestion dialog
+   ├── autocontinue     # auto-submit "continue" on a stream-error banner
+   ├── draftsave        # autosave/restore the composer's draft text per chat
+   └── usernav          # jump between your own messages (up/down)
 ```
 
 ## Using This UI Patch
@@ -90,6 +109,28 @@ Behavior
   ```
 
 - **Commands:** `Claude Code UI Patch: Open Panel`.
+
+## Chat Enhancements
+
+A pack of 15 chat-webview features (Reply on selection, Chat Search, message date/time
+stamps, per-message and per-code-block Copy buttons, an outline/export/scroll toolbar, and
+more), turned on with `claudeCodeUiPatch.chatEnhancements` (default off — a window reload
+is required after enabling). Once on:
+
+- The panel (see [Every Knob, One Panel](#every-knob-one-panel)) grows a **Chat Enhancement
+  Features** section: one real checkbox per feature. Checking/unchecking writes straight to
+  its `claudeCodeUiPatch.feature.<id>` setting (see the tree above for the full id list) and
+  re-patches the bundle immediately — the panel is the one place to turn individual
+  features on/off; there is no separate control inside the chat itself.
+- A feature you turn off still needs the same **Reload Window** step as any other patch
+  change to take effect in an already-open chat webview.
+
+## Hide the Usage-Limit Warning Banner
+
+`claudeCodeUiPatch.chatHideUsageWarning` (default off) permanently hides the "You've used
+X% of your weekly limit" banner and its "View usage" link — the banner's own `×` only
+dismisses it for the current usage window (it reappears on the next update); this setting
+suppresses it for good.
 
 ## Caveats
 

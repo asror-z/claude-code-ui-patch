@@ -6,7 +6,26 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 
 | Claude Code | UI Patch |
 | ----------- | -------- |
-| 2.1.201+    | 1.1.x    |
+| 2.1.201+    | 1.2.x    |
+
+## 1.2.0
+
+- Add `claudeCodeUiPatch.chatEnhancements`: a pack of 15 chat-webview features — Reply on
+  selection, Chat Search (Ctrl+F), message date/time stamps with day separators, an
+  AskUserQuestion Markdown/newline render fix, a distinct style for your own messages,
+  restyled blockquote/tool-interrupt callouts, per-message Copy (Markdown/HTML) + timestamp,
+  a Copy button on every fenced code block, an outline panel, chat export
+  (Markdown/HTML/clipboard), jump-to-first/latest, collapse the AskUserQuestion dialog,
+  auto-continue on a stream-error banner, composer draft autosave, and jump between your own
+  messages. Injected as one CSP-safe inline script block (default off; requires a window
+  reload after enabling).
+- Add one `claudeCodeUiPatch.feature.<id>` boolean per chat-enhancement feature (15 settings)
+  to turn it on/off; the panel grows a **Chat Enhancement Features** section with one
+  checkbox per feature as the single control surface (checking/unchecking re-patches
+  immediately; takes effect on the next window reload, like every other patch setting).
+- Add `claudeCodeUiPatch.chatHideUsageWarning`: permanently hide the "You've used X% of your
+  weekly limit" usage banner and its "View usage" link, instead of it reappearing after each
+  dismissal.
 
 ## 1.1.2
 

@@ -2,6 +2,29 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import {
+  applyBehaviorScript,
+  removeBehaviorScript,
+  behaviorPresent,
+  currentBehaviorScript,
+  wantedBehaviorScript,
+  behaviorCssMarkedLine,
+  featureIds,
+  BEHAVIOR_CSS_MARKER,
+} from "./behaviorInject";
+import "./behaviorFeatures.reply";
+import "./behaviorFeatures.search";
+import "./behaviorFeatures.datetime";
+import "./behaviorFeatures.askquestion";
+import "./behaviorFeatures.userstyle";
+import "./behaviorFeatures.blockquote";
+import "./behaviorFeatures.copybuttons";
+import "./behaviorFeatures.codeblock";
+import "./behaviorFeatures.askcollapse";
+import "./behaviorFeatures.autocontinue";
+import "./behaviorFeatures.draftsave";
+import "./behaviorFeatures.usernav";
+import "./behaviorFeatures.toc-export-scroll";
 
 // The installed Claude Code extension is laid down as one directory per
 // version/platform, e.g. anthropic.claude-code-2.1.200-darwin-arm64. We patch
@@ -36,6 +59,8 @@ export const SECTION_ORDER: Section[] = [
 // Display order of knobs within a section (panel and popup), by point id. Ids
 // not listed keep their natural order after the listed ones.
 const KNOB_ORDER: string[] = [
+  "chatEnhancements", // master switch for Reply/Search/DateTime/... (see behaviorFeatures.ts)
+  "hideUsageWarning", // the "You've used X% of your weekly limit" banner
   "chatHistorySize", // agent response
   "chatCodeInline", // inline code
   "chatCode", // code block
@@ -362,6 +387,39 @@ function effortSyncSet(c: string, on: boolean): string {
   );
 }
 
+// Hide usage-limit warning (ON): the composer footer shows a dismissable "You've
+// used X% of your weekly limit" banner (color:"warning", the same RC notice
+// component used for the settings-error banner elsewhere, so this anchor is scoped
+// tightly to the ONE instance whose onClose calls dismissRateLimitWarning() — a
+// string unique in the bundle). Its own X only clears rateLimitWarning.value for the
+// current rate-limit key (dismissRateLimitWarning() in the webview's session-state
+// class), so it reappears on the next usage update; ON here instead short-circuits
+// the whole render condition permanently by swapping its leading
+// `t.rateLimitWarning.value` for `false`, so the banner (and its "View usage" link)
+// never renders regardless of usage state. The middle guard clauses
+// (!h&&!fe&&un===void 0&&!ie&&!R&&!n.showReviewUpsellBanner.value) are matched
+// tolerantly (a bounded &&-separated run) since their exact count/order is
+// build-specific and not the actual anchor — the unique tail
+// (color:"warning",onClose:()=>{t.dismissRateLimitWarning()},closeTooltip:"Dismiss
+// warning") is what pins this to the correct banner instance.
+const USAGE_WARNING_RE =
+  /(t\.rateLimitWarning\.value|false)((?:&&[^&{}]*)*?&&(?:E|b)\(RC,\{color:"warning",onClose:\(\)=>\{t\.dismissRateLimitWarning\(\)\},closeTooltip:"Dismiss warning")/;
+
+function usageWarningPresent(c: string): boolean {
+  return USAGE_WARNING_RE.test(c);
+}
+function usageWarningCurrentOn(c: string): boolean | undefined {
+  const m = c.match(USAGE_WARNING_RE);
+  if (!m) return undefined;
+  return m[1] === "false";
+}
+function usageWarningSet(c: string, on: boolean): string {
+  return c.replace(
+    USAGE_WARNING_RE,
+    (_w, _lead: string, rest: string) => `${on ? "false" : "t.rateLimitWarning.value"}${rest}`,
+  );
+}
+
 // Permission-code size match (ON): the permission "Allow this command?" dialog
 // renders the command in .bashCommand_<hash> at 0.9em, larger than the tool
 // input (IN) block (0.85em). When ON we append a scoped rule pinning the
@@ -434,7 +492,75 @@ interface TogglePoint {
   cssBuild?: (css: string) => string | undefined; // full marked rule, or undefined if anchor gone
 }
 
+// Chat enhancements (ON): injects the shared bootstrap + toolbar + every
+// registered behavior feature (Reply, Search, DateTime, ... — see
+// behaviorFeatures.ts) as one marker-tagged nonce'd <script> in extension.js, plus
+// their combined CSS as one marker-tagged block in webview/index.css. Both files
+// ride the toggle machinery via a custom fn* transform (extension.js) + a cssFile
+// side-effect (webview/index.css), exactly like diffLineNumbers' gutter CSS above,
+// because this is a whole-block inject/remove rather than a single value swap.
+// claudeCodeUiPatch.feature.<id> (one boolean per feature — see package.json, and the
+// panel's Chat Enhancement Features checkboxes) is written into the runtime toggle's
+// localStorage map on EVERY webview load — the panel is the one control surface for
+// per-feature on/off (a checkbox flip takes effect on the next window reload, exactly
+// like every other patch setting). Read fresh on every apply so a settings change is
+// picked up by the next re-patch.
+export function readFeatureDefaults(): Record<string, boolean> {
+  const c = vscode.workspace.getConfiguration(CONFIG_NS);
+  const m: Record<string, boolean> = {};
+  for (const f of featureIds()) m[f.id] = c.get<boolean>(`feature.${f.id}`, true);
+  return m;
+}
+
+function chatEnhancementsPresent(c: string): boolean {
+  return behaviorPresent(c);
+}
+function chatEnhancementsCurrentOn(c: string): boolean | undefined {
+  const cur = currentBehaviorScript(c);
+  if (cur === undefined) return false; // anchor present, no block: OFF
+  return true; // block present (content drift, if any, is reconciled by re-apply)
+}
+function chatEnhancementsSet(c: string, on: boolean): string {
+  if (!on) return removeBehaviorScript(c);
+  const defaults = readFeatureDefaults();
+  const cur = currentBehaviorScript(c);
+  const want = wantedBehaviorScript(defaults);
+  if (cur === want) return c; // already in sync: no-op write
+  return applyBehaviorScript(c, defaults).out;
+}
+// The full marker-tagged line to write when ON — always re-derived from the
+// CURRENT feature registry (mirrors diffLinesCssBuild's shape above), so an
+// extension update that adds/changes a feature is picked up on the next apply.
+function chatEnhancementsCssBuild(_css: string): string | undefined {
+  return behaviorCssMarkedLine();
+}
+
 const TOGGLE_POINTS: TogglePoint[] = [
+  {
+    id: "chatEnhancements",
+    section: "Chat Panel or Tab",
+    label: "chat enhancements",
+    key: "chatEnhancements",
+    defaultOn: false,
+    file: "extension.js",
+    fnPresent: chatEnhancementsPresent,
+    fnCurrentOn: chatEnhancementsCurrentOn,
+    fnSet: chatEnhancementsSet,
+    cssFile: "webview/index.css",
+    cssMarker: BEHAVIOR_CSS_MARKER,
+    cssBuild: chatEnhancementsCssBuild,
+  },
+  {
+    id: "hideUsageWarning",
+    section: "Chat Panel or Tab",
+    label: "usage-limit warning banner",
+    key: "chatHideUsageWarning",
+    defaultOn: false,
+    file: "webview/index.js",
+    fnPresent: usageWarningPresent,
+    fnCurrentOn: usageWarningCurrentOn,
+    fnSet: usageWarningSet,
+  },
   {
     id: "diffLineNumbers",
     section: "Chat Panel or Tab",
@@ -1509,11 +1635,18 @@ export interface Knob {
   nativeKey?: string;
 }
 
+export interface FeatureState {
+  id: string;
+  label: string;
+  on: boolean; // current claudeCodeUiPatch.feature.<id> setting value
+}
+
 export interface Snapshot {
   available: boolean;
   supported: boolean; // at least one patch anchor present
   version: string;
   knobs: Knob[]; // native chat + present patch knobs, in section order
+  features: FeatureState[]; // the 16 chat-enhancement feature seed settings
   applied: boolean;
   actionable: boolean;
   needsReload: boolean; // bundle written this session but window not reloaded
@@ -1554,6 +1687,7 @@ export class Patcher {
       ...PATCH_POINTS.map((p) => p.key),
       ...TOGGLE_POINTS.map((t) => t.key),
       ...INJECT_POINTS.map((ip) => ip.key),
+      ...featureIds().map((f) => `feature.${f.id}`),
     ].map((k) => `${CONFIG_NS}.${k}`);
     // chat.fontSize is no longer a knob, but the chatHistoryFontSize knob shows it
     // while inheriting, so a native change should refresh (not re-patch) the view.
@@ -1653,6 +1787,12 @@ export class Patcher {
       presentSizes.every((s) => s.status === "current") &&
       presentToggles.every((s) => s.status === "current") &&
       presentInjects.every((s) => s.status === "current");
+    const featureCfg = vscode.workspace.getConfiguration(CONFIG_NS);
+    const features: FeatureState[] = featureIds().map((f) => ({
+      id: f.id,
+      label: f.label,
+      on: featureCfg.get<boolean>(`feature.${f.id}`, true),
+    }));
     return {
       available: true,
       supported: anyPresent,
@@ -1660,6 +1800,7 @@ export class Patcher {
       knobs: [...chat, ...patch, ...toggleKnobs].sort(
         (a, b) => knobOrder(a.id) - knobOrder(b.id),
       ),
+      features,
       applied: anyPresent && allCurrent,
       actionable: !allCurrent,
       needsReload: this.pendingReload.size > 0,
@@ -1830,6 +1971,20 @@ export class Patcher {
     await vscode.workspace
       .getConfiguration(CONFIG_NS)
       .update(t.key, on, vscode.ConfigurationTarget.Global);
+  }
+
+  // Flip one chat-enhancement feature's claudeCodeUiPatch.feature.<id> setting. This
+  // is a SEED value (see readFeatureDefaults()), not a patch point: writing it
+  // reaches onDidChangeConfiguration -> autoApply -> chatEnhancementsSet(), which
+  // re-derives the injected script with the new default map (only takes effect for
+  // a webview that has not loaded yet / has no localStorage override; an
+  // already-open chat's live state is instead changed via its own ⚙ gear).
+  async setFeature(id: string, on: boolean): Promise<void> {
+    if (!featureIds().some((f) => f.id === id)) return;
+    const key = `feature.${id}`;
+    const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
+    if (on === cfg.get<boolean>(key, true)) return;
+    await cfg.update(key, on, vscode.ConfigurationTarget.Global);
   }
 
   // Discard modifications made since the last window reload: reset every knob to
