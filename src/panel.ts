@@ -189,10 +189,12 @@ ${sections}
   <hr class="divider">
   <div class="actions">
     <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">Restore Last Applied</button>
-    <button class="btn btn-red" data-cmd="restore" title="Reset every setting to Claude Code's native values">Factory Reset</button>
+    <span class="actions-right">
+      <a class="link" data-cmd="openSettings">&#9881; Open VS Code Settings</a>
+      <a class="link link-reload${snap.needsReload ? " link-reload-pending" : ""}" data-cmd="reload">&#8635; Reload Window</a>
+      <button class="btn btn-red" data-cmd="restore" title="Reset every setting to Claude Code's native values">Factory Reset</button>
+    </span>
   </div>
-  <a class="link" data-cmd="openSettings">&#9881; Open VS Code Settings</a>
-  <a class="link link-reload${snap.needsReload ? " link-reload-pending" : ""}" data-cmd="reload">&#8635; Reload Window</a>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const pending = {}; // knob id -> last optimistic value we sent (ignore stale echoes until it matches)
@@ -343,7 +345,7 @@ const baseCss = `
   .version-value { color: #d97757; }
   .header-status { margin-top: 4px; margin-bottom: 1px; font-size: 1.1em; font-weight: 500; }
   h2 { font-size: 1.1em; margin: 6px 0 3px; }
-  .knob { display: flex; align-items: center; padding: 1px 0; line-height: 1.15; }
+  .knob { display: flex; align-items: center; padding: 1px 0; line-height: 1.32; }
   .knob .dot-slot { width: 14px; flex-shrink: 0; text-align: center; margin-right: 14px; }
   .knob .label { flex: 1 1 auto; min-width: 160px; }
   /* Two columns whenever there's room (>= ~340px per column), one column in a
@@ -362,7 +364,7 @@ const baseCss = `
      window rather than ever overflowing or leaving an awkward gap. */
   .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); column-gap: 32px; align-items: start; }
   .section-col + .section-col { border-left: 1px solid var(--vscode-panel-border); padding-left: 32px; }
-  .feature-row { display: flex; align-items: center; padding: 1px 0; line-height: 1.15; cursor: pointer; }
+  .feature-row { display: flex; align-items: center; padding: 1px 0; line-height: 1.32; cursor: pointer; }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; }
   .feature-label { flex: 1 1 auto; }
   .knob .controls { display: flex; align-items: center; justify-content: center; width: 168px; flex-shrink: 0; margin-left: 16px; }
@@ -389,6 +391,8 @@ const baseCss = `
   .knob .btn-toggle.on:hover { background: var(--vscode-button-hoverBackground); }
   .knob .btn-toggle.off:hover { background: var(--vscode-button-secondaryHoverBackground); }
   .actions { margin-top: 6px; display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; }
+  .actions-right { display: flex; flex-direction: row; align-items: center; gap: 18px; }
+  .actions-right a.link { margin-top: 0; }
   .divider { border: none; border-top: 1px solid var(--vscode-panel-border); margin: 4px 0; }
   /* Every header status is a full-width banner so the strip never changes height
      between states: green when everything is applied, yellow when a reload is due
