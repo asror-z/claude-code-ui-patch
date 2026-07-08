@@ -144,18 +144,15 @@ ${csp}
       knobs: snap.knobs.filter((k) => k.section === sec),
     })).filter((g) => g.knobs.length);
 
-    // Chat Enhancement Features: one real checkbox per feature, shown only while the
-    // chatEnhancements master switch is on. Checking/unchecking writes straight to
-    // claudeCodeUiPatch.feature.<id> (a seed setting — see Patcher.setFeature), so
+    // Chat Enhancement Features: one real checkbox per feature. Checking/unchecking
+    // writes straight to claudeCodeUiPatch.feature.<id> (see Patcher.setFeature) —
     // this is the ONE control surface for per-feature on/off (no in-webview gear).
-    // Rendered immediately under the "chat enhancements" knob itself (not appended at
-    // the panel's end), so it needs no scrolling to reach.
-    const chatEnhOn = snap.knobs.some((k) => k.id === "chatEnhancements" && k.on);
-    const featuresBlock = chatEnhOn
-      ? `      <div class="feature-grid">\n${snap.features
-          .map((f) => this.featureHtml(f))
-          .join("\n")}\n      </div>\n`
-      : "";
+    // The pack is always injected now (no master switch — see CLAUDE.md), so this
+    // renders unconditionally at the top of "Chat Panel or Tab", not gated on any
+    // knob's on/off state.
+    const featuresBlock = `      <div class="feature-grid">\n${snap.features
+      .map((f) => this.featureHtml(f))
+      .join("\n")}\n      </div>\n`;
 
     // Each section (Chat Panel or Tab, Plan Mode Markdown Preview) renders as its
     // own column side-by-side in a 2-column grid, rather than one long vertical
@@ -164,14 +161,9 @@ ${csp}
     // window (see .section-grid below).
     const sections = groups
       .map((g) => {
-        const rows = g.knobs
-          .map((k) => {
-            const row = this.knobHtml(k);
-            // Splice the feature checkboxes right after the chatEnhancements row.
-            return k.id === "chatEnhancements" ? `${row}\n${featuresBlock}` : row;
-          })
-          .join("\n");
-        return `    <div class="section-col">\n      <h2>${g.sec}</h2>\n${rows}\n    </div>`;
+        const rows = g.knobs.map((k) => this.knobHtml(k)).join("\n");
+        const features = g.sec === "Chat Panel or Tab" ? featuresBlock : "";
+        return `    <div class="section-col">\n      <h2>${g.sec}</h2>\n${features}${rows}\n    </div>`;
       })
       .join("\n");
 
@@ -299,16 +291,9 @@ ${sections}
 // Structure signature: a full re-render happens only when this changes.
 function shapeOf(snap: Snapshot | undefined): string {
   if (!snap || !snap.available) return "none";
-  // chatEnhancements' on/off also gates whether the Chat Enhancement Features
-  // checkboxes render under it, so a flip must trigger a full re-render, not just a
-  // value sync.
-  const chatEnh = snap.knobs.find((k) => k.id === "chatEnhancements");
-  return [
-    snap.supported,
-    snap.version,
-    snap.knobs.map((k) => k.id).join(","),
-    chatEnh ? chatEnh.on : "",
-  ].join("|");
+  return [snap.supported, snap.version, snap.knobs.map((k) => k.id).join(",")].join(
+    "|",
+  );
 }
 
 function dotTitleFor(native: boolean, ok: boolean): string {
