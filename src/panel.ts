@@ -516,9 +516,15 @@ const baseCss = `
   /* Every header status is a full-width banner so the strip never changes height
      between states: green when everything is applied, yellow when a reload is due
      or the version is unsupported. */
-  .status-banner { display: flex; align-items: center; gap: 8px; color: #fff; padding: 6px 14px; border-radius: var(--ccp-radius-sm); font-weight: 700; font-size: .92em; }
+  .status-banner { display: flex; align-items: center; gap: 8px; color: #fff; padding: 6px 14px; border-radius: var(--ccp-radius-sm); font-weight: 700; font-size: .92em; border: none; width: 100%; text-align: left; font-family: inherit; transition: filter .12s ease; }
   .status-banner.ok { background: var(--ccp-green); }
   .status-banner.warn { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
+  /* Only the reload-pending banner is an actual <button> (data-cmd="reload") —
+     give it a hand cursor and a hover brighten so it reads as clickable; the
+     plain "All settings applied" / "unsupported version" banners are inert
+     <span>s and stay unaffected. */
+  .status-banner-btn { cursor: pointer; }
+  .status-banner-btn:hover { filter: brightness(1.12); }
   .status-icon { font-size: 1.05em; }
   a.link { display: inline-flex; align-items: center; gap: 6px; color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; font-size: 1em; }
   a.link:hover { text-decoration: underline; }

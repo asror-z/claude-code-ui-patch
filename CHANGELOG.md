@@ -8,6 +8,12 @@ All notable changes to Claude Code UI Patch are documented here. This project fo
 | ----------- | -------- |
 | 2.1.201+    | 1.2.x    |
 
+## 1.2.7
+
+- The "Reload window to apply changes" status banner (a real `<button>` since it
+  became clickable) now shows a hand cursor and brightens slightly on hover, so
+  it reads as clickable instead of looking like inert status text.
+
 ## 1.2.6
 
 - Fix the Activity Bar sidebar's narrow (`<= 500px`) responsive layout: its
