@@ -459,7 +459,12 @@ const baseCss = `
        instead of pushing the row wider than the sidebar. */
     .knob { flex-wrap: nowrap; gap: 8px; padding: 6px 4px; }
     .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .knob .controls { order: 1; margin-left: 0; flex-shrink: 0; }
+    /* The wide-view .controls box is a fixed 84px so a size-input and a
+       toggle-switch line up in a column; at this width there's no column to
+       line up (one knob per row), so let it shrink to its actual content
+       instead of reserving 84px of now-empty space before the switch/input. */
+    .knob .controls { order: 1; margin-left: 0; flex-shrink: 0; width: auto; }
+    .knob .switch { width: auto; }
     /* 4 action buttons as a real 2x2 grid (2 rows, 2 columns) instead of a row
        that overflows/wraps unpredictably — smaller font/padding so each button
        fits its half-width cell without its label wrapping onto 3+ lines. */
