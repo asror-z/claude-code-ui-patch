@@ -541,9 +541,6 @@ const baseCss = `
   .status-banner.ok { background: var(--ccp-green); }
   .status-banner.warn { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
   .status-icon { font-size: 1.05em; }
-  .dot { font-size: .8em; }
-  .dot-ok { color: var(--vscode-gitDecoration-addedResourceForeground); }
-  .dot-warn { color: var(--vscode-editorWarning-foreground); }
   a.link { display: inline-flex; align-items: center; gap: 6px; color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; font-size: 1em; }
   a.link:hover { text-decoration: underline; }
   .link-icon { font-size: 1.05em; }
