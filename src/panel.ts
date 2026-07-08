@@ -370,15 +370,12 @@ function statusInner(snap: Snapshot): string {
 
 // Lightweight per-knob state + header status for in-place DOM updates.
 function syncPayload(snap: Snapshot): {
-  knobs: Array<{ id: string; px: string; on: boolean; dotOk: boolean; dotTitle: string }>;
+  knobs: Array<{ id: string; px: string; on: boolean }>;
   features: Array<{ id: string; on: boolean }>;
   status: string;
   reloadPending: boolean;
 } {
-  const knobs = snap.knobs.map((k) => {
-    const dotOk = k.native ? true : !k.pendingReload;
-    return { id: k.id, px: k.px, on: k.on, dotOk, dotTitle: dotTitleFor(k.native, dotOk) };
-  });
+  const knobs = snap.knobs.map((k) => ({ id: k.id, px: k.px, on: k.on }));
   const features = snap.features.map((f) => ({ id: f.id, on: f.on }));
   return { knobs, features, status: statusInner(snap), reloadPending: snap.needsReload };
 }
