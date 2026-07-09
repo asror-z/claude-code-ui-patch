@@ -36,3 +36,7 @@ Both extend the abstract `PatchWebviewHost` base class in `panel.ts`, which owns
 ## Every `.vsix` Build Goes Into `build/` — Owned by `smarts-app-vscode`
 
 Every `vsce package` run for this project outputs into `<project-root>/build/` (gitignored, every past version kept). The general convention and concrete packaging/verification steps are owned by the `smarts-app-vscode` skill's `package-vsix` action — invoke it for any future `.vsix` build, in this project or any other.
+
+## Every Commit Auto-Bumps the Version and Auto-Builds a `.vsix` — Owned by `smarts-app-vscode`
+
+This project's `core.hooksPath` is set to its tracked `githooks/` folder (`git config core.hooksPath githooks`, a per-clone local setting a fresh clone must re-run once). `githooks/pre-commit` deterministically bumps `package.json`'s patch version and stages it into the same commit; `githooks/post-commit` then compiles and packages a fresh `.vsix` into `build/` for that version — no model/LLM involvement at commit time, and no manual version bump going forward. Both hooks are thin shims calling the shared canonical script `~/.agents/githooks/Auto Version Build.mjs`, reused by every VS Code extension project. The general convention (the shared-script design, the Windows `.cmd`-spawn + shell-quoting pitfalls already fixed in it, and how to wire this into a new project) is owned by the `smarts-app-vscode` skill's `install-git-hooks` action — invoke it to wire this into any other VS Code extension project.
