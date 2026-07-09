@@ -551,10 +551,12 @@ const baseCss = `
     .section-col + .section-col { border-left: none; padding-left: 0; border-top: 1px solid var(--vscode-panel-border); padding-top: 12px; margin-top: 4px; }
     /* Stay on ONE row (not stacked) even at this width, but put the controls
        (the input/switch) BEFORE the label visually via CSS order, without
-       reordering the actual DOM/data-cmd wiring — the label shrinks/truncates
-       instead of pushing the row wider than the sidebar. */
-    .knob { flex-wrap: nowrap; gap: 8px; padding: 6px 4px; }
-    .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+       reordering the actual DOM/data-cmd wiring. A label too long for the
+       remaining width WRAPS onto a second line (never ellipsis-truncated —
+       a clipped "usage-limit w..." hides which setting the row even is), so
+       the row's height grows instead of the text being cut off. */
+    .knob { flex-wrap: nowrap; align-items: flex-start; gap: 8px; padding: 6px 4px; }
+    .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word; padding-top: 2px; }
     /* The wide-view .controls box is a fixed 84px so a size-input and a
        toggle-switch line up in a column; at this width there's no column to
        line up (one knob per row), so let it shrink to its actual content

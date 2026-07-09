@@ -8,6 +8,13 @@ All notable changes to Smarts Claude Manager (formerly Claude Code UI Patch) are
 | ----------- | ---------------------- |
 | 2.1.201+    | 2.0.x                  |
 
+## 2.0.2
+
+- Fix: in the narrow Activity Bar sidebar view, a knob row's label (e.g.
+  "usage-limit warning", "diff card line numbers") now wraps onto a second
+  line instead of being clipped with an ellipsis, so the setting it belongs
+  to always stays readable.
+
 ## 2.0.1
 
 - README: list every one of the 34 settings (not just the 11 font-size ones)
