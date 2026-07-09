@@ -390,7 +390,10 @@ const CSS = `
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--vscode-descriptionForeground, #cfcfcf);
+  /* badge-foreground is the token VS Code themes pair with badge-background for
+     contrast — using descriptionForeground here (a token meant for plain text on
+     the editor background) produced unreadable dark-on-blue text in some themes. */
+  color: var(--vscode-badge-foreground, #ffffff);
   background: var(--vscode-badge-background, rgba(120, 120, 120, 0.25));
   border-radius: 12px;
 }
