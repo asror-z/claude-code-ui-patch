@@ -11,3 +11,6 @@ out/
 !media/*.svg
 /.claude/Chat Patch Extend/Tests/
 /.claude/README update screenshots/Scripts/
+/.claude/API extraction skill.fish/Scripts/
+/.claude/Reverse-engineer skills.palebluedot.live API/Scripts/
+/.claude/Skillhub.club API Extract/Scripts/
