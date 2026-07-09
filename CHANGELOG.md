@@ -8,6 +8,12 @@ All notable changes to Smarts Claude Manager (formerly Claude Code UI Patch) are
 | ----------- | ---------------------- |
 | 2.1.201+    | 2.0.x                  |
 
+## 2.0.1
+
+- README: list every one of the 34 settings (not just the 11 font-size ones)
+  with its shipped default in the direct-edit JSON example, and document the
+  Activity Bar sidebar view alongside the floating panel tab. No code change.
+
 ## 2.0.0 — Renamed to Smarts Claude Manager
 
 **BREAKING CHANGE:** the whole extension is renamed from "Claude Code UI Patch"
