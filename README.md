@@ -15,6 +15,18 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 | ![Configuration panel](docs/img/config-panel.png) |    ![Status bar item](docs/img/status-bar-item.png)     |
 |     Adjust the knobs, then **Reload Window**      | Hover the `aA` to show summary, and click to open panel |
 
+The same controls also dock into the Activity Bar as a sidebar view, so you can keep them
+visible alongside your editor instead of a floating tab:
+
+|                                  Activity Bar Sidebar                                 |
+| :------------------------------------------------------------------------------------: |
+|                          ![Sidebar view](docs/img/sidebar-view.png)                          |
+| The Smarts Claude Manager icon in the Activity Bar opens the identical panel, docked |
+
+The panel lays its content out in a responsive grid — 15 feature checkboxes, the Chat Panel
+or Tab knobs, and the Plan Mode Markdown Preview knobs each in their own column on a wide
+window, collapsing down to a single column in the narrow sidebar.
+
 1. Open the configuration panel  
    Press `Cmd+Shift+P` / `Ctrl+Shift+P` (or `F1`) to open the Command Palette, then run **Smarts Claude Manager: Open Panel**. Or alternatively, click the `aA` item at the far right of the status bar, or click the Smarts Claude Manager icon in the Activity Bar to open the same controls docked in the sidebar.
 2. Modify the settings.  
@@ -135,3 +147,4 @@ suppresses it for good.
 
 - **The patch reverts when Claude Code updates.** Your settings re-apply on the next window reload (reload once more to see them). VS Code may show a one-time "corrupt installation" warning, which is safe to dismiss.
 - **`chatHistoryFontSize` / `chatHistoryFontFamily` restyle the agent transcript only** (deliberate design, not a bug). Your own messages, the input box, the interface, and other extensions' chats (Codex, Copilot, etc.) stay native, and can be configured with `chat.fontSize` and `chat.fontFamily`.
+- **The floating panel tab and the Activity Bar sidebar are the same controls, just docked differently** — both stay in sync with the same underlying settings, so a change made in one is reflected in the other after a reload.

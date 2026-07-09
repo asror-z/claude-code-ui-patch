@@ -10,3 +10,4 @@ out/
 # source asset, not a generated/scratch file, so it needs an explicit exception.
 !media/*.svg
 /.claude/Chat Patch Extend/Tests/
+/.claude/README update screenshots/Scripts/
