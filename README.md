@@ -4,9 +4,9 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 
 ## Supported Versions
 
-| Claude Code | UI Patch |
-| ----------- | -------- |
-| 2.1.201+    | 1.2.x    |
+| Claude Code | Smarts Claude Manager |
+| ----------- | ---------------------- |
+| 2.1.201+    | 2.0.x                  |
 
 ## Every Knob, One Panel
 
@@ -81,7 +81,7 @@ Chat Enhancement Features              # always injected; each feature has its o
    └── usernav          # jump between your own messages (up/down)
 ```
 
-## Using This UI Patch
+## Using Smarts Claude Manager
 
 - **Panel controls:** sizes use `▼`/`▲`, toggles an On/Off switch, and each row's sync dot shows green (in effect) or yellow (reload needed).
 - **Direct edits:** Font families, comment-box rows, and the "Show more/less" button alignment have no panel control, set them in VS Code Settings via direct edits. `smartsClaudeManager.*` settings apply upon a window reload. Example:
@@ -89,11 +89,11 @@ Chat Enhancement Features              # always injected; each feature has its o
   ```json
   {
     // These settings affect ALL native chats, including Claude Code, Codex, Copilot, etc.
-    // Therefore, UI Patch does not touch them
+    // Therefore, Smarts Claude Manager does not touch them
     // "chat.fontFamily": "default",
     // "chat.fontSize": 15,
 
-    // UI Patch font size settings in a unified namespace `smartsClaudeManager`
+    // Smarts Claude Manager font size settings in a unified namespace `smartsClaudeManager`
     "smartsClaudeManager.chatCodeblockFontSize": 14,
     "smartsClaudeManager.chatCodeInlineFontSize": 14,
     "smartsClaudeManager.chatDiffCardFontSize": 13.5,

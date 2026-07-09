@@ -1,6 +1,6 @@
 // Shared runtime injected once into the chat webview (extension.js) to host every
 // chat-enhancement feature (Reply, Search, DateTime, ... — see behaviorFeatures.ts).
-// Unlike claude-code-ui-patch's PATCH_POINTS/TOGGLE_POINTS/INJECT_POINTS (which all
+// Unlike this extension's own PATCH_POINTS/TOGGLE_POINTS/INJECT_POINTS (which all
 // swap an EXISTING hardcoded value already present in the bundle), these features add
 // NEW behavior that doesn't exist in the stock bundle at all, so they ride as one
 // marker-tagged <script>/<style> block (see behaviorInject.ts) rather than a value-slot
