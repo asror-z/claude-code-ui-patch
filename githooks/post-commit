@@ -1,0 +1,6 @@
+#!/bin/sh
+# Deterministic: compiles and packages a fresh .vsix for the just-bumped version into build/.
+# Calls the canonical shared script in ~/.agents/githooks/ (reused by every VS Code
+# extension project) — never a per-project copy.
+ROOT="$(git rev-parse --show-toplevel)"
+node "$HOME/.agents/githooks/Auto Version Build.mjs" post-commit "$ROOT"
