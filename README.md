@@ -105,20 +105,54 @@ Chat Enhancement Features              # always injected; each feature has its o
     // "chat.fontFamily": "default",
     // "chat.fontSize": 15,
 
-    // Smarts Claude Manager font size settings in a unified namespace `smartsClaudeManager`
+    // Chat Panel or Tab (agent messages only) — every one of these has a panel control too;
+    // shown here with its shipped default value
+    "smartsClaudeManager.chatHistoryFontSize": 0,
+    "smartsClaudeManager.chatHistoryFontFamily": "",
     "smartsClaudeManager.chatCodeblockFontSize": 14,
-    "smartsClaudeManager.chatCodeInlineFontSize": 14,
-    "smartsClaudeManager.chatDiffCardFontSize": 13.5,
-    "smartsClaudeManager.chatHistoryFontSize": 16.5,
-    "smartsClaudeManager.planPreviewFontSize": 16.25,
-    "smartsClaudeManager.planPreviewCodeblockFontSize": 13.75,
-    "smartsClaudeManager.planPreviewCodeInlineFontSize": 13.75,
-    "smartsClaudeManager.planPreviewCommentInputFontSize": 15,
-    "smartsClaudeManager.planPreviewCommentInputRows": 7,
-    "smartsClaudeManager.planPreviewCommentBadgeFontSize": 12,
-    "smartsClaudeManager.planPreviewCommentQuoteFontSize": 12.5
+    "smartsClaudeManager.chatCodeInlineFontSize": 0,
+    "smartsClaudeManager.chatDiffCardFontSize": 14,
+    "smartsClaudeManager.chatDiffCardLineNumbers": true,
+    "smartsClaudeManager.chatDiffCardThemeSync": true,
+
+    // Behavior
+    "smartsClaudeManager.chatShowMoreAndLessAlign": "",
+    "smartsClaudeManager.chatPermissionCodeMatchChatCodeblock": false,
+    "smartsClaudeManager.effortSyncFix": false,
+    "smartsClaudeManager.chatHideUsageWarning": false,
+
+    // Plan Mode Markdown Preview
+    "smartsClaudeManager.planPreviewFontSize": 14,
+    "smartsClaudeManager.planPreviewFontFamily": "",
+    "smartsClaudeManager.planPreviewCodeblockFontSize": 13,
+    "smartsClaudeManager.planPreviewCodeInlineFontSize": 0,
+    "smartsClaudeManager.planPreviewCommentInputFontSize": 13,
+    "smartsClaudeManager.planPreviewCommentInputRows": 0,
+    "smartsClaudeManager.planPreviewCommentQuoteFontSize": 12,
+    "smartsClaudeManager.planPreviewCommentBadgeFontSize": 10,
+
+    // Chat Enhancement Features — always injected; each one's only on/off control
+    // is its own checkbox in the panel (or this setting), never an in-chat toggle
+    "smartsClaudeManager.feature.reply": true,
+    "smartsClaudeManager.feature.search": true,
+    "smartsClaudeManager.feature.datetime": true,
+    "smartsClaudeManager.feature.askquestion": true,
+    "smartsClaudeManager.feature.userstyle": true,
+    "smartsClaudeManager.feature.blockquote": true,
+    "smartsClaudeManager.feature.copybuttons": true,
+    "smartsClaudeManager.feature.codeblock": true,
+    "smartsClaudeManager.feature.toc": true,
+    "smartsClaudeManager.feature.export": true,
+    "smartsClaudeManager.feature.scroll": true,
+    "smartsClaudeManager.feature.askcollapse": true,
+    "smartsClaudeManager.feature.autocontinue": true,
+    "smartsClaudeManager.feature.draftsave": true,
+    "smartsClaudeManager.feature.usernav": true
   }
   ```
+
+  Every value above is the extension's shipped default — the JSON key is all you need to add
+  to VS Code's `settings.json` if you only want to override one or two.
 
 - **Commands:** `Smarts Claude Manager: Open Panel`.
 
