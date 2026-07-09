@@ -9,8 +9,12 @@
 //
 // PER-CHAT KEY: cc-draft:<chatId>, where <chatId> is the STABLE chat/session id from the
 // webview page_url (?…&session=<uuid>). The volatile per-webview id=<uuid> (which changes on
-// reload) is deliberately NOT used, so the same chat keeps the same key across reloads. Falls
-// back to cc-draft:default when no session param.
+// reload) is deliberately NOT used, so the same chat keeps the same key across reloads. A
+// tab with NO session param yet (a brand-new tab, before its session is created) has NO
+// stable identity — it never saves and never restores, and does NOT fall back to a shared
+// key. An earlier version fell back to the literal key "cc-draft:default" for every such
+// tab, so a brand-new tab's empty composer could be silently filled with whatever draft
+// text another session-less tab had last saved — cross-tab draft leakage into a fresh chat.
 //
 // Unlike the Antigravity build this was ported from, this target has NO nested chat iframe —
 // document IS the chat document — so init(doc, win) is called directly with (document,
@@ -36,7 +40,12 @@ const JS = `
   // ---- per-chat key ---------------------------------------------------------------
 
   // The STABLE chat id = the \`session\` query param of the webview URL. It survives a reload
-  // (the volatile \`id\` param does not). Read from location.search; fall back to "default".
+  // (the volatile \`id\` param does not). Read from location.search. Returns null — NOT a
+  // shared fallback string — when no session id is present yet (a brand-new tab, before its
+  // Claude Code session is created). A shared "default" fallback here previously made EVERY
+  // session-less tab read and write the SAME localStorage key, so a new tab's empty composer
+  // got clobbered with whatever draft another such tab had last saved — cross-tab draft
+  // leakage. Callers must treat null as "no stable identity yet" and skip save/restore.
   function chatId() {
     try {
       var qs = (W.location && W.location.search) || "";
@@ -49,9 +58,12 @@ const JS = `
         if (pm && pm[1]) return decodeURIComponent(pm[1]);
       } catch (e) {}
     } catch (e) {}
-    return "default";
+    return null;
   }
-  function draftKey() { return KEY_PREFIX + chatId(); }
+  function draftKey() {
+    var id = chatId();
+    return id ? KEY_PREFIX + id : null;
+  }
 
   function lsGet(k) { try { return W.localStorage ? W.localStorage.getItem(k) : null; } catch (e) { return null; } }
   function lsSet(k, v) { try { if (W.localStorage) W.localStorage.setItem(k, v); } catch (e) {} }
@@ -104,8 +116,9 @@ const JS = `
   function saveNow() {
     var input = findComposer();
     if (!input) return;
-    var text = composerText(input);
     var key = draftKey();
+    if (!key) return; // no stable session id yet — never save/restore under a shared key
+    var text = composerText(input);
     if (text.trim().length === 0) {
       // empty composer → remove the key so a cleared draft is not restored later
       if (lsGet(key) != null) { lsDel(key); diagLog("cleared", { reason: "empty" }); }
@@ -122,6 +135,7 @@ const JS = `
 
   function clearDraft(reason) {
     var key = draftKey();
+    if (!key) return; // no stable session id yet — nothing to clear
     if (lsGet(key) != null) { lsDel(key); diagLog("cleared", { reason: reason || "sent" }); }
   }
 
@@ -130,6 +144,7 @@ const JS = `
     if (!input) return;
     if (!composerIsEmpty(input)) return; // never clobber existing text
     var key = draftKey();
+    if (!key) return; // no stable session id yet — never restore a shared/cross-tab draft
     var draft = lsGet(key);
     if (!draft || !draft.trim()) return;
     try {
@@ -213,10 +228,19 @@ const JS = `
     }, 150);
   }
 
+  // One-time purge of the legacy shared "cc-draft:default" key written by earlier builds
+  // of this feature (before per-tab session ids were required). That key was read/written
+  // by EVERY session-less tab, so it could hold another tab's leaked draft text; removing
+  // it here stops it from ever being restored again, from any tab, going forward.
+  function purgeLegacyDefaultKey() {
+    try { lsDel(KEY_PREFIX + "default"); } catch (e) {}
+  }
+
   function init(doc, win) {
     D = doc;
     W = win || window;
     _boundInput = null;
+    purgeLegacyDefaultKey();
     try { bindComposer(); } catch (e) {}
     try { bindSendClick(); } catch (e) {}
     // restore slightly after mount so the composer exists
