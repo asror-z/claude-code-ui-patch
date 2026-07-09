@@ -31,7 +31,7 @@ function unescapeFromTemplateLiteral(src: string): string {
 // read by window.__ccFeature(id) in the injected bootstrap), not a patch-time value —
 // so it is not a TOGGLE_POINTS entry. The panel's Chat Enhancement Features checkboxes
 // (see panel.ts / Patcher.setFeature) are the ONE control surface for it: each
-// claudeCodeUiPatch.feature.<id> setting is written into the localStorage map on
+// smartsClaudeManager.feature.<id> setting is written into the localStorage map on
 // EVERY webview load, unconditionally, so a checkbox flip takes effect the next
 // window reload (the same "reload to apply" contract as every other patch setting) —
 // there is no separate live in-chat control to defer to.
@@ -71,7 +71,7 @@ export function behaviorPresent(extensionJs: string): boolean {
 // Apply (or refresh) the behavior script block. Idempotent: an existing block is
 // removed first, so re-applying (e.g. after a feature is added/changed) never
 // double-injects and always reflects the CURRENT assembled source. featureDefaults
-// (from the claudeCodeUiPatch.feature.<id> settings) seeds the runtime toggle map on
+// (from the smartsClaudeManager.feature.<id> settings) seeds the runtime toggle map on
 // the webview's first load only — see seedScript() above.
 export function applyBehaviorScript(
   extensionJs: string,
@@ -116,7 +116,7 @@ export function wantedBehaviorScript(featureDefaults?: Record<string, boolean>):
 }
 
 // The declared feature ids, for building both the settings schema
-// (claudeCodeUiPatch.feature.<id>) and the panel — sourced from the SAME registry the
+// (smartsClaudeManager.feature.<id>) and the panel — sourced from the SAME registry the
 // injected script is built from, so it can never drift out of sync with what's
 // actually injected.
 export function featureIds(): { id: string; label: string }[] {

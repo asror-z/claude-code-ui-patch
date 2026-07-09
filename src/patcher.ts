@@ -35,15 +35,15 @@ import "./behaviorFeatures.toc-export-scroll";
 const EXT_PREFIX = "anthropic.claude-code-";
 const MARKER_FILE = "extension.js"; // must exist for a dir to count as an install
 
-const CONFIG_NS = "claudeCodeUiPatch";
+const CONFIG_NS = "smartsClaudeManager";
 
 // Stock-value capture: the real native font-size values are read from the
 // fresh (unpatched) bundle and persisted in globalState, keyed by Claude Code
 // version. Restore uses these captured values instead of the hardcoded
 // originalPx/originalValue constants, so it always matches the actual native
 // behavior even if a future bundle changes its stock sizes.
-const STOCK_VERSION_KEY = "claudeCodeUiPatch.stockVersion";
-const STOCK_VALUES_KEY = "claudeCodeUiPatch.stockValues";
+const STOCK_VERSION_KEY = "smartsClaudeManager.stockVersion";
+const STOCK_VALUES_KEY = "smartsClaudeManager.stockValues";
 export type StockCapture = Record<string, string>;
 
 export const MIN_PX = 6;
@@ -126,7 +126,7 @@ interface PatchPoint {
   id: string;
   section: Section;
   label: string;
-  key: string; // settings sub-key under the claudeCodeUiPatch namespace
+  key: string; // settings sub-key under the smartsClaudeManager namespace
   defaultPx: number;
   maxPx: number; // clamp for ▲/▼ adjust
   file: string; // path relative to the install dir
@@ -472,7 +472,7 @@ interface TogglePoint {
   id: string;
   section: Section;
   label: string;
-  key: string; // settings sub-key under the claudeCodeUiPatch namespace (boolean)
+  key: string; // settings sub-key under the smartsClaudeManager namespace (boolean)
   defaultOn: boolean; // native default (the "off"/stock state)
   file: string; // path relative to the install dir
   // Value-swap model (re captures (prefix)(value)(suffix); onValue/offValue
@@ -512,7 +512,7 @@ interface TogglePoint {
 // ride the toggle machinery via a custom fn* transform (extension.js) + a cssFile
 // side-effect (webview/index.css), exactly like diffLineNumbers' gutter CSS above,
 // because this is a whole-block inject/remove rather than a single value swap.
-// claudeCodeUiPatch.feature.<id> (one boolean per feature — see package.json, and the
+// smartsClaudeManager.feature.<id> (one boolean per feature — see package.json, and the
 // panel's Chat Enhancement Features checkboxes) is written into the runtime toggle's
 // localStorage map on EVERY webview load — the panel is the one control surface for
 // per-feature on/off (a checkbox flip takes effect on the next window reload, exactly
@@ -535,7 +535,7 @@ function chatEnhancementsCurrentOn(c: string): boolean | undefined {
 }
 // A plain on/off boolean can't tell "the injected script is present" apart from
 // "the injected script is present WITH THE CURRENTLY-WANTED per-feature seed
-// values" — a claudeCodeUiPatch.feature.<id> flip changes only the latter. These
+// values" — a smartsClaudeManager.feature.<id> flip changes only the latter. These
 // two functions give toggleStateStr()/toggleWantStr() a real content comparison
 // (a fast, cheap length+char-sum digest — the actual scripts run tens of KB, so
 // hashing the full string on every analyze/reconcile pass is unnecessary), so a
@@ -654,8 +654,8 @@ const TOGGLE_POINTS: TogglePoint[] = [
 export type ToggleMap = Record<string, boolean>;
 
 // Toggle ids with no user-facing setting: always forced to this value regardless of
-// claudeCodeUiPatch.* config. chatEnhancements is one of these — the individual
-// claudeCodeUiPatch.feature.<id> checkboxes are the only per-feature control; there
+// smartsClaudeManager.* config. chatEnhancements is one of these — the individual
+// smartsClaudeManager.feature.<id> checkboxes are the only per-feature control; there
 // is no separate master on/off (removed per user feedback: "doim on bo'ladi").
 const ALWAYS_ON_TOGGLES = new Set(["chatEnhancements"]);
 
@@ -692,6 +692,89 @@ export async function migrateLegacyKeys(): Promise<void> {
     } catch {
       // best effort: the value is copied; clearing an unregistered legacy key can
       // throw on some VS Code versions, which is harmless (it just lingers).
+    }
+  }
+}
+
+// The whole extension was renamed claudeCodeUiPatch -> smartsClaudeManager (v2.0.0),
+// which moves EVERY setting to a new namespace, not just a handful of keys. Every
+// sub-key that has ever existed under the old namespace is copied over verbatim
+// (both Global and Workspace scope — a workspace-level override must migrate too,
+// not just a user-level one) the first time this runs after the upgrade, then the
+// old key is cleared so a stale claudeCodeUiPatch.* value never lingers or masks a
+// future old-namespace read (there is none, but this mirrors migrateLegacyKeys's own
+// discipline). Safe to run every activation: a no-op once nothing under the old
+// namespace remains. Must run before the Patcher reads settings, same as
+// migrateLegacyKeys, so a migrated value takes effect immediately.
+const OLD_CONFIG_NS = "claudeCodeUiPatch";
+const NAMESPACE_MIGRATION_KEYS: string[] = [
+  "chatHistoryFontSize",
+  "chatHistoryFontFamily",
+  "chatCodeblockFontSize",
+  "chatCodeInlineFontSize",
+  "chatDiffCardFontSize",
+  "chatDiffCardLineNumbers",
+  "chatDiffCardThemeSync",
+  "chatPermissionCodeMatchChatCodeblock",
+  "chatShowMoreAndLessAlign",
+  "effortSyncFix",
+  "planPreviewFontSize",
+  "planPreviewFontFamily",
+  "planPreviewCodeblockFontSize",
+  "planPreviewCodeInlineFontSize",
+  "planPreviewCommentInputFontSize",
+  "planPreviewCommentInputRows",
+  "planPreviewCommentQuoteFontSize",
+  "planPreviewCommentBadgeFontSize",
+  "chatHideUsageWarning",
+  "feature.reply",
+  "feature.search",
+  "feature.datetime",
+  "feature.askquestion",
+  "feature.userstyle",
+  "feature.blockquote",
+  "feature.copybuttons",
+  "feature.codeblock",
+  "feature.toc",
+  "feature.export",
+  "feature.scroll",
+  "feature.askcollapse",
+  "feature.autocontinue",
+  "feature.draftsave",
+  "feature.usernav",
+  // Pre-2.0.0 legacy keys, in case a user upgrades straight from a version that
+  // predates the chatDiff*->chatDiffCard*/chatCodeFontSize->chatCodeblockFontSize
+  // rename without ever having run migrateLegacyKeys() under the old namespace.
+  "chatDiffFontSize",
+  "chatDiffLineNumbers",
+  "chatDiffThemeSync",
+  "chatCodeFontSize",
+];
+
+export async function migrateNamespaceRename(): Promise<void> {
+  const oldCfg = vscode.workspace.getConfiguration(OLD_CONFIG_NS);
+  const newCfg = vscode.workspace.getConfiguration(CONFIG_NS);
+  const scopes: [vscode.ConfigurationTarget, "globalValue" | "workspaceValue"][] = [
+    [vscode.ConfigurationTarget.Global, "globalValue"],
+    [vscode.ConfigurationTarget.Workspace, "workspaceValue"],
+  ];
+  for (const key of NAMESPACE_MIGRATION_KEYS) {
+    const inspected = oldCfg.inspect(key);
+    if (!inspected) continue;
+    for (const [target, prop] of scopes) {
+      const legacy = inspected[prop];
+      if (legacy === undefined) continue;
+      try {
+        const newInspected = newCfg.inspect(key);
+        const newProp = target === vscode.ConfigurationTarget.Global ? "globalValue" : "workspaceValue";
+        if (newInspected?.[newProp] === undefined) {
+          await newCfg.update(key, legacy, target);
+        }
+        await oldCfg.update(key, undefined, target);
+      } catch {
+        // best effort: the value is copied; clearing an unregistered legacy
+        // namespace key can throw on some VS Code versions, harmless (it lingers).
+      }
     }
   }
 }
@@ -827,7 +910,7 @@ interface InjectPoint {
   id: string;
   section: Section;
   label: string;
-  key: string; // settings sub-key under the claudeCodeUiPatch namespace
+  key: string; // settings sub-key under the smartsClaudeManager namespace
   kind: "size" | "family" | "rows" | "align";
   file: string;
   showInPanel: boolean; // size shows as a knob; strings/rows are settings-only
@@ -1682,7 +1765,7 @@ export interface Knob {
 export interface FeatureState {
   id: string;
   label: string;
-  on: boolean; // current claudeCodeUiPatch.feature.<id> setting value
+  on: boolean; // current smartsClaudeManager.feature.<id> setting value
 }
 
 export interface Snapshot {
@@ -1905,7 +1988,7 @@ export class Patcher {
       this.reconcilePendingReload();
     } catch (err) {
       void vscode.window.showErrorMessage(
-        `Claude Code UI Patch: failed to patch Claude Code: ${(err as Error).message}`,
+        `Smarts Claude Manager: failed to patch Claude Code: ${(err as Error).message}`,
       );
     }
     this.refresh();
@@ -2017,7 +2100,7 @@ export class Patcher {
       .update(t.key, on, vscode.ConfigurationTarget.Global);
   }
 
-  // Flip one chat-enhancement feature's claudeCodeUiPatch.feature.<id> setting. This
+  // Flip one chat-enhancement feature's smartsClaudeManager.feature.<id> setting. This
   // is a SEED value (see readFeatureDefaults()), not a patch point: writing it
   // reaches onDidChangeConfiguration -> autoApply -> chatEnhancementsSet(), which
   // re-derives the injected script with the new default map (only takes effect for
@@ -2073,7 +2156,7 @@ export class Patcher {
   async restore(): Promise<void> {
     if (!this.ext) {
       void vscode.window.showErrorMessage(
-        "Claude Code UI Patch: couldn't find an installed Claude Code extension.",
+        "Smarts Claude Manager: couldn't find an installed Claude Code extension.",
       );
       return;
     }
@@ -2082,7 +2165,7 @@ export class Patcher {
       this.reconcilePendingReload();
     } catch (err) {
       void vscode.window.showErrorMessage(
-        `Claude Code UI Patch: failed to restore Claude Code v${this.ext.version}: ${(err as Error).message}`,
+        `Smarts Claude Manager: failed to restore Claude Code v${this.ext.version}: ${(err as Error).message}`,
       );
       return;
     }
@@ -2117,7 +2200,7 @@ export function tooltipLines(snap: Snapshot | undefined): string[] {
 
   // Title (heading) with the version on its own plain line below it.
   const out: string[] = [
-    `### Claude Code UI Patch`,
+    `### Smarts Claude Manager`,
     `Claude Code v${snap.version}`,
   ];
 
@@ -2149,7 +2232,7 @@ export function tooltipLines(snap: Snapshot | undefined): string[] {
     "",
     "---",
     "",
-    `${cmdLink("$(gear) Open VS Code Settings", "workbench.action.openSettings", ["claudeCodeUiPatch"])}  ·  ${cmdLink("$(refresh) Reload Window", "workbench.action.reloadWindow")}`,
+    `${cmdLink("$(gear) Open VS Code Settings", "workbench.action.openSettings", ["smartsClaudeManager"])}  ·  ${cmdLink("$(refresh) Reload Window", "workbench.action.reloadWindow")}`,
   );
 
   if (!snap.supported) {

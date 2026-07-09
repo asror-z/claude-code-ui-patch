@@ -14,7 +14,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     statusBar,
     ...patcher.register(),
-    vscode.commands.registerCommand("claudeCodeUiPatch.panel", () =>
+    vscode.commands.registerCommand("smartsClaudeManager.panel", () =>
       PatchPanel.show(patcher)
     ),
     vscode.window.registerWebviewViewProvider(PatchSidebarView.viewId, sidebarView)

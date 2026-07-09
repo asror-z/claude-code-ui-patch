@@ -14,8 +14,8 @@ export class StatusBar {
       vscode.StatusBarAlignment.Right,
       -1000000
     );
-    this.item.name = "Claude Code UI Patch";
-    this.item.command = "claudeCodeUiPatch.panel";
+    this.item.name = "Smarts Claude Manager";
+    this.item.command = "smartsClaudeManager.panel";
     this.render();
     this.item.show();
     this.sub = patcher.onDidChange(() => this.render());
@@ -32,7 +32,7 @@ export class StatusBar {
     md.appendMarkdown(
       lines.length
         ? lines.join("\n")
-        : "**Claude Code UI Patch**\n\nClaude Code not detected."
+        : "**Smarts Claude Manager**\n\nClaude Code not detected."
     );
     this.item.tooltip = md;
 

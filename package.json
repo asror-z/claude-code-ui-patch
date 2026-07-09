@@ -1,19 +1,19 @@
 {
-  "name": "claude-code-ui-patch",
-  "displayName": "Claude Code UI Patch",
+  "name": "smarts-claude-manager",
+  "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "1.2.8",
+  "version": "2.0.0",
   "publisher": "zeyutang",
   "icon": "icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zeyutang/claude-code-ui-patch.git"
+    "url": "https://github.com/zeyutang/smarts-claude-manager.git"
   },
   "bugs": {
-    "url": "https://github.com/zeyutang/claude-code-ui-patch/issues"
+    "url": "https://github.com/zeyutang/smarts-claude-manager/issues"
   },
-  "homepage": "https://github.com/zeyutang/claude-code-ui-patch#readme",
+  "homepage": "https://github.com/zeyutang/smarts-claude-manager#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -39,80 +39,80 @@
   "contributes": {
     "commands": [
       {
-        "command": "claudeCodeUiPatch.panel",
-        "title": "Claude Code UI Patch: Open Panel"
+        "command": "smartsClaudeManager.panel",
+        "title": "Smarts Claude Manager: Open Panel"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "claudeCodeUiPatch",
-          "title": "Claude Code UI Patch",
+          "id": "smartsClaudeManager",
+          "title": "Smarts Claude Manager",
           "icon": "media/activitybar-icon.svg"
         }
       ]
     },
     "views": {
-      "claudeCodeUiPatch": [
+      "smartsClaudeManager": [
         {
-          "id": "claudeCodeUiPatch.sidebarView",
-          "name": "Claude Code UI Patch",
+          "id": "smartsClaudeManager.sidebarView",
+          "name": "Smarts Claude Manager",
           "type": "webview"
         }
       ]
     },
     "configuration": {
-      "title": "Claude Code UI Patch",
+      "title": "Smarts Claude Manager",
       "properties": {
-        "claudeCodeUiPatch.chatHistoryFontSize": {
+        "smartsClaudeManager.chatHistoryFontSize": {
           "type": "number",
           "default": 0,
           "minimum": 0,
           "maximum": 48,
           "markdownDescription": "Chat font size in px, private to Claude Code so other chat panels are unaffected. `0` follows `#chat.fontSize#`."
         },
-        "claudeCodeUiPatch.chatHistoryFontFamily": {
+        "smartsClaudeManager.chatHistoryFontFamily": {
           "type": "string",
           "default": "",
           "markdownDescription": "Font family for the chat history only; the interface and input box stay native. Empty = native."
         },
-        "claudeCodeUiPatch.chatCodeblockFontSize": {
+        "smartsClaudeManager.chatCodeblockFontSize": {
           "type": "number",
           "default": 14,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Chat fenced code block size in px."
         },
-        "claudeCodeUiPatch.chatCodeInlineFontSize": {
+        "smartsClaudeManager.chatCodeInlineFontSize": {
           "type": "number",
           "default": 0,
           "minimum": 0,
           "maximum": 24,
-          "markdownDescription": "Chat inline code size in px. `0` follows `#claudeCodeUiPatch.chatCodeblockFontSize#`."
+          "markdownDescription": "Chat inline code size in px. `0` follows `#smartsClaudeManager.chatCodeblockFontSize#`."
         },
-        "claudeCodeUiPatch.chatDiffCardFontSize": {
+        "smartsClaudeManager.chatDiffCardFontSize": {
           "type": "number",
           "default": 14,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Diff card code size in px (Edit/MultiEdit cards and the expand modal)."
         },
-        "claudeCodeUiPatch.chatDiffCardLineNumbers": {
+        "smartsClaudeManager.chatDiffCardLineNumbers": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs."
         },
-        "claudeCodeUiPatch.chatDiffCardThemeSync": {
+        "smartsClaudeManager.chatDiffCardThemeSync": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Sync the diff card theme to the VS Code light/dark theme instead of forcing dark."
         },
-        "claudeCodeUiPatch.chatPermissionCodeMatchChatCodeblock": {
+        "smartsClaudeManager.chatPermissionCodeMatchChatCodeblock": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "Size the permission command block to match the tool input block (`0.85em` instead of `0.9em`)."
         },
-        "claudeCodeUiPatch.chatShowMoreAndLessAlign": {
+        "smartsClaudeManager.chatShowMoreAndLessAlign": {
           "type": "string",
           "enum": [
             "",
@@ -127,141 +127,141 @@
           "default": "",
           "markdownDescription": "Pin the chat message \"Show more\" and \"Show less\" buttons to a side. Empty = native (drifting) position; `left` or `right` places them deterministically."
         },
-        "claudeCodeUiPatch.effortSyncFix": {
+        "smartsClaudeManager.effortSyncFix": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "On window reload, push the persisted effort level to the CLI so it does not silently run at the default."
         },
-        "claudeCodeUiPatch.planPreviewFontSize": {
+        "smartsClaudeManager.planPreviewFontSize": {
           "type": "number",
           "default": 14,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Plan preview text size in px (headings scale with it)."
         },
-        "claudeCodeUiPatch.planPreviewFontFamily": {
+        "smartsClaudeManager.planPreviewFontFamily": {
           "type": "string",
           "default": "",
           "markdownDescription": "Font family for the Plan Mode preview panel. Empty = native."
         },
-        "claudeCodeUiPatch.planPreviewCodeblockFontSize": {
+        "smartsClaudeManager.planPreviewCodeblockFontSize": {
           "type": "number",
           "default": 13,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Plan preview fenced code block size in px."
         },
-        "claudeCodeUiPatch.planPreviewCodeInlineFontSize": {
+        "smartsClaudeManager.planPreviewCodeInlineFontSize": {
           "type": "number",
           "default": 0,
           "minimum": 0,
           "maximum": 24,
-          "markdownDescription": "Plan preview inline code size in px. `0` follows `#claudeCodeUiPatch.planPreviewCodeblockFontSize#`."
+          "markdownDescription": "Plan preview inline code size in px. `0` follows `#smartsClaudeManager.planPreviewCodeblockFontSize#`."
         },
-        "claudeCodeUiPatch.planPreviewCommentInputFontSize": {
+        "smartsClaudeManager.planPreviewCommentInputFontSize": {
           "type": "number",
           "default": 13,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Plan preview comment box text size in px."
         },
-        "claudeCodeUiPatch.planPreviewCommentInputRows": {
+        "smartsClaudeManager.planPreviewCommentInputRows": {
           "type": "number",
           "default": 0,
           "minimum": 0,
           "maximum": 40,
           "markdownDescription": "Plan preview comment box height in rows. `0` = native (about 3)."
         },
-        "claudeCodeUiPatch.planPreviewCommentQuoteFontSize": {
+        "smartsClaudeManager.planPreviewCommentQuoteFontSize": {
           "type": "number",
           "default": 12,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Plan preview selected-quote size in px."
         },
-        "claudeCodeUiPatch.planPreviewCommentBadgeFontSize": {
+        "smartsClaudeManager.planPreviewCommentBadgeFontSize": {
           "type": "number",
           "default": 10,
           "minimum": 6,
           "maximum": 12,
           "markdownDescription": "Plan preview comment badge size in px (14px circle, keep <= 12)."
         },
-        "claudeCodeUiPatch.chatHideUsageWarning": {
+        "smartsClaudeManager.chatHideUsageWarning": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "Permanently hide the \"You've used X% of your weekly limit\" usage banner and its \"View usage\" link, instead of it reappearing after each dismissal."
         },
-        "claudeCodeUiPatch.feature.reply": {
+        "smartsClaudeManager.feature.reply": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Reply on selection: quote selected chat text into the prompt input."
         },
-        "claudeCodeUiPatch.feature.search": {
+        "smartsClaudeManager.feature.search": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Chat Search (Ctrl+F): find text within the chat."
         },
-        "claudeCodeUiPatch.feature.datetime": {
+        "smartsClaudeManager.feature.datetime": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Date/time stamps on chat messages, with day separators."
         },
-        "claudeCodeUiPatch.feature.askquestion": {
+        "smartsClaudeManager.feature.askquestion": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "AskUserQuestion render fix (Markdown/newline rendering)."
         },
-        "claudeCodeUiPatch.feature.userstyle": {
+        "smartsClaudeManager.feature.userstyle": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Restyle user messages as a distinct bubble."
         },
-        "claudeCodeUiPatch.feature.blockquote": {
+        "smartsClaudeManager.feature.blockquote": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Restyle Markdown blockquote callouts (and tool-interrupt notices)."
         },
-        "claudeCodeUiPatch.feature.copybuttons": {
+        "smartsClaudeManager.feature.copybuttons": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Per-message date/time + Copy as Markdown/HTML buttons. Requires `#claudeCodeUiPatch.feature.datetime#`."
+          "markdownDescription": "Per-message date/time + Copy as Markdown/HTML buttons. Requires `#smartsClaudeManager.feature.datetime#`."
         },
-        "claudeCodeUiPatch.feature.codeblock": {
+        "smartsClaudeManager.feature.codeblock": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "A Copy button on every fenced code block."
         },
-        "claudeCodeUiPatch.feature.toc": {
+        "smartsClaudeManager.feature.toc": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Outline panel: jump to any earlier prompt."
         },
-        "claudeCodeUiPatch.feature.export": {
+        "smartsClaudeManager.feature.export": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Export the whole chat to Markdown, HTML, or the clipboard."
         },
-        "claudeCodeUiPatch.feature.scroll": {
+        "smartsClaudeManager.feature.scroll": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Toolbar buttons to jump to the first/latest message."
         },
-        "claudeCodeUiPatch.feature.askcollapse": {
+        "smartsClaudeManager.feature.askcollapse": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Collapse/expand the AskUserQuestion dialog."
         },
-        "claudeCodeUiPatch.feature.autocontinue": {
+        "smartsClaudeManager.feature.autocontinue": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Automatically submit \"continue\" when a stream-error banner appears."
         },
-        "claudeCodeUiPatch.feature.draftsave": {
+        "smartsClaudeManager.feature.draftsave": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Autosave and restore the composer's draft text per chat."
         },
-        "claudeCodeUiPatch.feature.usernav": {
+        "smartsClaudeManager.feature.usernav": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Toolbar buttons to jump between your own messages."

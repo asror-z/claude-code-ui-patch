@@ -71,7 +71,7 @@ abstract class PatchWebviewHost {
       case "openSettings":
         void vscode.commands.executeCommand(
           "workbench.action.openSettings",
-          msg.key ?? "claudeCodeUiPatch"
+          msg.key ?? "smartsClaudeManager"
         );
         break;
     }
@@ -123,7 +123,7 @@ ${csp}
     })).filter((g) => g.knobs.length);
 
     // Chat Enhancement Features: one real checkbox per feature. Checking/unchecking
-    // writes straight to claudeCodeUiPatch.feature.<id> (see Patcher.setFeature) —
+    // writes straight to smartsClaudeManager.feature.<id> (see Patcher.setFeature) —
     // this is the ONE control surface for per-feature on/off (no in-webview gear).
     // The pack is always injected now (no master switch — see CLAUDE.md). It is a
     // self-contained, single-column list (unlike the ▼/▲ knob rows, which need
@@ -159,7 +159,7 @@ ${csp}
   <div class="app-header">
     <div class="app-title">
       <span class="app-icon">&#9889;</span>
-      <h1>Claude Code UI Patch</h1>
+      <h1>Smarts Claude Manager</h1>
     </div>
     <span class="version-pill">v${snap.version}</span>
   </div>
@@ -171,7 +171,7 @@ ${sections}
   </div>
   <div class="actions">
     <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">&#8617; Restore Last Applied</button>
-    <button class="btn btn-outline" data-cmd="openSettings" title="Open the claudeCodeUiPatch.* settings in VS Code Settings"><span class="link-icon">&#9881;</span>Open VS Code Settings</button>
+    <button class="btn btn-outline" data-cmd="openSettings" title="Open the smartsClaudeManager.* settings in VS Code Settings"><span class="link-icon">&#9881;</span>Open VS Code Settings</button>
   </div>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
@@ -287,8 +287,8 @@ export class PatchPanel extends PatchWebviewHost {
   private constructor(patcher: Patcher) {
     super(patcher);
     this.panel = vscode.window.createWebviewPanel(
-      "claudeCodeUiPatch.panel",
-      "Claude Code UI Patch",
+      "smartsClaudeManager.panel",
+      "Smarts Claude Manager",
       vscode.ViewColumn.Active,
       { enableScripts: true, localResourceRoots: [], retainContextWhenHidden: true }
     );
@@ -321,7 +321,7 @@ export class PatchPanel extends PatchWebviewHost {
 // floating editor tab. VS Code resolves the WebviewView lazily, the first time
 // the user opens the view (clicks the icon or expands it), not at activation.
 export class PatchSidebarView extends PatchWebviewHost implements vscode.WebviewViewProvider {
-  static readonly viewId = "claudeCodeUiPatch.sidebarView";
+  static readonly viewId = "smartsClaudeManager.sidebarView";
   private view: vscode.WebviewView | undefined;
 
   constructor(patcher: Patcher) {
