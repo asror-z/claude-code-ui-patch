@@ -555,8 +555,8 @@ const baseCss = `
        remaining width WRAPS onto a second line (never ellipsis-truncated —
        a clipped "usage-limit w..." hides which setting the row even is), so
        the row's height grows instead of the text being cut off. */
-    .knob { flex-wrap: nowrap; align-items: flex-start; gap: 8px; padding: 6px 4px; }
-    .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word; padding-top: 2px; }
+    .knob { flex-wrap: nowrap; align-items: center; gap: 8px; padding: 6px 4px; }
+    .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word; }
     /* The wide-view .controls box is a fixed 84px so a size-input and a
        toggle-switch line up in a column; at this width there's no column to
        line up (one knob per row), so let it shrink to its actual content

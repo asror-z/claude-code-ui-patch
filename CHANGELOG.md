@@ -8,6 +8,12 @@ All notable changes to Smarts Claude Manager (formerly Claude Code UI Patch) are
 | ----------- | ---------------------- |
 | 2.1.201+    | 2.0.x                  |
 
+## 2.0.3
+
+- Fix: in the narrow Activity Bar sidebar view, a knob row's toggle/input is
+  vertically centered against its (now possibly 2-line) label again, instead
+  of being pinned to the top of the row.
+
 ## 2.0.2
 
 - Fix: in the narrow Activity Bar sidebar view, a knob row's label (e.g.
