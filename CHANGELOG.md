@@ -1,12 +1,40 @@
 # Changelog
 
-All notable changes to Claude Code UI Patch are documented here. This project follows [Semantic Versioning](https://semver.org).
+All notable changes to Smarts Claude Manager (formerly Claude Code UI Patch) are documented here. This project follows [Semantic Versioning](https://semver.org).
 
 ## Supported versions
 
-| Claude Code | UI Patch |
-| ----------- | -------- |
-| 2.1.201+    | 1.2.x    |
+| Claude Code | Smarts Claude Manager |
+| ----------- | ---------------------- |
+| 2.1.201+    | 2.0.x                  |
+
+## 2.0.0 — Renamed to Smarts Claude Manager
+
+**BREAKING CHANGE:** the whole extension is renamed from "Claude Code UI Patch"
+to "Smarts Claude Manager", matching this project's `smarts-*` naming
+convention. This changes:
+
+- The npm package `name`: `claude-code-ui-patch` -> `smarts-claude-manager`.
+- The `displayName`: "Claude Code UI Patch" -> "Smarts Claude Manager".
+- Every setting's namespace: `claudeCodeUiPatch.*` -> `smartsClaudeManager.*`
+  (all 34 settings, including the 15 `feature.<id>` toggles).
+- The command ID: `claudeCodeUiPatch.panel` -> `smartsClaudeManager.panel`.
+- The Activity Bar view/container ID:
+  `claudeCodeUiPatch.sidebarView` -> `smartsClaudeManager.sidebarView`.
+- The `repository`/`bugs`/`homepage` URLs, now pointing at the
+  `smarts-claude-manager` GitHub repo (renamed from `claude-code-ui-patch`;
+  GitHub auto-redirects the old URL, so old links/clones keep working).
+
+**Upgrading is seamless — your settings are NOT reset.** A new
+`migrateNamespaceRename()` step runs on the first activation after upgrading:
+it copies every setting you have under the old `claudeCodeUiPatch.*` namespace
+(at both the user/Global and Workspace scope) to the matching
+`smartsClaudeManager.*` key, then clears the old key. If you already have a
+value under the new namespace (unlikely, but possible on a fresh
+side-by-side install), your existing value is never overwritten. Verified
+against the real compiled migration logic with an in-memory config stub
+covering both scopes, a pre-existing-new-value non-overwrite case, and a
+second (idempotent, no-op) run.
 
 ## 1.2.8
 
