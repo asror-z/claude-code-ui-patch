@@ -1,4 +1,4 @@
-# Claude Code UI Patch
+# Smarts Claude Manager
 
 Patch Claude Code VS Code extension UI to provide finegrained settings for various UI details (font sizes, code blocks, diff cards, and more).
 
@@ -16,7 +16,7 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 |     Adjust the knobs, then **Reload Window**      | Hover the `aA` to show summary, and click to open panel |
 
 1. Open the configuration panel  
-   Press `Cmd+Shift+P` / `Ctrl+Shift+P` (or `F1`) to open the Command Palette, then run **Claude Code UI Patch: Open Panel**. Or alternatively, click the `aA` item at the far right of the status bar, or click the Claude Code UI Patch icon in the Activity Bar to open the same controls docked in the sidebar.
+   Press `Cmd+Shift+P` / `Ctrl+Shift+P` (or `F1`) to open the Command Palette, then run **Smarts Claude Manager: Open Panel**. Or alternatively, click the `aA` item at the far right of the status bar, or click the Smarts Claude Manager icon in the Activity Bar to open the same controls docked in the sidebar.
 2. Modify the settings.  
    The yellow light in front of the item and the yellow highlight of the status bar icon will indicate that a **Reload Window** is needed in order for the configurations to fully apply.
 3. **Reload Window**  
@@ -25,7 +25,7 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 
 ## What This Extension Patches
 
-Settings live under the `claudeCodeUiPatch.*` namespace (prefix omitted below) and each defaults to Claude Code's native value. The tree shows every knob, what it targets, and what scales with what: an indented child follows its parent until you give it a value.
+Settings live under the `smartsClaudeManager.*` namespace (prefix omitted below) and each defaults to Claude Code's native value. The tree shows every knob, what it targets, and what scales with what: an indented child follows its parent until you give it a value.
 
 ```text
 chat.fontSize & chat.fontFamily        # native VS Code settings, shared by every chat extension
@@ -63,7 +63,7 @@ Behavior
    └── chatHideUsageWarning            # permanently hide the "X% of your weekly limit" banner if On
 
 Chat Enhancement Features              # always injected; each feature has its own
-   │                                   # claudeCodeUiPatch.feature.<id> on/off setting
+   │                                   # smartsClaudeManager.feature.<id> on/off setting
    ├── reply           # Reply on selection: quote selected chat text into the prompt
    ├── search           # Chat Search (Ctrl+F)
    ├── datetime         # date/time stamps + day separators on every message
@@ -84,7 +84,7 @@ Chat Enhancement Features              # always injected; each feature has its o
 ## Using This UI Patch
 
 - **Panel controls:** sizes use `▼`/`▲`, toggles an On/Off switch, and each row's sync dot shows green (in effect) or yellow (reload needed).
-- **Direct edits:** Font families, comment-box rows, and the "Show more/less" button alignment have no panel control, set them in VS Code Settings via direct edits. `claudeCodeUiPatch.*` settings apply upon a window reload. Example:
+- **Direct edits:** Font families, comment-box rows, and the "Show more/less" button alignment have no panel control, set them in VS Code Settings via direct edits. `smartsClaudeManager.*` settings apply upon a window reload. Example:
 
   ```json
   {
@@ -93,22 +93,22 @@ Chat Enhancement Features              # always injected; each feature has its o
     // "chat.fontFamily": "default",
     // "chat.fontSize": 15,
 
-    // UI Patch font size settings in a unified namespace `claudeCodeUiPatch`
-    "claudeCodeUiPatch.chatCodeblockFontSize": 14,
-    "claudeCodeUiPatch.chatCodeInlineFontSize": 14,
-    "claudeCodeUiPatch.chatDiffCardFontSize": 13.5,
-    "claudeCodeUiPatch.chatHistoryFontSize": 16.5,
-    "claudeCodeUiPatch.planPreviewFontSize": 16.25,
-    "claudeCodeUiPatch.planPreviewCodeblockFontSize": 13.75,
-    "claudeCodeUiPatch.planPreviewCodeInlineFontSize": 13.75,
-    "claudeCodeUiPatch.planPreviewCommentInputFontSize": 15,
-    "claudeCodeUiPatch.planPreviewCommentInputRows": 7,
-    "claudeCodeUiPatch.planPreviewCommentBadgeFontSize": 12,
-    "claudeCodeUiPatch.planPreviewCommentQuoteFontSize": 12.5
+    // UI Patch font size settings in a unified namespace `smartsClaudeManager`
+    "smartsClaudeManager.chatCodeblockFontSize": 14,
+    "smartsClaudeManager.chatCodeInlineFontSize": 14,
+    "smartsClaudeManager.chatDiffCardFontSize": 13.5,
+    "smartsClaudeManager.chatHistoryFontSize": 16.5,
+    "smartsClaudeManager.planPreviewFontSize": 16.25,
+    "smartsClaudeManager.planPreviewCodeblockFontSize": 13.75,
+    "smartsClaudeManager.planPreviewCodeInlineFontSize": 13.75,
+    "smartsClaudeManager.planPreviewCommentInputFontSize": 15,
+    "smartsClaudeManager.planPreviewCommentInputRows": 7,
+    "smartsClaudeManager.planPreviewCommentBadgeFontSize": 12,
+    "smartsClaudeManager.planPreviewCommentQuoteFontSize": 12.5
   }
   ```
 
-- **Commands:** `Claude Code UI Patch: Open Panel`.
+- **Commands:** `Smarts Claude Manager: Open Panel`.
 
 ## Chat Enhancements
 
@@ -118,7 +118,7 @@ more) is always injected — no master on/off switch.
 
 - The panel (see [Every Knob, One Panel](#every-knob-one-panel)) has a **Chat Enhancement
   Features** section: one real checkbox per feature. Checking/unchecking writes straight to
-  its `claudeCodeUiPatch.feature.<id>` setting (see the tree above for the full id list) and
+  its `smartsClaudeManager.feature.<id>` setting (see the tree above for the full id list) and
   re-patches the bundle immediately — the panel is the one place to turn individual
   features on/off; there is no separate control inside the chat itself.
 - A feature you turn off still needs the same **Reload Window** step as any other patch
@@ -126,7 +126,7 @@ more) is always injected — no master on/off switch.
 
 ## Hide the Usage-Limit Warning Banner
 
-`claudeCodeUiPatch.chatHideUsageWarning` (default off) permanently hides the "You've used
+`smartsClaudeManager.chatHideUsageWarning` (default off) permanently hides the "You've used
 X% of your weekly limit" banner and its "View usage" link — the banner's own `×` only
 dismisses it for the current usage window (it reappears on the next update); this setting
 suppresses it for good.
