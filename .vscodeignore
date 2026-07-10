@@ -8,3 +8,14 @@ node_modules/**
 .DS_Store
 CLAUDE.md
 .vscodeignore
+build/**
+*.vsix
+
+# Any root-level Markdown other than the user-facing docs — catches stray
+# session artifacts (e.g. a skill-generated "*Roadmap N.md") that sit
+# untracked at the project root and would otherwise leak into the .vsix.
+*.md
+!README.md
+!readme.md
+!CHANGELOG.md
+!changelog.md
