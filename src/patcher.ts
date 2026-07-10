@@ -1825,12 +1825,22 @@ export class Patcher {
       ...INJECT_POINTS.map((ip) => ip.key),
       ...featureIds().map((f) => `feature.${f.id}`),
     ].map((k) => `${CONFIG_NS}.${k}`);
+    const patchEnabledKey = `${CONFIG_NS}.patchEnabled`;
     // chat.fontSize is no longer a knob, but the chatHistoryFontSize knob shows it
     // while inheriting, so a native change should refresh (not re-patch) the view.
     const nativeKeys = NATIVE_KNOBS.map((k) => k.vscodeKey);
     return [
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (patchKeys.some((k) => e.affectsConfiguration(k))) {
+        if (e.affectsConfiguration(patchEnabledKey)) {
+          // Someone flipped smartsClaudeManager.patchEnabled directly in
+          // Settings UI/JSON rather than via the panel button — mirror the
+          // panel's own enable()/restore() so the two entry points agree.
+          const enabled = vscode.workspace
+            .getConfiguration(CONFIG_NS)
+            .get<boolean>("patchEnabled", true);
+          if (enabled) void this.enable();
+          else void this.restore();
+        } else if (patchKeys.some((k) => e.affectsConfiguration(k))) {
           this.autoApply();
         } else if (nativeKeys.some((k) => e.affectsConfiguration(k))) {
           this.refresh();

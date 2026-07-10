@@ -65,6 +65,9 @@ abstract class PatchWebviewHost {
       case "restore":
         await this.patcher.restore();
         break;
+      case "enable":
+        await this.patcher.enable();
+        break;
       case "reload":
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
@@ -171,7 +174,11 @@ ${sections}
   </div>
   <div class="actions">
     <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">&#8617; Restore Last Applied</button>
-    <button class="btn btn-red" data-cmd="restore" title="Revert Claude Code to its native, unpatched state (requires a reload)">&#9855; Fully Disable Patch</button>
+    ${
+      snap.patchEnabled
+        ? `<button class="btn btn-red" data-cmd="restore" title="Revert Claude Code to its native, unpatched state (requires a reload)">&#9855; Fully Disable Patch</button>`
+        : `<button class="btn btn-green" data-cmd="enable" title="Re-apply your saved settings">&#9855; Enable Patch</button>`
+    }
     <button class="btn btn-outline" data-cmd="openSettings" title="Open the smartsClaudeManager.* settings in VS Code Settings"><span class="link-icon">&#9881;</span>Open VS Code Settings</button>
     ${snap.needsReload ? `<button class="btn btn-outline btn-reload-pending" data-cmd="reload" title="Reload the window to apply changes"><span class="link-icon">&#8635;</span>Reload window to apply changes</button>` : ""}
   </div>
@@ -367,6 +374,7 @@ function shapeOf(snap: Snapshot | undefined): string {
     snap.supported,
     snap.version,
     snap.extVersion,
+    snap.patchEnabled,
     snap.knobs.map((k) => k.id).join(","),
   ].join("|");
 }
