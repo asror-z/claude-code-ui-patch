@@ -456,7 +456,7 @@ const baseCss = `
   .header-status { margin-bottom: 12px; }
   .header-status:empty { margin-bottom: 0; }
   h2 {
-    font-size: .82em; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    font-size: calc(1em + 1px); font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
     color: var(--vscode-descriptionForeground); margin: 0 0 9px; display: flex; align-items: center; gap: 7px;
   }
   .h2-icon { font-size: 1.15em; filter: grayscale(0.15); }
@@ -499,8 +499,8 @@ const baseCss = `
   }
   .knob .px-input:hover { border-color: var(--vscode-inputOption-activeBorder, var(--vscode-focusBorder)); }
   .knob .px-input:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-  .knob .px-unit { color: var(--vscode-descriptionForeground); flex-shrink: 0; font-size: .9em; }
-  .knob .note { font-size: .85em; color: var(--vscode-descriptionForeground); margin-left: 8px; }
+  .knob .px-unit { color: var(--vscode-descriptionForeground); flex-shrink: 0; }
+  .knob .note { color: var(--vscode-descriptionForeground); margin-left: 8px; }
 
   /* --- Buttons --- */
   .btn { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: none; padding: 6px 18px; border-radius: var(--ccp-radius-sm); cursor: pointer; font-size: inherit; font-weight: 600; transition: background-color .12s ease, transform .08s ease; }
@@ -546,7 +546,7 @@ const baseCss = `
     background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.35); transition: transform .15s ease;
   }
   .switch.on .switch-thumb { transform: translateX(16px); }
-  .switch-text { min-width: 26px; text-align: right; color: var(--vscode-descriptionForeground); font-size: .92em; }
+  .switch-text { min-width: 26px; text-align: right; color: var(--vscode-descriptionForeground); }
   .switch.on .switch-text { color: var(--ccp-green); }
 
   /* --- Bottom action bar --- */
@@ -557,7 +557,7 @@ const baseCss = `
   /* Every header status is a full-width banner so the strip never changes height
      between states: green when everything is applied, yellow when a reload is due
      or the version is unsupported. */
-  .status-banner { display: flex; align-items: center; gap: 8px; color: #fff; padding: 6px 14px; border-radius: var(--ccp-radius-sm); font-weight: 700; font-size: .92em; border: none; width: 100%; text-align: left; font-family: inherit; transition: filter .12s ease; }
+  .status-banner { display: flex; align-items: center; gap: 8px; color: #fff; padding: 6px 14px; border-radius: var(--ccp-radius-sm); font-weight: 700; border: none; width: 100%; text-align: left; font-family: inherit; transition: filter .12s ease; }
   .status-banner.ok { background: var(--ccp-green); }
   .status-banner.warn { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
   /* Only the reload-pending banner is an actual <button> (data-cmd="reload") —
