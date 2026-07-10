@@ -7,14 +7,24 @@
 // app restart. On init/reload it RESTORES the saved draft into an empty composer; when the
 // message is SENT (Enter or the send button) it CLEARS that chat's key.
 //
-// PER-CHAT KEY: cc-draft:<chatId>, where <chatId> is the STABLE chat/session id from the
-// webview page_url (?…&session=<uuid>). The volatile per-webview id=<uuid> (which changes on
-// reload) is deliberately NOT used, so the same chat keeps the same key across reloads. A
-// tab with NO session param yet (a brand-new tab, before its session is created) has NO
-// stable identity — it never saves and never restores, and does NOT fall back to a shared
-// key. An earlier version fell back to the literal key "cc-draft:default" for every such
-// tab, so a brand-new tab's empty composer could be silently filled with whatever draft
-// text another session-less tab had last saved — cross-tab draft leakage into a fresh chat.
+// PER-CHAT KEY: cc-draft:<chatId>, where <chatId> is read from the webview page_url's
+// id=<uuid> param (?id=<uuid>&parentId=...&origin=...&extensionId=Anthropic.claude-code&...).
+// An earlier version read a session=<uuid> param instead, on the assumption that id= was a
+// volatile per-reload value and session= was the stable per-chat one — but real webview URLs
+// captured from this VS Code Claude Code build NEVER contain a session= param at all, so
+// chatId() always returned null and draftKey() was always null too: saveNow()/restoreIfEmpty()
+// permanently no-opped at their `if (!key) return;` guards, meaning DraftSave never actually
+// saved or restored anything in this extension despite looking fully implemented. id= is now
+// read directly (session= kept as a fallback in case a future build ever adds it). This trades
+// away persistence across a FULL WINDOW RELOAD (id= is per-webview-instance, so a reload that
+// tears down and recreates the iframe gets a new id=) for the primary goal actually working:
+// within a tab's live session (typing, navigating the chat, switching away and back without a
+// reload), the draft correctly round-trips. A tab with NO id= param yet (should not happen in
+// practice, since Claude Code assigns id= immediately) has NO stable identity — it never saves
+// and never restores, and does NOT fall back to a shared key. An earlier version fell back to
+// the literal key "cc-draft:default" for every such tab, so a brand-new tab's empty composer
+// could be silently filled with whatever draft text another session-less tab had last saved —
+// cross-tab draft leakage into a fresh chat.
 //
 // Unlike the Antigravity build this was ported from, this target has NO nested chat iframe —
 // document IS the chat document — so init(doc, win) is called directly with (document,
@@ -39,22 +49,26 @@ const JS = `
 
   // ---- per-chat key ---------------------------------------------------------------
 
-  // The STABLE chat id = the \`session\` query param of the webview URL. It survives a reload
-  // (the volatile \`id\` param does not). Read from location.search. Returns null — NOT a
-  // shared fallback string — when no session id is present yet (a brand-new tab, before its
-  // Claude Code session is created). A shared "default" fallback here previously made EVERY
-  // session-less tab read and write the SAME localStorage key, so a new tab's empty composer
-  // got clobbered with whatever draft another such tab had last saved — cross-tab draft
-  // leakage. Callers must treat null as "no stable identity yet" and skip save/restore.
+  // Returns null — NOT a shared fallback string — when no id is present yet (should not
+  // happen in practice, since Claude Code assigns id= to every webview immediately). A
+  // shared "default" fallback here previously made EVERY id-less tab read and write the
+  // SAME localStorage key, so a new tab's empty composer got clobbered with whatever draft
+  // another such tab had last saved — cross-tab draft leakage. Callers must treat null as
+  // "no stable identity yet" and skip save/restore.
   function chatId() {
     try {
       var qs = (W.location && W.location.search) || "";
-      var m = /[?&]session=([^&]+)/.exec(qs);
+      // id= is the param this VS Code Claude Code webview ACTUALLY carries (verified
+      // live: every captured URL is "?id=<uuid>&parentId=...&origin=...&extensionId=
+      // Anthropic.claude-code&..."). session= is tried first only as a forward-compat
+      // fallback in case a future build adds a genuinely stable per-chat param — it has
+      // never been observed to exist here.
+      var m = /[?&]session=([^&]+)/.exec(qs) || /[?&]id=([^&]+)/.exec(qs);
       if (m && m[1]) return decodeURIComponent(m[1]);
       // some hosts put it on the parent frame's URL; try the top document too
       try {
         var pqs = (W.top && W.top.location && W.top.location.search) || "";
-        var pm = /[?&]session=([^&]+)/.exec(pqs);
+        var pm = /[?&]session=([^&]+)/.exec(pqs) || /[?&]id=([^&]+)/.exec(pqs);
         if (pm && pm[1]) return decodeURIComponent(pm[1]);
       } catch (e) {}
     } catch (e) {}
