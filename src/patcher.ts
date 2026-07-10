@@ -1799,6 +1799,11 @@ export class Patcher {
   private stockCapture: StockCapture = {};
   private pendingReload = new Set<string>(); // point IDs written but not reloaded
   private activationPx = new Map<string, string | undefined>(); // on-disk px at activation
+  // Set while restore()/enable() itself is writing patchEnabled, so the
+  // onDidChangeConfiguration listener (which mirrors an EXTERNAL Settings UI/
+  // JSON edit of patchEnabled by calling restore()/enable() in turn) doesn't
+  // recurse into a second restore()/enable() for our own write.
+  private writingPatchEnabled = false;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.refresh();
@@ -1832,6 +1837,7 @@ export class Patcher {
     return [
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration(patchEnabledKey)) {
+          if (this.writingPatchEnabled) return; // our own restore()/enable() write
           // Someone flipped smartsClaudeManager.patchEnabled directly in
           // Settings UI/JSON rather than via the panel button — mirror the
           // panel's own enable()/restore() so the two entry points agree.
@@ -2214,18 +2220,32 @@ export class Patcher {
       ...INJECT_POINTS.map((ip) =>
         cfg.update(ip.key, ip.defaultRaw, vscode.ConfigurationTarget.Global),
       ),
-      cfg.update("patchEnabled", false, vscode.ConfigurationTarget.Global),
+      this.setPatchEnabled(false),
     ]);
     this.refresh();
+  }
+
+  // Writes patchEnabled while suppressing the onDidChangeConfiguration mirror
+  // (see writingPatchEnabled) — every internal write goes through here so the
+  // listener never recurses into a second restore()/enable() for our own change.
+  private async setPatchEnabled(value: boolean): Promise<void> {
+    this.writingPatchEnabled = true;
+    try {
+      await vscode.workspace
+        .getConfiguration(CONFIG_NS)
+        .update("patchEnabled", value, vscode.ConfigurationTarget.Global);
+    } finally {
+      this.writingPatchEnabled = false;
+    }
   }
 
   // The panel's "Enable Patch" button (shown in place of "Fully Disable Patch"
   // once patchEnabled is false): restores the settings captured right before
   // the disable, flips patchEnabled back to true, and re-applies the patch —
-  // autoApply() fires from the config-change listener once patchEnabled flips,
-  // so the explicit applyPatch() call below covers the case where none of the
-  // restored values actually differ from current (no onDidChangeConfiguration
-  // event would otherwise fire to trigger a re-apply).
+  // autoApply() fires from the config-change listener as each restored patch
+  // setting is written, so the explicit autoApply() call below covers the case
+  // where none of the restored values actually differ from current (no
+  // onDidChangeConfiguration event would otherwise fire to trigger a re-apply).
   async enable(): Promise<void> {
     const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
     const preDisable = this.context.globalState.get<PreDisableSettings>(
@@ -2236,7 +2256,7 @@ export class Patcher {
       ...Object.entries(preDisable).map(([key, value]) =>
         cfg.update(key, value, vscode.ConfigurationTarget.Global),
       ),
-      cfg.update("patchEnabled", true, vscode.ConfigurationTarget.Global),
+      this.setPatchEnabled(true),
     ]);
     await this.autoApply();
   }
