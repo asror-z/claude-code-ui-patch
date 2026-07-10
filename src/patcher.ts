@@ -1771,7 +1771,8 @@ export interface FeatureState {
 export interface Snapshot {
   available: boolean;
   supported: boolean; // at least one patch anchor present
-  version: string;
+  version: string; // installed Claude Code extension's version
+  extVersion: string; // this extension's OWN version (context.extension.packageJSON.version — never hardcoded)
   knobs: Knob[]; // native chat + present patch knobs, in section order
   features: FeatureState[]; // the 16 chat-enhancement feature seed settings
   applied: boolean;
@@ -1924,6 +1925,7 @@ export class Patcher {
       available: true,
       supported: anyPresent,
       version: this.ext.version,
+      extVersion: this.context.extension.packageJSON.version as string,
       knobs: [...chat, ...patch, ...toggleKnobs].sort(
         (a, b) => knobOrder(a.id) - knobOrder(b.id),
       ),

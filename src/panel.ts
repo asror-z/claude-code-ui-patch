@@ -162,7 +162,7 @@ ${csp}
       <h1>Smarts Claude Manager</h1>
     </div>
   </div>
-  <span class="version-pill">v${snap.version}</span>
+  <span class="version-pill">v${snap.extVersion}<span class="version-sep">&#8226;</span>Claude Code v${snap.version}</span>
   <div class="header-status">${statusInner(snap)}</div>
   <div class="card">
     <div class="section-grid">
@@ -363,9 +363,12 @@ export class PatchSidebarView extends PatchWebviewHost implements vscode.Webview
 // Structure signature: a full re-render happens only when this changes.
 function shapeOf(snap: Snapshot | undefined): string {
   if (!snap || !snap.available) return "none";
-  return [snap.supported, snap.version, snap.knobs.map((k) => k.id).join(",")].join(
-    "|",
-  );
+  return [
+    snap.supported,
+    snap.version,
+    snap.extVersion,
+    snap.knobs.map((k) => k.id).join(","),
+  ].join("|");
 }
 
 function sectionIcon(sec: string): string {
@@ -438,6 +441,10 @@ const baseCss = `
     font-size: .78em; font-weight: 700; color: var(--ccp-accent); background: var(--ccp-accent-soft);
     border: 1px solid rgba(217, 119, 87, 0.35); border-radius: 999px; padding: 3px 11px; white-space: nowrap;
   }
+  /* Separates this extension's own version from the installed Claude Code
+     version inside the same pill, de-emphasized so the extension's version
+     (the primary identity) still reads first. */
+  .version-pill .version-sep { margin: 0 6px; opacity: .5; font-weight: 400; }
   .header-status { margin-bottom: 12px; }
   .header-status:empty { margin-bottom: 0; }
   h2 {
