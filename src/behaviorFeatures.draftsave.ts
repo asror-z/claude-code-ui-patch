@@ -250,11 +250,44 @@ const JS = `
     try { lsDel(KEY_PREFIX + "default"); } catch (e) {}
   }
 
+  // ---- TEMPORARY probe: is acquireVsCodeApi() safely callable from THIS injected
+  // script in the CHAT webview? -------------------------------------------------
+  // The id= param changed across a reload/window-restart (confirmed live: "reload
+  // webview and reload windiws da ham ishlamadi umumn yoqolib qoldi"), so the
+  // per-webview-instance id= key cannot survive a reload — a real fix needs a
+  // storage mechanism VS Code itself persists across reload, not a URL param.
+  // vscode.setState()/getState() (via acquireVsCodeApi()) is exactly that: state
+  // set through it is preserved by VS Code across the webview being torn down and
+  // recreated, no id needed at all. The open question is whether this injected
+  // script can safely call acquireVsCodeApi() a SECOND time in the same webview —
+  // it may already have been claimed by Claude Code's own extension code, in which
+  // case a second call throws or returns undefined. This probe is read-only (never
+  // stores or restores anything) and reports the result loudly so the real
+  // migration only happens once this is confirmed safe. Remove once resolved.
+  function probeVsCodeApi() {
+    try {
+      if (typeof W.acquireVsCodeApi !== "function") {
+        console.error("[cc-draft][PROBE] acquireVsCodeApi is not a function on this window — not available here.");
+        return;
+      }
+      var api = W.acquireVsCodeApi();
+      if (!api || typeof api.getState !== "function" || typeof api.setState !== "function") {
+        console.error("[cc-draft][PROBE] acquireVsCodeApi() returned something without getState/setState.", api);
+        return;
+      }
+      var existing = api.getState();
+      console.error("[cc-draft][PROBE] acquireVsCodeApi() SUCCEEDED. Existing state:", existing);
+    } catch (e) {
+      console.error("[cc-draft][PROBE] acquireVsCodeApi() THREW:", e && e.message, e);
+    }
+  }
+
   function init(doc, win) {
     D = doc;
     W = win || window;
     _boundInput = null;
     purgeLegacyDefaultKey();
+    probeVsCodeApi();
     try { bindComposer(); } catch (e) {}
     try { bindSendClick(); } catch (e) {}
     // Restore as soon as the composer exists — NOT after a fixed delay. A 300ms
