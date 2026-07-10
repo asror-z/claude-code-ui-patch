@@ -438,6 +438,51 @@ const JS = `
     }, 120);
   }
 
+  // ---- stale-on-tab-return sweep --------------------------------------------------
+  // A VS Code editor tab's webview is throttled/suspended while hidden. If an
+  // AskUserQuestion suggestion chip is mid-animation/reposition at the moment the
+  // tab loses visibility, it can freeze mid-frame and repaint stuck — floating over
+  // the composer/toolbar of whichever tab is active when the frame finally resumes
+  // (reported live: a suggestion chip from one tab visible over a DIFFERENT tab's
+  // composer, clearing only after switching away and back once more). This is a
+  // rendering artifact of VS Code's own webview suspend/resume, not a DOM node our
+  // script created or owns — the fix is a forced reflow of any floating,
+  // question-scoped element the moment the tab becomes visible again, which is
+  // enough to make the browser repaint it at its correct position/visibility
+  // instead of the frozen stale one.
+  function isFloatingQuestionEl(el) {
+    if (!el || el.nodeType !== 1) return false;
+    try {
+      var cs = W.getComputedStyle ? W.getComputedStyle(el) : null;
+      if (!cs || (cs.position !== "fixed" && cs.position !== "absolute")) return false;
+      if (cs.display === "none" || cs.visibility === "hidden") return false;
+    } catch (e) { return false; }
+    return withinQuestionScope(el) || isDialogish(el);
+  }
+
+  function resweepOnVisible() {
+    try {
+      var root = chatRoot();
+      var candidates = root.querySelectorAll(
+        "[role='dialog'],[role='alertdialog'],[class*='dialog'],[class*='modal'],[class*='question' i],[class*='askUser' i]"
+      );
+      for (var i = 0; i < candidates.length; i++) {
+        var el = candidates[i];
+        if (!isFloatingQuestionEl(el)) continue;
+        // Force a reflow: toggling a no-op inline style property makes the engine
+        // recompute layout/paint for this element instead of reusing a stale frame
+        // left over from before the tab was suspended. Reading offsetHeight forces
+        // the flush; the display toggle nudges a truly-orphaned overlay to actually
+        // disappear if its own logic already decided it should be gone.
+        var prevDisplay = el.style.display;
+        el.style.display = "none";
+        void el.offsetHeight; // force reflow
+        el.style.display = prevDisplay;
+      }
+      run();
+    } catch (e) {}
+  }
+
   // init(doc, win) — called directly with (document, window) once real chat DOM is
   // detected; bind + observe it.
   function init(doc, win) {
@@ -448,6 +493,11 @@ const JS = `
       new W.MutationObserver(schedule).observe(D.body, {
         childList: true,
         subtree: true,
+      });
+    } catch (e) {}
+    try {
+      D.addEventListener("visibilitychange", function () {
+        if (D.visibilityState === "visible") resweepOnVisible();
       });
     } catch (e) {}
   }
