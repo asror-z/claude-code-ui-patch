@@ -180,7 +180,7 @@ ${sections}
         : `<button class="btn btn-green" data-cmd="enable" title="Re-apply your saved settings">&#9855; Enable Patch</button>`
     }
     <button class="btn btn-outline" data-cmd="openSettings" title="Open the smartsClaudeManager.* settings in VS Code Settings"><span class="link-icon">&#9881;</span>Open VS Code Settings</button>
-    ${snap.needsReload ? `<button class="btn btn-outline btn-reload-pending" data-cmd="reload" title="Reload the window to apply changes"><span class="link-icon">&#8635;</span>Reload window to apply changes</button>` : ""}
+    ${snap.needsReload ? `<button class="btn btn-outline btn-reload-pending" data-cmd="reload" title="Reload the window to apply changes"><span class="link-icon">&#128190;</span>Save &amp; Reload window</button>` : ""}
   </div>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
@@ -286,7 +286,7 @@ ${sections}
         reloadBtn.className = 'btn btn-outline btn-reload-pending';
         reloadBtn.setAttribute('data-cmd', 'reload');
         reloadBtn.title = 'Reload the window to apply changes';
-        reloadBtn.innerHTML = '<span class="link-icon">&#8635;</span>Reload window to apply changes';
+        reloadBtn.innerHTML = '<span class="link-icon">&#128190;</span>Save &amp; Reload window';
         actions.appendChild(reloadBtn);
       } else if (!m.reloadPending && reloadBtn) {
         reloadBtn.remove();
