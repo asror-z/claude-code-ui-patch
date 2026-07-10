@@ -243,8 +243,24 @@ const JS = `
     purgeLegacyDefaultKey();
     try { bindComposer(); } catch (e) {}
     try { bindSendClick(); } catch (e) {}
-    // restore slightly after mount so the composer exists
-    try { W.setTimeout(function () { try { restoreIfEmpty(); } catch (e) {} }, 300); } catch (e) { restoreIfEmpty(); }
+    // Restore as soon as the composer exists — NOT after a fixed delay. A 300ms
+    // setTimeout here made the composer visibly render small/empty first, then
+    // suddenly grow once the delayed restore inserted a saved multi-line draft —
+    // a jarring "pop" on every tab open. findComposer() already returns null until
+    // the element exists, so poll at animation-frame cadence and restore on the
+    // very first frame it's found, instead of waiting on an arbitrary timer.
+    try {
+      if (findComposer()) {
+        restoreIfEmpty();
+      } else {
+        var _tries = 0;
+        var _raf = W.requestAnimationFrame || function (fn) { return W.setTimeout(fn, 16); };
+        (function poll() {
+          if (findComposer() || ++_tries >= 60) { try { restoreIfEmpty(); } catch (e) {} return; }
+          _raf(poll);
+        })();
+      }
+    } catch (e) { try { restoreIfEmpty(); } catch (e2) {} }
     // Route the body observer through the shared self-churn-guarded helper. This
     // observer only calls bindComposer (attaches listeners — no DOM writes), so it
     // emits no mutations of its own; the helper still gives a debounced sweep and a

@@ -171,7 +171,9 @@ ${sections}
   </div>
   <div class="actions">
     <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">&#8617; Restore Last Applied</button>
+    <button class="btn btn-red" data-cmd="restore" title="Revert Claude Code to its native, unpatched state (requires a reload)">&#9855; Fully Disable Patch</button>
     <button class="btn btn-outline" data-cmd="openSettings" title="Open the smartsClaudeManager.* settings in VS Code Settings"><span class="link-icon">&#9881;</span>Open VS Code Settings</button>
+    ${snap.needsReload ? `<button class="btn btn-outline btn-reload-pending" data-cmd="reload" title="Reload the window to apply changes"><span class="link-icon">&#8635;</span>Reload window to apply changes</button>` : ""}
   </div>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
@@ -267,8 +269,21 @@ ${sections}
         const st = document.querySelector('.header-status');
         if (st) st.innerHTML = m.status;
       }
-      const rl = document.querySelector('a[data-cmd="reload"]');
-      if (rl) rl.classList.toggle('link-reload-pending', !!m.reloadPending);
+      // The reload button lives in the footer actions row and only exists while
+      // a reload is actually pending — add/remove it in place rather than a full
+      // re-render, mirroring how every other sync field patches the DOM in place.
+      const actions = document.querySelector('.actions');
+      let reloadBtn = document.querySelector('button[data-cmd="reload"]');
+      if (m.reloadPending && !reloadBtn && actions) {
+        reloadBtn = document.createElement('button');
+        reloadBtn.className = 'btn btn-outline btn-reload-pending';
+        reloadBtn.setAttribute('data-cmd', 'reload');
+        reloadBtn.title = 'Reload the window to apply changes';
+        reloadBtn.innerHTML = '<span class="link-icon">&#8635;</span>Reload window to apply changes';
+        actions.appendChild(reloadBtn);
+      } else if (!m.reloadPending && reloadBtn) {
+        reloadBtn.remove();
+      }
       const disc = document.querySelector('button[data-cmd="discard"]');
       if (disc) disc.classList.toggle('quiet', !m.reloadPending);
     });
@@ -361,10 +376,10 @@ function sectionIcon(sec: string): string {
 function statusInner(snap: Snapshot): string {
   if (!snap.supported)
     return `<span class="status-banner warn"><span class="status-icon">&#9888;</span>Patch not supported on Claude Code v${snap.version}</span>`;
-  if (snap.needsReload)
-    // Clickable: the pending-reload banner IS the Reload Window action, so
-    // there is no separate Reload button in the footer to reach for.
-    return `<button class="status-banner warn status-banner-btn" data-cmd="reload" title="Reload the window to apply changes"><span class="status-icon">&#8635;</span>Reload window to apply changes</button>`;
+  // The pending-reload state has its own button in the footer actions row now
+  // (alongside Restore Last Applied / Fully Disable Patch / Open VS Code
+  // Settings) instead of a banner here — nothing to show in the header for it.
+  if (snap.needsReload) return "";
   return `<span class="status-banner ok"><span class="status-icon">&#10003;</span>All settings applied</span>`;
 }
 
@@ -414,6 +429,7 @@ const baseCss = `
     border: 1px solid rgba(217, 119, 87, 0.35); border-radius: 999px; padding: 3px 11px; white-space: nowrap;
   }
   .header-status { margin-bottom: 12px; }
+  .header-status:empty { margin-bottom: 0; }
   h2 {
     font-size: .82em; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
     color: var(--vscode-descriptionForeground); margin: 0 0 9px; display: flex; align-items: center; gap: 7px;
