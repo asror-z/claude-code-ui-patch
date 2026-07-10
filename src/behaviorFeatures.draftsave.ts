@@ -236,43 +236,11 @@ const JS = `
     try { lsDel(KEY_PREFIX + "default"); } catch (e) {}
   }
 
-  // ---- TEMPORARY diagnostic: pinpoint where unexpected composer text comes from ----
-  // A user-reported bug: a brand-new, never-used tab shows the composer pre-filled
-  // with garbage (concatenated tool-call/log text) the instant it opens. DraftSave's
-  // own restoreIfEmpty() requires draftKey() to be non-null (a session id must be
-  // present), so if this fires on a truly session-less tab, either (a) chatId() found
-  // a session id we didn't expect (e.g. a stale W.top fallback), or (b) something
-  // OTHER than DraftSave is writing into the composer and this is a red herring. This
-  // block force-prints, as a highly visible console.error, WHICH branch actually ran
-  // and what chatId()/draftKey() resolved to, the instant restoreIfEmpty() considers
-  // acting — so a single repro pinpoints the real cause instead of guessing further.
-  // Remove once the report above is resolved and confirmed fixed.
-  function diagDump(label, extra) {
-    try {
-      var input = findComposer();
-      console.error(
-        "[cc-draft][DIAG] " + label,
-        {
-          chatId: chatId(),
-          draftKey: draftKey(),
-          locationSearch: (W.location && W.location.search) || null,
-          topLocationSearch: (function () { try { return (W.top && W.top.location && W.top.location.search) || null; } catch (e) { return "<cross-origin, blocked>"; } })(),
-          composerFound: !!input,
-          composerText: input ? composerText(input).slice(0, 120) : null,
-          composerTag: input ? input.tagName : null,
-          storedDraftForKey: draftKey() ? lsGet(draftKey()) : null,
-          extra: extra || null,
-        }
-      );
-    } catch (e) { try { console.error("[cc-draft][DIAG] dump failed", e); } catch (e2) {} }
-  }
-
   function init(doc, win) {
     D = doc;
     W = win || window;
     _boundInput = null;
     purgeLegacyDefaultKey();
-    diagDump("init start");
     try { bindComposer(); } catch (e) {}
     try { bindSendClick(); } catch (e) {}
     // Restore as soon as the composer exists — NOT after a fixed delay. A 300ms
@@ -283,45 +251,16 @@ const JS = `
     // very first frame it's found, instead of waiting on an arbitrary timer.
     try {
       if (findComposer()) {
-        diagDump("restoring immediately (composer already present)");
         restoreIfEmpty();
-        diagDump("after immediate restoreIfEmpty");
       } else {
         var _tries = 0;
         var _raf = W.requestAnimationFrame || function (fn) { return W.setTimeout(fn, 16); };
         (function poll() {
-          if (findComposer() || ++_tries >= 60) {
-            diagDump("restoring via poll (tries=" + _tries + ")");
-            try { restoreIfEmpty(); } catch (e) {}
-            diagDump("after poll restoreIfEmpty");
-            return;
-          }
+          if (findComposer() || ++_tries >= 60) { try { restoreIfEmpty(); } catch (e) {} return; }
           _raf(poll);
         })();
       }
     } catch (e) { try { restoreIfEmpty(); } catch (e2) {} }
-    // TEMPORARY diagnostic watchdog: independent of whether DraftSave itself acted,
-    // poll the composer for the first 5s after mount and fire the instant it is found
-    // NON-empty for the first time — this catches the culprit even if it turns out to
-    // be native harness behavior or another feature entirely, not DraftSave. Remove
-    // once the garbage-composer-on-new-tab report is resolved and confirmed fixed.
-    (function watchFirstNonEmpty() {
-      var seenNonEmpty = false;
-      var start = (W.performance && W.performance.now) ? W.performance.now() : Date.now();
-      var iv = W.setInterval(function () {
-        try {
-          var now = (W.performance && W.performance.now) ? W.performance.now() : Date.now();
-          if (now - start > 5000) { W.clearInterval(iv); return; }
-          if (seenNonEmpty) return;
-          var input = findComposer();
-          if (input && !composerIsEmpty(input)) {
-            seenNonEmpty = true;
-            diagDump("WATCHDOG: composer first seen NON-EMPTY at t=" + Math.round(now - start) + "ms");
-            W.clearInterval(iv);
-          }
-        } catch (e) {}
-      }, 100);
-    })();
     // Route the body observer through the shared self-churn-guarded helper. This
     // observer only calls bindComposer (attaches listeners — no DOM writes), so it
     // emits no mutations of its own; the helper still gives a debounced sweep and a
