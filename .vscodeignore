@@ -11,6 +11,10 @@ CLAUDE.md
 build/**
 *.vsix
 
+# Stray scratch output dropped at the project root by an unrelated task
+# (e.g. a skill's own working folder) — never a real extension asset.
+domain/**
+
 # Any root-level Markdown other than the user-facing docs — catches stray
 # session artifacts (e.g. a skill-generated "*Roadmap N.md") that sit
 # untracked at the project root and would otherwise leak into the .vsix.
