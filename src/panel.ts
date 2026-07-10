@@ -161,8 +161,8 @@ ${csp}
       <span class="app-icon">&#9889;</span>
       <h1>Smarts Claude Manager</h1>
     </div>
-    <span class="version-pill">v${snap.version}</span>
   </div>
+  <span class="version-pill">v${snap.version}</span>
   <div class="header-status">${statusInner(snap)}</div>
   <div class="card">
     <div class="section-grid">
@@ -378,9 +378,12 @@ function statusInner(snap: Snapshot): string {
     return `<span class="status-banner warn"><span class="status-icon">&#9888;</span>Patch not supported on Claude Code v${snap.version}</span>`;
   // The pending-reload state has its own button in the footer actions row now
   // (alongside Restore Last Applied / Fully Disable Patch / Open VS Code
-  // Settings) instead of a banner here — nothing to show in the header for it.
-  if (snap.needsReload) return "";
-  return `<span class="status-banner ok"><span class="status-icon">&#10003;</span>All settings applied</span>`;
+  // Settings) instead of a banner here. The "All settings applied" ok-state
+  // banner was removed too (per explicit user request) — it was redundant
+  // clutter in the narrow sidebar with no actionable content; the footer
+  // buttons already communicate the up-to-date state implicitly (no pending
+  // Restore Last Applied / no Reload button showing).
+  return "";
 }
 
 // Lightweight per-knob state + header status for in-place DOM updates.
@@ -419,11 +422,18 @@ const baseCss = `
   .empty-icon { font-size: 2em; opacity: .7; }
 
   /* --- Header --- */
-  .app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-  .app-title { display: flex; align-items: center; gap: 9px; }
-  .app-icon { font-size: 1.15em; color: var(--ccp-accent); filter: drop-shadow(0 0 6px var(--ccp-accent-soft)); }
-  h1 { font-size: 1.4em; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .app-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; min-width: 0; }
+  .app-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .app-icon { font-size: 1em; color: var(--ccp-accent); filter: drop-shadow(0 0 6px var(--ccp-accent-soft)); flex-shrink: 0; }
+  /* One line always: a fixed size small enough for the ~250px sidebar, plus
+     nowrap + ellipsis as a safety net rather than wrapping across 3 lines. */
+  h1 {
+    font-size: 1.05em; font-weight: 700; margin: 0; letter-spacing: -0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  }
+  /* Below the title, not beside it — its own line. */
   .version-pill {
+    display: inline-block; align-self: flex-start; margin: 0 0 8px;
     font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums;
     font-size: .78em; font-weight: 700; color: var(--ccp-accent); background: var(--ccp-accent-soft);
     border: 1px solid rgba(217, 119, 87, 0.35); border-radius: 999px; padding: 3px 11px; white-space: nowrap;
