@@ -46,6 +46,13 @@ const STOCK_VERSION_KEY = "smartsClaudeManager.stockVersion";
 const STOCK_VALUES_KEY = "smartsClaudeManager.stockValues";
 export type StockCapture = Record<string, string>;
 
+// The settings values in effect right before "Fully Disable Patch" ran, so
+// "Enable Patch" can restore them instead of leaving every knob at its stock
+// default (restore() itself resets all settings to stock as part of reverting
+// the bundle — this snapshot is taken BEFORE that reset).
+const PRE_DISABLE_SETTINGS_KEY = "smartsClaudeManager.preDisableSettings";
+type PreDisableSettings = Record<string, number | boolean | string>;
+
 export const MIN_PX = 6;
 export const MAX_PX = 48;
 export const STEP = 0.25;
@@ -1778,6 +1785,7 @@ export interface Snapshot {
   applied: boolean;
   actionable: boolean;
   needsReload: boolean; // bundle written this session but window not reloaded
+  patchEnabled: boolean; // smartsClaudeManager.patchEnabled — false after "Fully Disable Patch"
 }
 
 export class Patcher {
@@ -1933,6 +1941,7 @@ export class Patcher {
       applied: anyPresent && allCurrent,
       actionable: !allCurrent,
       needsReload: this.pendingReload.size > 0,
+      patchEnabled: featureCfg.get<boolean>("patchEnabled", true),
     };
   }
 
@@ -2155,6 +2164,9 @@ export class Patcher {
   // Factory reset (the panel's red button): revert every knob to Claude Code's
   // native value. Writes the native bundle and resets the settings; the panel's
   // "Reload Window" link lights up to apply it, so no separate prompt is needed.
+  // Also snapshots the current settings (so "Enable Patch" can restore them
+  // instead of leaving every knob at stock) and flips patchEnabled to false, so
+  // the panel's button switches to "Enable Patch".
   async restore(): Promise<void> {
     if (!this.ext) {
       void vscode.window.showErrorMessage(
@@ -2162,6 +2174,15 @@ export class Patcher {
       );
       return;
     }
+    const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
+    const preDisable: PreDisableSettings = {};
+    for (const p of PATCH_POINTS) preDisable[p.key] = cfg.get<number>(p.key)!;
+    for (const t of TOGGLE_POINTS.filter((t) => !ALWAYS_ON_TOGGLES.has(t.id)))
+      preDisable[t.key] = cfg.get<boolean>(t.key)!;
+    for (const ip of INJECT_POINTS)
+      preDisable[ip.key] = cfg.get(ip.key) as number | boolean | string;
+    void this.context.globalState.update(PRE_DISABLE_SETTINGS_KEY, preDisable);
+
     try {
       restorePatch(this.ext, this.stockCapture);
       this.reconcilePendingReload();
@@ -2173,7 +2194,6 @@ export class Patcher {
     }
     // Reset all patch settings to their stock values so the panel/settings
     // reflect the restored native state, not the enlarged values.
-    const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
     await Promise.all([
       ...PATCH_POINTS.map((p) =>
         cfg.update(p.key, p.originalPx, vscode.ConfigurationTarget.Global),
@@ -2184,8 +2204,31 @@ export class Patcher {
       ...INJECT_POINTS.map((ip) =>
         cfg.update(ip.key, ip.defaultRaw, vscode.ConfigurationTarget.Global),
       ),
+      cfg.update("patchEnabled", false, vscode.ConfigurationTarget.Global),
     ]);
     this.refresh();
+  }
+
+  // The panel's "Enable Patch" button (shown in place of "Fully Disable Patch"
+  // once patchEnabled is false): restores the settings captured right before
+  // the disable, flips patchEnabled back to true, and re-applies the patch —
+  // autoApply() fires from the config-change listener once patchEnabled flips,
+  // so the explicit applyPatch() call below covers the case where none of the
+  // restored values actually differ from current (no onDidChangeConfiguration
+  // event would otherwise fire to trigger a re-apply).
+  async enable(): Promise<void> {
+    const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
+    const preDisable = this.context.globalState.get<PreDisableSettings>(
+      PRE_DISABLE_SETTINGS_KEY,
+      {},
+    );
+    await Promise.all([
+      ...Object.entries(preDisable).map(([key, value]) =>
+        cfg.update(key, value, vscode.ConfigurationTarget.Global),
+      ),
+      cfg.update("patchEnabled", true, vscode.ConfigurationTarget.Global),
+    ]);
+    await this.autoApply();
   }
 }
 
