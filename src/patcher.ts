@@ -12,6 +12,9 @@ import {
   featureIds,
   BEHAVIOR_CSS_MARKER,
 } from "./behaviorInject";
+// faro is FIRST: it exposes window.__ccFaroLog, which every other feature below
+// may call from its own init() — later features assume the sink already exists.
+import "./behaviorFeatures.faro";
 import "./behaviorFeatures.reply";
 import "./behaviorFeatures.search";
 import "./behaviorFeatures.datetime";

@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.33",
+  "version": "2.0.34",
   "publisher": "zeyutang",
   "icon": "icon.png",
   "license": "MIT",
@@ -270,6 +270,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Toolbar buttons to jump between your own messages."
+        },
+        "smartsClaudeManager.feature.faro": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Ship chat-enhancement feature diagnostics to Grafana Cloud (console + Loki via Faro). Unchecking silences logging everywhere immediately, with no reload. Only a feature that is itself checked ON logs anything, even while this is checked ON."
         }
       }
     }

@@ -25,3 +25,7 @@ out/
 /.claude/Fix domain leak/Scripts/
 /.claude/Download and inspect a website HTML/Tests/
 /.claude/Update the file editing protocol for the FSystem bash restriction/Tests/
+/.claude/Create browser extension for API extraction/Tests/
+.env
+**/.env
+!**/.env.example
