@@ -1951,7 +1951,10 @@ export class Patcher {
         this.toggleStates.some(drifted) ||
         this.injectStates.some(drifted))
     ) {
-      void this.autoApply();
+      // Apply now AND auto-reload the window if real edits were written, so a
+      // fresh install (or a Claude-Code-update-reverted patch) takes effect on
+      // first load without a manual Disable/Enable or manual reload.
+      void this.applyOnActivation();
     }
   }
 
@@ -2138,21 +2141,27 @@ export class Patcher {
   // without this guard a setting change (or the constructor's own drift-check
   // on the NEXT activation) would silently re-patch a bundle the user, or the
   // uninstall path, explicitly reverted and marked disabled.
-  private async autoApply(): Promise<void> {
+  //
+  // Returns the number of bundle edits actually written (0 = already in sync,
+  // nothing changed), so the ACTIVATION-time caller (the constructor) can decide
+  // whether an automatic window reload is warranted — see applyOnActivation().
+  private async autoApply(): Promise<number> {
     const enabled = vscode.workspace
       .getConfiguration(CONFIG_NS)
       .get<boolean>("patchEnabled", true);
-    if (!enabled) return;
+    if (!enabled) return 0;
     // Re-resolve the install in case Claude Code updated in place since the last
     // refresh (its versioned directory changes on update, so a cached ext could
     // point at a directory that no longer exists).
     this.ext = findLatestClaudeExt(this.context);
     if (!this.ext) {
       this.refresh();
-      return;
+      return 0;
     }
+    let changedCount = 0;
     try {
-      applyPatch(this.ext, readSizes(), readToggles(), this.stockCapture);
+      const report = applyPatch(this.ext, readSizes(), readToggles(), this.stockCapture);
+      changedCount = report.changed.length;
       this.reconcilePendingReload();
     } catch (err) {
       void vscode.window.showErrorMessage(
@@ -2160,6 +2169,39 @@ export class Patcher {
       );
     }
     this.refresh();
+    return changedCount;
+  }
+
+  // Called ONCE from the constructor when patchEnabled is on and the on-disk
+  // bundle has drifted from the settings (a fresh install, a Claude Code update
+  // that reverted the patch, or a partial/older patch). It applies the patch
+  // and, IF real edits were written (the bundle was NOT already fully applied),
+  // AUTOMATICALLY reloads the window so every already-open chat webview picks up
+  // the freshly-patched bundle — implementing "if patchEnabled is on, the patch
+  // applies the moment the extension loads, including the very first load,
+  // without a manual Disable/Enable or a manual reload".
+  //
+  // No reload loop: applyPatch() is idempotent (writes only on a real change),
+  // so after the reload the bundle is fully applied → the next activation's
+  // drift-check finds nothing drifted → applyOnActivation() is never called
+  // again → no second reload. A per-window-session guard
+  // (context.globalState "activationReloadedFor") is a belt-and-suspenders stop
+  // against an edge case where an anchor reports drifted yet applyPatch can't
+  // reach a stable fixed point (a broken/renamed anchor): it records the exact
+  // (extVersion, claudeVersion, changed-summary hash) it last auto-reloaded for
+  // and refuses to reload again for that identical state, so a genuinely-stuck
+  // point degrades to "applied on disk, panel shows the reload button" instead
+  // of a reload loop. A DIFFERENT state (a Claude Code update reverting the
+  // patch → a new claudeVersion or a new drift) is a new stamp and reloads
+  // correctly.
+  private async applyOnActivation(): Promise<void> {
+    const changed = await this.autoApply();
+    if (changed <= 0 || !this.ext) return; // already in sync: nothing to reload for
+    const guardKey = "smartsClaudeManager.activationReloadedFor";
+    const stamp = `${this.context.extension.packageJSON.version}|${this.ext.version}|${changed}`;
+    if (this.context.globalState.get<string>(guardKey) === stamp) return; // identical stuck state: don't loop
+    await this.context.globalState.update(guardKey, stamp);
+    void vscode.commands.executeCommand("workbench.action.reloadWindow");
   }
 
   private reconcilePendingReload(): void {
