@@ -170,6 +170,48 @@ more) is always injected — no master on/off switch.
 - A feature you turn off still needs the same **Reload Window** step as any other patch
   change to take effect in an already-open chat webview.
 
+## Is the Patch Applied? How Does It Work?
+
+**Checking whether the patch is applied:** open the panel (`Ctrl+Shift+P` / `Cmd+Shift+P` →
+**Smarts Claude Manager: Open Panel**, the status bar `aA` item, or the Activity Bar icon).
+Each row's sync dot tells you the state:
+
+- **Green dot** — the setting is in effect on disk (patched and current).
+- **Yellow dot** — a change is pending; run **Reload Window** for it to take effect.
+
+The panel derives this by reading the actual installed Claude Code extension files
+(`extension.js`, `webview/index.js`, `webview/index.css`) from
+`<user home>/.vscode/extensions/anthropic.claude-code-<version>/` and comparing their real
+on-disk content against your `smartsClaudeManager.*` settings — it is a live read of the
+files, not a cached assumption. You can also check manually: open that extension folder and
+search the three files for `/*cc-ui-patch:*/` or `/*ccup-*/` — their presence means a patch
+has been written there.
+
+**How the patch works, end to end:**
+
+1. **Target files.** Claude Code ships as one versioned folder
+   (`anthropic.claude-code-<version>-<platform>`) containing `extension.js` (Plan Mode
+   preview webview), `webview/index.css` (chat code-block font and related CSS), and
+   `webview/index.js` (the chat Edit-diff card, a Monaco diff editor with hardcoded
+   options).
+2. **Three kinds of edits.** A *size* swap replaces a hardcoded px number or CSS value
+   (e.g. code-block font size). A *toggle* flips a boolean-shaped value (e.g. diff card line
+   numbers on/off). An *injection* adds new CSS/JS that doesn't exist natively (e.g. a custom
+   font family, or the whole Chat Enhancement Features script block).
+3. **Applying.** On extension activation (or whenever you change a setting in the panel),
+   each target file is read, every matching patch point is rewritten via its anchor
+   regex/marker, and the file is written back **atomically** (staged to a temp file, then
+   renamed over the original) so a concurrent reader never sees a half-written file.
+4. **Gated by `patchEnabled`.** Auto-apply only runs while `smartsClaudeManager.patchEnabled`
+   is `true`. If you've used **Fully Disable Patch**, the extension will not silently
+   re-patch the bundle on the next activation.
+5. **Reload required.** Claude Code has already loaded the old file contents into memory, so
+   a **Reload Window** is needed before a freshly written value actually renders.
+6. **Reverting.** Fully Disable Patch (in the panel) rewrites every patched file back to its
+   captured native/stock values. This also happens automatically, at the file level, when the
+   extension itself is disabled or uninstalled from VS Code — you never end up with a
+   permanently patched bundle after removing Smarts Claude Manager.
+
 ## Hide the Usage-Limit Warning Banner
 
 `smartsClaudeManager.chatHideUsageWarning` (default off) permanently hides the "You've used
