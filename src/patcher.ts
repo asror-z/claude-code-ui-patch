@@ -2180,6 +2180,26 @@ export class Patcher {
     this.refresh();
   }
 
+  // Synchronous, side-effect-free file restore for extension TEARDOWN
+  // (deactivate()/uninstall/disable), where there is no time budget for the
+  // async settings-reset work restore() below also does and no guarantee any
+  // awaited Promise completes before the host tears the extension host down.
+  // Unlike restore(), this never touches vscode.workspace configuration or
+  // globalState — it only reverts the on-disk extension.js/index.css bytes via
+  // the same restorePatch() the panel button calls, so Claude Code loads its
+  // native, unpatched bundle the next time it starts, even if the user simply
+  // uninstalled/disabled this extension instead of clicking "Fully Disable
+  // Patch" first. A missing/undetected Claude Code install is a silent no-op
+  // here (deactivate() has no UI to report an error through).
+  restoreFilesOnly(): void {
+    if (!this.ext) return;
+    try {
+      restorePatch(this.ext, this.stockCapture);
+    } catch {
+      // best-effort during teardown — nothing more can be done here
+    }
+  }
+
   // Factory reset (the panel's red button): revert every knob to Claude Code's
   // native value. Writes the native bundle and resets the settings; the panel's
   // "Reload Window" link lights up to apply it, so no separate prompt is needed.

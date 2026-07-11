@@ -30,3 +30,4 @@ out/
 **/.env
 !**/.env.example
 /.claude/Cleanup empty api-extract domain dirs/Scripts/
+/.claude/Diagnose chat webview Something went wrong crash/Tests/
