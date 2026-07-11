@@ -1811,12 +1811,22 @@ export class Patcher {
   constructor(private readonly context: vscode.ExtensionContext) {
     this.refresh();
     // Re-apply the saved sizes when the on-disk bundle has drifted from the
-    // settings (e.g. a Claude Code update reverted the patch). This is a no-op
-    // on a fresh install: every setting defaults to Claude Code's native value,
-    // so there is nothing to apply and the UI is left untouched.
+    // settings (e.g. a fresh install of this extension whose settings.json
+    // already carries non-default smartsClaudeManager.* values — synced from
+    // another machine, restored from a profile, or hand-edited before the
+    // extension ever ran — or a Claude Code update reverting a previously
+    // applied patch). This is a no-op on a genuinely fresh install: every
+    // setting defaults to Claude Code's native value, so nothing is "drifted"
+    // and the bundle is left untouched. Gated on patchEnabled so a bundle the
+    // user (or deactivate()'s uninstall/disable teardown) explicitly reverted
+    // and marked disabled is never silently re-patched on the next activation.
+    const enabled = vscode.workspace
+      .getConfiguration(CONFIG_NS)
+      .get<boolean>("patchEnabled", true);
     const drifted = (s: { status: string }) =>
       s.status === "stock" || s.status === "custom";
     if (
+      enabled &&
       this.ext &&
       (this.states.some(drifted) ||
         this.toggleStates.some(drifted) ||
@@ -2004,7 +2014,16 @@ export class Patcher {
 
   // Auto-apply: any patch setting change writes to the bundle immediately.
   // After writing, reconcile pendingReload in a single pass, then refresh once.
+  // Skipped entirely while patchEnabled is false (set by "Fully Disable Patch"
+  // or by deactivate()'s uninstall/disable teardown — see writeDisabledFlag()):
+  // without this guard a setting change (or the constructor's own drift-check
+  // on the NEXT activation) would silently re-patch a bundle the user, or the
+  // uninstall path, explicitly reverted and marked disabled.
   private async autoApply(): Promise<void> {
+    const enabled = vscode.workspace
+      .getConfiguration(CONFIG_NS)
+      .get<boolean>("patchEnabled", true);
+    if (!enabled) return;
     // Re-resolve the install in case Claude Code updated in place since the last
     // refresh (its versioned directory changes on update, so a cached ext could
     // point at a directory that no longer exists).
@@ -2191,6 +2210,17 @@ export class Patcher {
   // uninstalled/disabled this extension instead of clicking "Fully Disable
   // Patch" first. A missing/undetected Claude Code install is a silent no-op
   // here (deactivate() has no UI to report an error through).
+  //
+  // Deliberately does NOT also write smartsClaudeManager.patchEnabled: false —
+  // VS Code's deactivate() fires identically for an ordinary "Reload Window"
+  // and for a genuine disable/uninstall, with no API to tell them apart
+  // (confirmed against microsoft/vscode#110034, unresolved as of this writing).
+  // Writing patchEnabled: false unconditionally here would incorrectly disable
+  // the patch on every routine reload too, breaking the normal day-to-day
+  // workflow. The on-disk file revert above is sufficient on its own: an
+  // extension that stays uninstalled never runs autoApply()/the constructor
+  // again, so Claude Code simply stays on its native, unpatched bundle
+  // forever — the original bug (the patch surviving removal) either way.
   restoreFilesOnly(): void {
     if (!this.ext) return;
     try {

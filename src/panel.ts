@@ -1,6 +1,25 @@
 import * as vscode from "vscode";
 import { Patcher, Snapshot, Knob, FeatureState, SECTION_ORDER, STEP, MIN_PX } from "./patcher";
 
+// Native modal Yes/No confirm for a hard-to-reverse panel action ("Restore
+// Last Applied", "Fully Disable Patch" — both revert on-disk state and, per
+// their own onMessage handling below, immediately reload the window). Routed
+// through vscode.window.showWarningMessage({modal:true}) rather than the
+// webview's own confirm() so it renders as VS Code's native modal dialog,
+// consistent with every other destructive-action prompt in the editor.
+// Resolves true only on an explicit "Yes" click; Escape/click-outside/"No"
+// all resolve false, matching showWarningMessage's own undefined-on-dismiss
+// contract.
+async function confirmAction(title: string, detail: string): Promise<boolean> {
+  const choice = await vscode.window.showWarningMessage(
+    title,
+    { modal: true, detail },
+    "Yes",
+    "No",
+  );
+  return choice === "Yes";
+}
+
 // Shared rendering + message-handling logic for the control surface, hosted by
 // EITHER a floating editor-tab WebviewPanel (PatchPanel, opened via the Command
 // Palette / status-bar click) OR an Activity Bar-docked WebviewView
@@ -60,10 +79,16 @@ abstract class PatchWebviewHost {
           await this.patcher.setFeature(msg.target, msg.on);
         break;
       case "discard":
+        if (!(await confirmAction("Restore Last Applied", "Restore the last-applied settings, discarding any changes made since the last window reload?")))
+          break;
         await this.patcher.discard();
+        void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
       case "restore":
+        if (!(await confirmAction("Fully Disable Patch", "Revert Claude Code to its native, unpatched state and disable the patch?")))
+          break;
         await this.patcher.restore();
+        void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
       case "enable":
         await this.patcher.enable();
