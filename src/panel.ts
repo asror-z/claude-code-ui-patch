@@ -84,18 +84,20 @@ abstract class PatchWebviewHost {
         await this.patcher.discard();
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
-      case "restore":
-        if (!(await confirmAction("Fully Disable Patch", "Revert Claude Code to its native, unpatched state and disable the patch?")))
-          break;
-        await this.patcher.restore();
+      case "patchToggle": {
+        // The top-of-panel Enable/Disable switch. `msg.on` is the CURRENT state:
+        // on → the user is turning it OFF (fully disable), off → turning it ON.
+        const turningOff = msg.on === true;
+        const title = turningOff ? "Fully Disable Patch" : "Enable Patch";
+        const detail = turningOff
+          ? "Revert Claude Code to its native, unpatched state and disable the patch?"
+          : "Re-apply your saved settings and enable the patch?";
+        if (!(await confirmAction(title, detail))) break;
+        if (turningOff) await this.patcher.restore();
+        else await this.patcher.enable();
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
-      case "enable":
-        if (!(await confirmAction("Enable Patch", "Re-apply your saved settings and enable the patch?")))
-          break;
-        await this.patcher.enable();
-        void vscode.commands.executeCommand("workbench.action.reloadWindow");
-        break;
+      }
       case "reload":
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
@@ -195,6 +197,10 @@ ${csp}
   </div>
   <span class="version-pill">v${snap.extVersion}<span class="version-sep">&#8226;</span>Claude Code v${snap.version}</span>
   <div class="header-status">${statusInner(snap)}</div>
+  <div class="knob patch-enabled-row" data-kind="toggle">
+    <span class="controls"><button class="switch ${snap.patchEnabled ? "on" : "off"}" data-cmd="patchToggle" role="switch" aria-checked="${snap.patchEnabled}" title="Enable or fully disable the patch (reverts Claude Code to native when off; re-applies your saved settings when on). Reloads the window on confirm."><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-text">${snap.patchEnabled ? "On" : "Off"}</span></button></span>
+    <span class="label">Enable / Disable patch</span>
+  </div>
   <div class="card">
     <div class="section-grid">
 ${sections}
@@ -202,11 +208,6 @@ ${sections}
   </div>
   <div class="actions">
     <button class="btn btn-green${snap.needsReload ? "" : " quiet"}" data-cmd="discard" title="Revert to the values on disk at the last window reload">&#8617; Restore Last Applied</button>
-    ${
-      snap.patchEnabled
-        ? `<button class="btn btn-red" data-cmd="restore" title="Revert Claude Code to its native, unpatched state (requires a reload)">&#9855; Fully Disable Patch</button>`
-        : `<button class="btn btn-green" data-cmd="enable" title="Re-apply your saved settings">&#9855; Enable Patch</button>`
-    }
     <button class="btn btn-outline" data-cmd="openSettings" title="Open the smartsClaudeManager.* settings in VS Code Settings"><span class="link-icon">&#9881;</span>Open VS Code Settings</button>
     ${snap.needsReload ? `<button class="btn btn-outline btn-reload-pending" data-cmd="reload" title="Reload the window to apply changes"><span class="link-icon">&#128190;</span>Save &amp; Reload window</button>` : ""}
   </div>
@@ -237,6 +238,15 @@ ${sections}
         setToggleBtn(el, next); // optimistic: flip instantly
         pendingToggle[id] = next;
         vscode.postMessage({ command: 'toggleSet', target: id, on: next });
+        return;
+      }
+      if (cmd === 'patchToggle') {
+        // Enable/disable the whole patch. Do NOT flip optimistically: the action
+        // runs a native confirm the user can cancel, and either way reloads the
+        // window — send the CURRENT on-state and let the extension decide (enable
+        // when currently off, fully-disable when currently on).
+        const on = el.classList.contains('on');
+        vscode.postMessage({ command: 'patchToggle', on: on });
         return;
       }
       vscode.postMessage({ command: cmd, key: el.dataset.key });
@@ -501,6 +511,12 @@ const baseCss = `
   .knob { display: flex; align-items: center; padding: 5px 4px; line-height: 1.5; border-radius: var(--ccp-radius-sm); transition: background-color .12s ease; }
   .knob:hover { background: var(--vscode-list-hoverBackground); }
   .knob .label { flex: 1 1 auto; min-width: 160px; }
+  /* Top-of-panel Enable/Disable-patch master switch: a prominent card-like row
+     with the switch BEFORE the label (like a settings toggle), sitting above the
+     main card. Reuses the .knob/.switch styling; only layout/emphasis differ. */
+  .patch-enabled-row { margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--vscode-panel-border); border-radius: var(--ccp-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); gap: 12px; }
+  .patch-enabled-row .controls { width: auto; margin-left: 0; flex-shrink: 0; }
+  .patch-enabled-row .label { flex: 1 1 auto; min-width: 0; font-weight: 600; }
   /* Two columns whenever there's room (>= ~340px per column), one column in a
      narrow panel — auto-fit avoids a forced 2-up layout that would overflow or
      leave an awkward gap in a resized/narrow window. */

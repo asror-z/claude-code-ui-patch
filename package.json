@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.49",
+  "version": "2.0.50",
   "publisher": "zeyutang",
   "icon": "icon.png",
   "license": "MIT",
