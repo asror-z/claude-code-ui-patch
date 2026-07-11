@@ -75,13 +75,39 @@ const JS = `
   }
   window.__ccFaroStatus = status;
 
+  // The chat webview's CSP is script-src nonce-only (no unsafe-inline, no host
+  // allowlist), so a dynamically-created script tag pointing at the unpkg CDN
+  // is BLOCKED unless it carries the page's live nonce — a real incident: the
+  // Faro SDK CDN load failed every time with a CSP violation, so Loki never got
+  // any data. The nonce is read at runtime from an existing nonced script tag
+  // (our own injected block, or Claude Code's index.js module script — both
+  // carry the same live nonce). Setting BOTH the nonce property and the nonce
+  // attribute is required: Chromium clears the reflected attribute after parse,
+  // so the property is the reliable carrier for a script the CSP checks.
+  function pageNonce() {
+    try {
+      if (D.currentScript && D.currentScript.nonce) return D.currentScript.nonce;
+    } catch (e) {}
+    try {
+      var nodes = D.querySelectorAll("script[nonce]");
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i].nonce || nodes[i].getAttribute("nonce");
+        if (n) return n;
+      }
+    } catch (e) {}
+    return "";
+  }
   function loadScript(src, onload) {
     var s = D.createElement("script");
+    var nonce = pageNonce();
+    if (nonce) { try { s.nonce = nonce; } catch (e) {} try { s.setAttribute("nonce", nonce); } catch (e) {} }
     s.src = src;
     s.onload = onload;
     s.onerror = function () {
       setStatus({ state: "error", lastError: "failed to load " + src });
-      try { console.warn("[cc-faro] failed to load script: " + src); } catch (e) {}
+      // original console only — this runs before wrapConsole in the failure path,
+      // but keep it a single warn so a genuine CDN outage is visible without spam.
+      try { console.warn("[cc-faro] failed to load script (CSP or network): " + src); } catch (e) {}
     };
     D.head.appendChild(s);
   }
@@ -274,10 +300,39 @@ const JS = `
     bootFaro();
     logRecord("frame.init", { kind: "frame.init" }, null, "faro");
     try {
+      // Global-error capture, hardened against a self-amplifying flood. A real
+      // incident: Claude Code's OWN bundle (webview/index.js) throws a repeating
+      // "Cannot read properties of undefined (reading 'toUrl')" from its Monaco
+      // web-worker setup (getWorkerUrl/$loadForeignModule) — dozens of times a
+      // second. The prior handler re-logged every one through logRecord ->
+      // console.error, and since console.error is monkey-patched (wrapConsole),
+      // that re-entered the wrapper and spammed the DevTools console into an
+      // unreadable wall, making the (working) features look dead. Three guards:
+      //   1. NEVER route a captured error through logRecord/console.* — push it
+      //      straight to Faro (raw), so it can't re-enter the wrapped console.
+      //   2. De-dupe + rate-limit: drop an identical message seen in the last
+      //      2s, and cap total captured errors to _MAX_ERR so a runaway upstream
+      //      crash can never flood the collector or the console either.
+      //   3. It still records the FIRST occurrence of each distinct error, so a
+      //      genuine one-off is never lost — only the repeat-spam is suppressed.
+      var _errSeen = {}, _errCount = 0, _MAX_ERR = 50;
       win.addEventListener(
         "error",
         function (e) {
-          logRecord("window.onerror", { kind: "window.onerror", message: (e && e.message) || "" }, "error", "faro");
+          try {
+            var msg = (e && e.message) || "";
+            var key = msg.slice(0, 120);
+            var now = (win.performance && win.performance.now) ? win.performance.now() : 0;
+            if (_errSeen[key] && now && now - _errSeen[key] < 2000) return; // repeat within 2s: drop
+            _errSeen[key] = now;
+            if (_errCount >= _MAX_ERR) return; // hard cap: stop after _MAX_ERR distinct captures
+            _errCount++;
+            // Raw push only — do NOT call logRecord()/console.* (they are wrapped
+            // and would re-enter this handler / the console flood).
+            if (faroFeatureOn() && faroReady && window.GrafanaFaroWebSdk && window.GrafanaFaroWebSdk.faro) {
+              _push("window.onerror", { kind: "window.onerror", message: msg, source: (e && e.filename) || "" }, "error");
+            }
+          } catch (e2) {}
         },
         true
       );
