@@ -461,6 +461,107 @@ function permCodeSet(c: string, on: boolean): string {
   );
 }
 
+// Faro logging CSP allowance (ON): the chat webview's stock CSP is
+// `default-src 'none'; ${p}; ${f}; ${m}; script-src 'nonce-${u}'; ${v};`
+// (style/font/img/worker via cspSource, script nonce-only). It permits NEITHER
+// the unpkg CDN (to load the Faro Web SDK) NOR the Faro collector origin (to
+// POST telemetry) — so the chatEnhancements Faro feature can never reach
+// Grafana Loki with the stock CSP (verified live: the SDK <script> is
+// CSP-blocked, and even nonce'd, the collector POST would be blocked by the
+// absent connect-src). This toggle rewrites that one CSP <meta> so Faro works:
+// it injects `https://unpkg.com` into the existing script-src and appends a
+// `connect-src` for the Faro collector origin, right before the closing `;">`.
+// Scoped tightly to the chat webview CSP (anchored on the `script-src
+// 'nonce-${u}'` template literal, which is unique to that one template — the
+// plan-preview webview uses a literal `nonce-{{NONCE}}` instead, so it is never
+// touched). The /*ccup-csp*/ marker (kept OUTSIDE the meta content, in a
+// trailing HTML comment) makes the ON state detectable and reversible.
+//
+// The two allowed origins are derived from the Faro feature's own stamped
+// collector URL; keep them in sync if smarts-logging-grafana ever restamps a
+// different collector region.
+// Mirrors the proven-working CSP patch from the sibling smarts-claude-patch
+// project (scripts/Apply Patch.mjs step 3d): two idempotent edits to the ONE
+// chat-webview CSP meta —
+//   (1) connect-src <collector> inserted right after `default-src 'none';`
+//       (or an existing connect-src replaced) so Faro's push fetch is allowed,
+//   (2) unpkg.com added to the existing `script-src 'nonce-${n}';` so the SDK
+//       <script> can load.
+// The nonce var name (${u} here, but captured fresh so it survives re-minify)
+// is never hardcoded. Detection: the presence of `unpkg.com` in the script-src
+// is the ON marker (no separate comment marker needed — the CSP change IS the
+// state). Scoped to the chat webview CSP alone: it anchors on the nonce
+// TEMPLATE-LITERAL form `nonce-${u}`, which is unique to that template — the
+// plan-preview webview uses a literal `nonce-{{NONCE}}` and is never matched.
+const FARO_CDN_ORIGIN = "https://unpkg.com";
+const FARO_COLLECTOR_ORIGIN = "https://faro-collector-prod-ap-south-1.grafana.net";
+// The ONE chat-webview CSP <meta> — matched as a whole so both edits stay scoped
+// to it and never touch the SEPARATE plan-preview CSP, which shares the same
+// `default-src 'none';` prefix but uses a literal `nonce-{{NONCE}}` (not the
+// template-literal `nonce-${u}`) and img-src data:. Anchoring the whole tag on
+// the template-literal nonce form is what keeps the plan-preview meta untouched
+// (a naive split on `default-src 'none';` would hit BOTH — a real bug caught in
+// testing). The nonce var name (${u}) is captured, never hardcoded, so this
+// survives a re-minify that renames it.
+const CSP_CHAT_META_RE =
+  /<meta http-equiv="Content-Security-Policy" content="(default-src 'none';[^"]*?script-src 'nonce-\$\{\w+\}'[^"]*?)">/;
+const CSP_SCRIPT_SRC_RE = /script-src\s+'nonce-\$\{(\w+)\}'\s*;/;
+
+function cspChatMetaPresent(c: string): boolean {
+  return CSP_CHAT_META_RE.test(c);
+}
+function cspPresent(c: string): boolean {
+  return cspChatMetaPresent(c);
+}
+// true = ON (unpkg in the chat script-src), false = OFF (stock), undefined = anchor gone.
+function cspCurrentOn(c: string): boolean | undefined {
+  const m = c.match(CSP_CHAT_META_RE);
+  if (!m) return undefined;
+  return m[1].includes(`${FARO_CDN_ORIGIN};`) && m[1].includes(`connect-src ${FARO_COLLECTOR_ORIGIN}`)
+    ? true
+    : false;
+}
+// Transform ONLY the chat CSP meta's content, splicing the result back so the
+// plan-preview meta (and everything else) is byte-for-byte untouched.
+function cspSet(c: string, on: boolean): string {
+  const m = c.match(CSP_CHAT_META_RE);
+  if (!m) return c; // anchor gone: leave native
+  const content = m[1];
+  const next = on ? cspContentOn(content) : cspContentOff(content);
+  if (next === content) return c; // no-op
+  return c.replace(m[0], `<meta http-equiv="Content-Security-Policy" content="${next}">`);
+}
+// ON: add connect-src <collector> right after default-src 'none'; (or replace an
+// existing connect-src), and add unpkg.com to the nonce script-src. Idempotent.
+function cspContentOn(content: string): string {
+  let out = content;
+  const connectDirective = `connect-src ${FARO_COLLECTOR_ORIGIN}`;
+  if (!out.includes(connectDirective)) {
+    if (/connect-src [^;]*;/.test(out)) {
+      out = out.replace(/connect-src [^;]*;/, `${connectDirective};`);
+    } else {
+      out = out.replace("default-src 'none';", `default-src 'none'; ${connectDirective};`);
+    }
+  }
+  const s = CSP_SCRIPT_SRC_RE.exec(out);
+  if (s && !out.includes(`'nonce-\${${s[1]}}' ${FARO_CDN_ORIGIN}`)) {
+    out = out.replace(s[0], `script-src 'nonce-\${${s[1]}}' ${FARO_CDN_ORIGIN};`);
+  }
+  return out;
+}
+// OFF: exact inverse of cspContentOn — strip our connect-src and the unpkg token.
+function cspContentOff(content: string): string {
+  let out = content;
+  out = out.replace(
+    new RegExp(
+      ` connect-src ${FARO_COLLECTOR_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")};`,
+    ),
+    "",
+  );
+  out = out.replace(/(script-src\s+'nonce-\$\{\w+\}') https:\/\/unpkg\.com;/, "$1;");
+  return out;
+}
+
 // The chat message "Show more" (.expandButton_<hash>) and "Show less"
 // (.collapseButton_<hash>) buttons live in the expandable-content module. "Show
 // more" is position:absolute (bottom:0;right:0) anchored to the fit-content
@@ -659,6 +760,24 @@ const TOGGLE_POINTS: TogglePoint[] = [
     fnCurrentOn: permCodeCurrentOn,
     fnSet: permCodeSet,
   },
+  {
+    // Faro logging CSP allowance — extends the chat webview's CSP so the Faro
+    // Web SDK (unpkg script-src) and its collector fetch (connect-src) are
+    // permitted; without it the chatEnhancements Faro feature is CSP-blocked and
+    // Grafana Loki gets nothing (verified live). ALWAYS ON (see ALWAYS_ON_TOGGLES):
+    // it has no user-facing setting — it exists solely to make the always-on
+    // chat-enhancements pack's own Faro logging able to reach Grafana, so it
+    // rides with chatEnhancements rather than being independently toggleable.
+    id: "faroCsp",
+    section: "Chat Panel or Tab",
+    label: "faro logging CSP allowance",
+    key: "faroCsp",
+    defaultOn: false,
+    file: "extension.js",
+    fnPresent: cspPresent,
+    fnCurrentOn: cspCurrentOn,
+    fnSet: cspSet,
+  },
 ];
 
 export type ToggleMap = Record<string, boolean>;
@@ -667,7 +786,7 @@ export type ToggleMap = Record<string, boolean>;
 // smartsClaudeManager.* config. chatEnhancements is one of these — the individual
 // smartsClaudeManager.feature.<id> checkboxes are the only per-feature control; there
 // is no separate master on/off (removed per user feedback: "doim on bo'ladi").
-const ALWAYS_ON_TOGGLES = new Set(["chatEnhancements"]);
+const ALWAYS_ON_TOGGLES = new Set(["chatEnhancements", "faroCsp"]);
 
 export function readToggles(): ToggleMap {
   const c = vscode.workspace.getConfiguration(CONFIG_NS);
