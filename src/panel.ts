@@ -155,7 +155,7 @@ ${csp}
       knobs: snap.knobs.filter((k) => k.section === sec),
     })).filter((g) => g.knobs.length);
 
-    // Chat Enhancement Features: one real checkbox per feature. Checking/unchecking
+    // Chat Features: one real checkbox per feature. Checking/unchecking
     // writes straight to smartsClaudeManager.feature.<id> (see Patcher.setFeature) —
     // this is the ONE control surface for per-feature on/off (no in-webview gear).
     // The pack is always injected now (no master switch — see CLAUDE.md). It is a
@@ -163,14 +163,14 @@ ${csp}
     // horizontal room for their controls), so it gets its OWN column rather than
     // being crammed above a knob section.
     const featuresCol = `    <div class="section-col">
-      <h2><span class="h2-icon">&#10022;</span>Chat Enhancement Features</h2>
+      <h2><span class="h2-icon">&#10022;</span>Chat Features</h2>
       <div class="feature-grid feature-grid-1col">
 ${snap.features.map((f) => this.featureHtml(f)).join("\n")}
       </div>
     </div>`;
 
     // The 3 columns: the feature checkboxes, then each real Section (Chat Panel or
-    // Tab, Plan Mode Markdown Preview) with its own ▼/▲ knob rows — this fills the
+    // Tab, Plan Preview) with its own ▼/▲ knob rows — this fills the
     // panel's full width with three coherent blocks instead of one long vertical
     // flow. Columns wrap to fewer/stacked automatically in a narrow window (see
     // .section-grid below).
@@ -199,7 +199,7 @@ ${csp}
   <div class="header-status">${statusInner(snap)}</div>
   <div class="knob patch-enabled-row" data-kind="toggle">
     <span class="controls"><button class="switch ${snap.patchEnabled ? "on" : "off"}" data-cmd="patchToggle" role="switch" aria-checked="${snap.patchEnabled}" title="Enable or fully disable the patch (reverts Claude Code to native when off; re-applies your saved settings when on). Reloads the window on confirm."><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-text">${snap.patchEnabled ? "On" : "Off"}</span></button></span>
-    <span class="label">Enable / Disable patch</span>
+    <span class="label patch-enabled-label">${snap.patchEnabled ? "Disable patch" : "Enable patch"}</span>
   </div>
   <div class="card">
     <div class="section-grid">
@@ -418,7 +418,7 @@ function shapeOf(snap: Snapshot | undefined): string {
 }
 
 function sectionIcon(sec: string): string {
-  const glyph = sec === "Plan Mode Markdown Preview" ? "&#128221;" : "&#128172;";
+  const glyph = sec === "Plan Preview" ? "&#128221;" : "&#128172;";
   return `<span class="h2-icon">${glyph}</span>`;
 }
 
@@ -524,8 +524,8 @@ const baseCss = `
   /* Inside its OWN section-col (narrower than the whole panel), the feature list
      stays a single column — a nested 2-up auto-fit would cramp each label. */
   .feature-grid-1col { grid-template-columns: 1fr; }
-  /* 3 columns whenever there's room (feature checkboxes, Chat Panel or Tab knobs,
-     Plan Mode Markdown Preview knobs); wraps down to 2, then 1, in a narrower
+  /* 3 columns whenever there's room (feature checkboxes, Chat Panel knobs,
+     Plan Preview knobs); wraps down to 2, then 1, in a narrower
      window rather than ever overflowing or leaving an awkward gap. */
   .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 28px; row-gap: 18px; align-items: start; }
   .section-col { min-width: 0; }

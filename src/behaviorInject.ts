@@ -29,7 +29,7 @@ function unescapeFromTemplateLiteral(src: string): string {
 
 // Per-feature enable/disable is a RUNTIME toggle (localStorage 'cc-feature-toggles',
 // read by window.__ccFeature(id) in the injected bootstrap), not a patch-time value —
-// so it is not a TOGGLE_POINTS entry. The panel's Chat Enhancement Features checkboxes
+// so it is not a TOGGLE_POINTS entry. The panel's Chat Features checkboxes
 // (see panel.ts / Patcher.setFeature) are the ONE control surface for it: each
 // smartsClaudeManager.feature.<id> setting is written into the localStorage map on
 // EVERY webview load, unconditionally, so a checkbox flip takes effect the next

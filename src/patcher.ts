@@ -60,10 +60,10 @@ export const MIN_PX = 6;
 export const MAX_PX = 48;
 export const STEP = 0.25;
 
-export type Section = "Chat Panel or Tab" | "Plan Mode Markdown Preview";
+export type Section = "Chat Panel" | "Plan Preview";
 export const SECTION_ORDER: Section[] = [
-  "Chat Panel or Tab",
-  "Plan Mode Markdown Preview",
+  "Chat Panel",
+  "Plan Preview",
 ];
 
 // Display order of knobs within a section (panel and popup), by point id. Ids
@@ -209,7 +209,7 @@ function diffFontRestore(c: string): string {
 const PATCH_POINTS: PatchPoint[] = [
   {
     id: "chatCode",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "code block",
     key: "chatCodeblockFontSize",
     defaultPx: 14,
@@ -230,7 +230,7 @@ const PATCH_POINTS: PatchPoint[] = [
   },
   {
     id: "diffCard",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "diff card",
     key: "chatDiffCardFontSize",
     defaultPx: 14,
@@ -244,7 +244,7 @@ const PATCH_POINTS: PatchPoint[] = [
   },
   {
     id: "text",
-    section: "Plan Mode Markdown Preview",
+    section: "Plan Preview",
     label: "agent response",
     key: "planPreviewFontSize",
     defaultPx: 14,
@@ -263,7 +263,7 @@ const PATCH_POINTS: PatchPoint[] = [
   },
   {
     id: "code",
-    section: "Plan Mode Markdown Preview",
+    section: "Plan Preview",
     label: "code block",
     key: "planPreviewCodeblockFontSize",
     defaultPx: 13,
@@ -278,7 +278,7 @@ const PATCH_POINTS: PatchPoint[] = [
   },
   {
     id: "preview",
-    section: "Plan Mode Markdown Preview",
+    section: "Plan Preview",
     label: "comment quote",
     key: "planPreviewCommentQuoteFontSize",
     defaultPx: 12,
@@ -292,7 +292,7 @@ const PATCH_POINTS: PatchPoint[] = [
   },
   {
     id: "input",
-    section: "Plan Mode Markdown Preview",
+    section: "Plan Preview",
     label: "comment input box",
     key: "planPreviewCommentInputFontSize",
     defaultPx: 13,
@@ -306,7 +306,7 @@ const PATCH_POINTS: PatchPoint[] = [
   },
   {
     id: "badge",
-    section: "Plan Mode Markdown Preview",
+    section: "Plan Preview",
     label: "comment badge",
     key: "planPreviewCommentBadgeFontSize",
     defaultPx: 10,
@@ -624,7 +624,7 @@ interface TogglePoint {
 // side-effect (webview/index.css), exactly like diffLineNumbers' gutter CSS above,
 // because this is a whole-block inject/remove rather than a single value swap.
 // smartsClaudeManager.feature.<id> (one boolean per feature — see package.json, and the
-// panel's Chat Enhancement Features checkboxes) is written into the runtime toggle's
+// panel's Chat Features checkboxes) is written into the runtime toggle's
 // localStorage map on EVERY webview load — the panel is the one control surface for
 // per-feature on/off (a checkbox flip takes effect on the next window reload, exactly
 // like every other patch setting). Read fresh on every apply so a settings change is
@@ -682,7 +682,7 @@ function chatEnhancementsCssBuild(_css: string): string | undefined {
 const TOGGLE_POINTS: TogglePoint[] = [
   {
     id: "chatEnhancements",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "chat enhancements",
     key: "chatEnhancements",
     defaultOn: false,
@@ -698,7 +698,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   },
   {
     id: "hideUsageWarning",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "usage-limit warning banner",
     key: "chatHideUsageWarning",
     defaultOn: false,
@@ -709,7 +709,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   },
   {
     id: "diffLineNumbers",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "diff card line numbers",
     key: "chatDiffCardLineNumbers",
     defaultOn: true,
@@ -728,7 +728,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   },
   {
     id: "diffThemeSync",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "diff card theme sync",
     key: "chatDiffCardThemeSync",
     defaultOn: true,
@@ -740,7 +740,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   },
   {
     id: "effortSyncFix",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "effort-level indicator sync",
     key: "effortSyncFix",
     defaultOn: false,
@@ -751,7 +751,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   },
   {
     id: "permCode",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "permission code fontsize sync",
     key: "chatPermissionCodeMatchChatCodeblock",
     defaultOn: false,
@@ -769,7 +769,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
     // chat-enhancements pack's own Faro logging able to reach Grafana, so it
     // rides with chatEnhancements rather than being independently toggleable.
     id: "faroCsp",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "faro logging CSP allowance",
     key: "faroCsp",
     defaultOn: false,
@@ -1139,7 +1139,7 @@ function planInjectCodeInline(c: string, v: InjectValue): string {
 const INJECT_POINTS: InjectPoint[] = [
   {
     id: "chatHistorySize",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "agent response",
     key: "chatHistoryFontSize",
     kind: "size",
@@ -1167,7 +1167,7 @@ const INJECT_POINTS: InjectPoint[] = [
   },
   {
     id: "chatHistoryFamily",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "font family",
     key: "chatHistoryFontFamily",
     kind: "family",
@@ -1195,7 +1195,7 @@ const INJECT_POINTS: InjectPoint[] = [
   },
   {
     id: "planFamily",
-    section: "Plan Mode Markdown Preview",
+    section: "Plan Preview",
     label: "font family",
     key: "planPreviewFontFamily",
     kind: "family",
@@ -1221,7 +1221,7 @@ const INJECT_POINTS: InjectPoint[] = [
   },
   {
     id: "planCommentRows",
-    section: "Plan Mode Markdown Preview",
+    section: "Plan Preview",
     label: "comment rows",
     key: "planPreviewCommentInputRows",
     kind: "rows",
@@ -1244,7 +1244,7 @@ const INJECT_POINTS: InjectPoint[] = [
   },
   {
     id: "chatCodeInline",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "inline code",
     key: "chatCodeInlineFontSize",
     kind: "size",
@@ -1273,7 +1273,7 @@ const INJECT_POINTS: InjectPoint[] = [
   },
   {
     id: "planCodeInline",
-    section: "Plan Mode Markdown Preview",
+    section: "Plan Preview",
     label: "inline code",
     key: "planPreviewCodeInlineFontSize",
     kind: "size",
@@ -1294,7 +1294,7 @@ const INJECT_POINTS: InjectPoint[] = [
   },
   {
     id: "showMoreAlign",
-    section: "Chat Panel or Tab",
+    section: "Chat Panel",
     label: "show more/less align",
     key: "chatShowMoreAndLessAlign",
     kind: "align",
