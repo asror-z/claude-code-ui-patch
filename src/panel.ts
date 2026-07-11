@@ -91,7 +91,10 @@ abstract class PatchWebviewHost {
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
       case "enable":
+        if (!(await confirmAction("Enable Patch", "Re-apply your saved settings and enable the patch?")))
+          break;
         await this.patcher.enable();
+        void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
       case "reload":
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
