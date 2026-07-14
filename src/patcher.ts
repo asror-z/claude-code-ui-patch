@@ -1692,6 +1692,12 @@ export function analyzeInjects(ext: ClaudeExt): InjectState[] {
 export interface PatchReport {
   version: string;
   changed: string[]; // human-readable summaries of the edits actually written
+  // Files whose computed changes could NOT be written (e.g. writeFileAtomic
+  // exhausted its retries on a persistent lock) — every OTHER file in this
+  // same applyPatch() call still gets its own write attempt regardless (see
+  // the per-file try/catch in the main loop below), so a lock on one file
+  // never blocks the rest of the batch. Empty on a fully successful apply.
+  failed: { file: string; error: string }[];
 }
 
 function byFile(): Map<string, PatchPoint[]> {
@@ -1707,12 +1713,44 @@ function byFile(): Map<string, PatchPoint[]> {
 // maps it to MoveFileEx with replace, so a concurrent reader (another window's
 // apply, or Claude Code loading the bundle) never observes a half-written file.
 // The temp name is per-process + counter so parallel writers never collide.
-let atomicWriteCounter = 0;
+//
+// RETRY ON TRANSIENT WINDOWS LOCK ERRORS: a real incident — `rename()` failed
+// with `EPERM: operation not permitted` right after Claude Code updated to a
+// fresh version, because something briefly held extension.js open (Windows
+// Defender scanning a newly-extracted extension, VS Code's own extension host
+// still finishing its read, an indexer, etc.). This is almost always transient
+// (gone within milliseconds), so a bare single-attempt throw turned a
+// millisecond-scale lock into a hard failure that aborted the WHOLE applyPatch
+// loop (see below) — a genuinely PARTIAL apply where files processed before the
+// failing one stayed patched but everything after it silently never was.
+// EPERM/EBUSY/EACCES on the rename step are retried with a short backoff before
+// giving up; any other error (e.g. a genuine permissions problem, disk full)
+// still throws immediately, unretried.
+const RETRYABLE_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
+function sleepSync(ms: number): void {
+  const buf = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(buf, 0, 0, ms);
+}
 function writeFileAtomic(abs: string, data: string): void {
   const tmp = `${abs}.${process.pid}.${atomicWriteCounter++}.tmp`;
+  const MAX_ATTEMPTS = 5;
   try {
     fs.writeFileSync(tmp, data, "utf8");
-    fs.renameSync(tmp, abs);
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        fs.renameSync(tmp, abs);
+        return; // success
+      } catch (err) {
+        lastErr = err;
+        const code = (err as NodeJS.ErrnoException).code;
+        if (!code || !RETRYABLE_CODES.has(code) || attempt === MAX_ATTEMPTS) {
+          throw err;
+        }
+        sleepSync(Math.min(50 * attempt, 250)); // 50, 100, 150, 200ms backoff
+      }
+    }
+    throw lastErr;
   } catch (err) {
     try {
       fs.unlinkSync(tmp);
@@ -1722,6 +1760,7 @@ function writeFileAtomic(abs: string, data: string): void {
     throw err;
   }
 }
+let atomicWriteCounter = 0;
 
 // Reconcile each patch point to its wanted size: a non-stock want is written as
 // a fixed px; a stock want restores the point to its native form. A point is
@@ -1735,6 +1774,7 @@ export function applyPatch(
   capture: StockCapture,
 ): PatchReport {
   const changed: string[] = [];
+  const failed: { file: string; error: string }[] = [];
   const pointsByFile = byFile();
   const togglesByFile = toggleByFile();
   const injectsByFile = injectByFile();
@@ -1803,9 +1843,22 @@ export function applyPatch(
         changed.push(`${t.label} gutter ${wantOn ? "clean" : "native"}`);
       }
     }
-    if (out !== content) writeFileAtomic(abs, out);
+    if (out !== content) {
+      // A per-file try/catch so a write failure on ONE file (e.g. a persistent
+      // Windows lock that outlasts writeFileAtomic's own retries) never aborts
+      // the loop and skips every OTHER file's already-computed changes — the
+      // exact mechanism behind a real "chala apply" (partial-apply) incident,
+      // where extension.js's EPERM aborted the whole batch and left
+      // webview/index.css and webview/index.js unpatched even though their
+      // content changes had already been computed and were ready to write.
+      try {
+        writeFileAtomic(abs, out);
+      } catch (err) {
+        failed.push({ file, error: (err as Error).message });
+      }
+    }
   }
-  return { version: ext.version, changed };
+  return { version: ext.version, changed, failed };
 }
 
 // Every file any point, toggle (including a toggle's CSS side-effect), or
@@ -1826,6 +1879,7 @@ export function restorePatch(
   capture: StockCapture,
 ): PatchReport {
   const changed: string[] = [];
+  const failed: { file: string; error: string }[] = [];
   const pointsByFile = byFile();
   const togglesByFile = toggleByFile();
   const injectsByFile = injectByFile();
@@ -1871,9 +1925,15 @@ export function restorePatch(
         changed.push(`${t.label} gutter restored`);
       }
     }
-    if (out !== content) writeFileAtomic(abs, out);
+    if (out !== content) {
+      try {
+        writeFileAtomic(abs, out);
+      } catch (err) {
+        failed.push({ file, error: (err as Error).message });
+      }
+    }
   }
-  return { version: ext.version, changed };
+  return { version: ext.version, changed, failed };
 }
 
 // Cheap, cached view for the hover popup.
@@ -2162,6 +2222,17 @@ export class Patcher {
     try {
       const report = applyPatch(this.ext, readSizes(), readToggles(), this.stockCapture);
       changedCount = report.changed.length;
+      if (report.failed.length) {
+        // A per-file write failure (e.g. a persistent Windows lock outlasting
+        // writeFileAtomic's own retries) no longer aborts the whole batch —
+        // every OTHER file still got its own write attempt. Surface exactly
+        // which file(s) failed rather than silently leaving a partial apply,
+        // so the user knows to retry (a toggle flip / reload) instead of
+        // wondering why only some of the patch took effect.
+        void vscode.window.showErrorMessage(
+          `Smarts Claude Manager: failed to patch ${report.failed.map((f) => f.file).join(", ")}: ${report.failed[0].error}`,
+        );
+      }
       this.reconcilePendingReload();
     } catch (err) {
       void vscode.window.showErrorMessage(
