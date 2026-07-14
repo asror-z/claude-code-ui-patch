@@ -1520,12 +1520,45 @@ function filePath(ext: ClaudeExt, rel: string): string {
   return path.join(ext.dir, rel);
 }
 
+// Universal across every VS Code-based IDE host: this extension's OWN install
+// directory (context.extensionUri) is ALWAYS inside that host's real, currently
+// active extensions folder — whichever IDE is running it (VS Code, Antigravity
+// IDE, Cursor, Windsurf, Trae, VSCodium, ...) — so its parent directory is
+// always the correct, live extensions root for THIS session, with zero
+// hardcoding. This is listed first and is the one that matters in practice.
+//
+// A real incident proved why the hardcoded fallback list alone is NOT
+// sufficient on its own, and why it must stay in sync with what host is
+// actually running: diagnosing a "patch not applying" report kept checking
+// plain VS Code's `~/.vscode/extensions` (and `%APPDATA%/Code/User/
+// settings.json`) while the user was running Antigravity IDE the whole time —
+// a completely different, unrelated install whose real extensions folder is
+// `~/.antigravity-ide/extensions` (Windows) and whose settings live under
+// `%APPDATA%/Antigravity IDE/User/`. `context.extensionUri` alone already
+// resolves correctly regardless of host; the fallbacks below exist ONLY for a
+// defensive secondary scan (e.g. Claude Code installed under a DIFFERENT
+// IDE-family folder than the one this extension itself is running under) and
+// are kept as a best-effort list of every known VS Code-family fork's
+// extensions folder name — never assume the list is exhaustive; a genuinely
+// new fork adds its own folder name here when discovered.
 function extensionsDirs(context: vscode.ExtensionContext): string[] {
   const dirs = new Set<string>();
   dirs.add(path.dirname(context.extensionUri.fsPath));
-  dirs.add(path.join(os.homedir(), ".vscode", "extensions"));
-  dirs.add(path.join(os.homedir(), ".vscode-insiders", "extensions"));
-  dirs.add(path.join(os.homedir(), ".vscode-oss", "extensions"));
+  const home = os.homedir();
+  const KNOWN_FORK_DIRS = [
+    ".vscode",
+    ".vscode-insiders",
+    ".vscode-oss",
+    ".antigravity-ide", // Antigravity IDE (Google) — confirmed real folder name
+    ".antigravity", // an older/alternate Antigravity IDE profile also seen in the wild
+    ".cursor", // Cursor
+    ".windsurf", // Windsurf (Codeium)
+    ".trae", // Trae
+    ".vscodium", // VSCodium
+  ];
+  for (const name of KNOWN_FORK_DIRS) {
+    dirs.add(path.join(home, name, "extensions"));
+  }
   return [...dirs].filter((d) => fs.existsSync(d));
 }
 
