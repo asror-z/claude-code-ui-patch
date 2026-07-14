@@ -87,12 +87,10 @@ abstract class PatchWebviewHost {
       case "patchToggle": {
         // The top-of-panel Enable/Disable switch. `msg.on` is the CURRENT state:
         // on → the user is turning it OFF (fully disable), off → turning it ON.
+        // No confirmation dialog — this is meant to be an instant, frictionless
+        // toggle (per explicit user request); it still auto-reloads the window
+        // so the effect is immediately visible.
         const turningOff = msg.on === true;
-        const title = turningOff ? "Fully Disable Patch" : "Enable Patch";
-        const detail = turningOff
-          ? "Revert Claude Code to its native, unpatched state and disable the patch?"
-          : "Re-apply your saved settings and enable the patch?";
-        if (!(await confirmAction(title, detail))) break;
         if (turningOff) await this.patcher.restore();
         else await this.patcher.enable();
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
@@ -198,7 +196,7 @@ ${csp}
   <span class="version-pill">v${snap.extVersion}<span class="version-sep">&#8226;</span>Claude Code v${snap.version}</span>
   <div class="header-status">${statusInner(snap)}</div>
   <div class="knob patch-enabled-row" data-kind="toggle">
-    <span class="controls"><button class="switch ${snap.patchEnabled ? "on" : "off"}" data-cmd="patchToggle" role="switch" aria-checked="${snap.patchEnabled}" title="Enable or fully disable the patch (reverts Claude Code to native when off; re-applies your saved settings when on). Reloads the window on confirm."><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-text">${snap.patchEnabled ? "On" : "Off"}</span></button></span>
+    <span class="controls"><button class="switch ${snap.patchEnabled ? "on" : "off"}" data-cmd="patchToggle" role="switch" aria-checked="${snap.patchEnabled}" title="Enable or fully disable the patch (reverts Claude Code to native when off; re-applies your saved settings when on). Reloads the window immediately."><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-text">${snap.patchEnabled ? "On" : "Off"}</span></button></span>
     <span class="label patch-enabled-label">${snap.patchEnabled ? "Disable patch" : "Enable patch"}</span>
   </div>
   <div class="card">
