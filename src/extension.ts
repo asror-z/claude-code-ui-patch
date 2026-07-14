@@ -3,10 +3,6 @@ import { Patcher, migrateLegacyKeys, migrateNamespaceRename } from "./patcher";
 import { StatusBar } from "./statusBar";
 import { PatchPanel, PatchSidebarView } from "./panel";
 
-// Held so deactivate() can revert the on-disk patch even when the user never
-// clicked the panel's "Fully Disable Patch" button first — see deactivate().
-let activePatcher: Patcher | undefined;
-
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   // v2.0.0 renamed the whole extension (claudeCodeUiPatch -> smartsClaudeManager) —
   // move every setting a user may have under the OLD namespace first, so an
@@ -16,7 +12,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // reads them, so a rebuild after the rename keeps the user's values.
   await migrateLegacyKeys();
   const patcher = new Patcher(context);
-  activePatcher = patcher;
   const statusBar = new StatusBar(patcher);
   const sidebarView = new PatchSidebarView(patcher);
 
@@ -31,17 +26,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {
-  // Disposables registered in activate() are cleaned up by VS Code. This
-  // extension ALSO edits Claude Code's own extension.js/index.css bytes on
-  // disk (see patcher.ts) — a change that outlives the VS Code process, unlike
-  // a normal subscription. If the user uninstalls or disables this extension
-  // without first clicking the panel's "Fully Disable Patch" button, those
-  // patched files were previously left behind permanently: Claude Code kept
-  // loading the patched bundle even with this extension gone, because nothing
-  // ever reverted it. restoreFilesOnly() is the synchronous, side-effect-free
-  // half of Patcher.restore() (no settings/config writes, safe to call with
-  // deactivate()'s very limited teardown time budget) — it reverts the
-  // on-disk bytes so Claude Code loads its native, unpatched bundle again.
-  activePatcher?.restoreFilesOnly();
-  activePatcher = undefined;
+  // Disposables registered in activate() are cleaned up by VS Code.
+  //
+  // deactivate() is DELIBERATELY a no-op — it does NOT revert the on-disk
+  // patch. An earlier version called Patcher.restoreFilesOnly()
+  // unconditionally here, on the theory that this would clean up after an
+  // uninstall/disable the user never confirmed via the panel's own
+  // Enable/Disable toggle. In practice this made the whole extension
+  // unstable: deactivate() fires identically for an ORDINARY window reload
+  // and for a genuine uninstall — VS Code's own API gives no way to tell
+  // them apart (confirmed against microsoft/vscode#110034, still open as of
+  // this writing) — so every single reload reverted the patch to native,
+  // and whatever activated next had to re-apply it from scratch. A
+  // screenshot or check taken in the narrow window between that revert and
+  // the next re-apply looked like "the patch keeps failing," when nothing
+  // was actually broken — the revert itself was the bug.
+  //
+  // This mirrors this extension's own v2.0.24, which never had a
+  // revert-on-deactivate at all and was rock-solid specifically because of
+  // that: the patch is written once (on activation, gated on
+  // smartsClaudeManager.patchEnabled — see patcher.ts's Patcher
+  // constructor/applyOnActivation()) and is never silently touched again
+  // except through an explicit user action — the top-of-panel Enable/
+  // Disable toggle, or Factory Reset — both of which call
+  // Patcher.restore()/enable() directly and trigger their own reload.
+  //
+  // The accepted tradeoff: a user who uninstalls/disables this extension
+  // WITHOUT first using the panel's toggle leaves the patched bytes on
+  // Claude Code's disk until either (a) they reinstall and toggle it off
+  // themselves, or (b) Claude Code's own next auto-update overwrites its
+  // extension.js/index.css natively anyway, which happens routinely.
 }

@@ -2030,8 +2030,12 @@ export class Patcher {
     // applied patch). This is a no-op on a genuinely fresh install: every
     // setting defaults to Claude Code's native value, so nothing is "drifted"
     // and the bundle is left untouched. Gated on patchEnabled so a bundle the
-    // user (or deactivate()'s uninstall/disable teardown) explicitly reverted
-    // and marked disabled is never silently re-patched on the next activation.
+    // user explicitly reverted via the panel's Enable/Disable toggle (which
+    // flips patchEnabled to false) is never silently re-patched on the next
+    // activation. deactivate() is a pure no-op (see extension.ts) — it never
+    // reverts the patch itself, so this constructor's own drift-check is the
+    // ONLY place a patch is ever (re-)applied, keeping activation the single
+    // source of truth for "is the bundle currently correct."
     const enabled = vscode.workspace
       .getConfiguration(CONFIG_NS)
       .get<boolean>("patchEnabled", true);
