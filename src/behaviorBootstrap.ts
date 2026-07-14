@@ -53,6 +53,66 @@ export const BOOTSTRAP_SOURCE = `
     }
   }
 
+  // ===================================================================
+  // HARNESS NOTIFICATION HIDING — <task-notification>/<task-id>/<tool-use-id>/
+  // <system-notification>/<system-reminder> blocks
+  // ===================================================================
+  // The harness (Claude Code itself) occasionally renders one of these blocks
+  // VERBATIM as raw angle-bracket tag text inside a userMessageContainer (e.g.
+  // a background Task/subagent's completion notice: "<task-notification>
+  // <task-id>...</task-id> <tool-use-id>...</tool-use-id> ...", collapsed
+  // behind a "Show more" toggle). This is internal/system bookkeeping, not
+  // content meant for the user to read as raw XML — hide the whole container,
+  // not just skip styling it as a user bubble (see behaviorFeatures.userstyle's
+  // NOTIFICATION_RE, which this mirrors for the "don't bubble-ize it" half).
+  // ALWAYS ON — rides with the bootstrap itself, no per-feature toggle, since a
+  // stray raw-XML block is never something a user would want left visible.
+  var NOTIFICATION_RE = /^\s*<\s*(?:task-notification|task-id|tool-use-id|system-notification|system-reminder)\b/i;
+  var NOTIFICATION_HIDE_ATTR = "data-cc-notif-hidden";
+  var NOTIFICATION_CONTAINER_SELECTORS =
+    "[class*='userMessage'],[class*='UserMessage'],[class*='messageContainer']," +
+    "[class*='message-container'],[data-message-id],[class*='chatMessage']," +
+    "[class*='bubble'],[class*='turn_']";
+
+  function hideNotificationBlocks(doc) {
+    try {
+      var nodeList = doc.querySelectorAll(NOTIFICATION_CONTAINER_SELECTORS);
+      // Membership set of the QUERIED candidates only — an ancestor's own
+      // textContent naturally CONCATENATES every descendant's text, so an
+      // ancestor outside this set (e.g. the outer message-list container)
+      // can spuriously "start with" the notification tag whenever the
+      // notification happens to be its first child. Deferring to such an
+      // ancestor would wrongly skip the real notification container forever
+      // (caught live: a fixture where the notification wasn't the LAST
+      // sibling reproduced exactly this false negative). Only an ancestor
+      // that is ITSELF one of the queried candidates can legitimately be
+      // "the outermost match" — mirrors behaviorFeatures.userstyle.ts's own
+      // set.has(p) outermost-only filter.
+      var matched = [];
+      for (var n = 0; n < nodeList.length; n++) {
+        var cand = nodeList[n];
+        var ct = cand.textContent || "";
+        if (NOTIFICATION_RE.test(ct)) matched.push(cand);
+      }
+      var matchedSet = new Set(matched);
+      for (var i = 0; i < matched.length; i++) {
+        var el = matched[i];
+        if (el.getAttribute(NOTIFICATION_HIDE_ATTR) === "1") continue;
+        // Only hide the OUTERMOST matching container (an inner wrapper that
+        // also matches is left untagged — it is already hidden as part of
+        // its ancestor's subtree).
+        var p = el.parentElement, isOutermost = true;
+        while (p) {
+          if (matchedSet.has(p)) { isOutermost = false; break; }
+          p = p.parentElement;
+        }
+        if (!isOutermost) continue;
+        el.setAttribute(NOTIFICATION_HIDE_ATTR, "1");
+        el.style.setProperty("display", "none", "important");
+      }
+    } catch (e) {}
+  }
+
   function tick() {
     if (inited || !hasChat(document)) return;
     inited = true;
@@ -233,6 +293,11 @@ export const BOOTSTRAP_SOURCE = `
       if (st.textContent !== css) st.textContent = css;
     } catch (e) {}
   };
+
+  // Independent of tick()/inited — a notification block can appear at any
+  // point in the chat stream, not just before the first feature-init sweep,
+  // so this runs on its own steady cadence for the lifetime of the document.
+  setInterval(function () { hideNotificationBlocks(document); }, 400);
 
   setInterval(tick, 400);
   if (document.readyState === "loading") {
