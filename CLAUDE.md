@@ -1,6 +1,154 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Smarts Claude Manager — Project Requirements
 
-VS Code extension that patches the Claude Code chat webview with UI enhancements.
+VS Code extension (`zeyutang.smarts-claude-manager`) that patches the **Claude Code extension's own
+bundled files** (`extension.js`, `webview/index.js`, `webview/index.css`) on disk to add UI knobs (font
+sizes, diff-card options, plan-preview sizing) and a pack of always-on chat-webview behavior features
+(search, export, date/time stamps, copy buttons, auto-continue on stream drop, etc.) that don't exist
+natively in Claude Code.
+
+## Build / Package / Test Commands
+
+```bash
+npm run compile          # tsc -p ./  (src/*.ts -> out/*.js)
+npm run watch            # tsc -watch -p ./
+```
+
+There is no lint script and no test runner configured in `package.json`, and no `tests/` folder in this
+repo. Verification is:
+- Compile (`npm run compile`) and check for TypeScript errors.
+- Run via **F5** (`.vscode/launch.json` "Run Extension" — opens an Extension Development Host window
+  with this extension loaded; this project's default dev workflow).
+- Ad-hoc scratch test scripts against a **disposable copy** of a real installed
+  `anthropic.claude-code-*-win32-x64` extension folder (never the user's live `~/.vscode/extensions/`
+  install) — the disk-mutating-apply/restore test pattern owned by `smarts-app-vscode` →
+  `module/host-lifecycle.md`.
+- Packaging: `vsce package` — see [Every `.vsix` Build Goes Into `build/`](#every-vsix-build-goes-into-build--owned-by-smarts-app-vscode) below.
+
+## Architecture
+
+### The patch target vs. this extension's own code
+
+This extension's own code (`src/*.ts` → `out/*.js`, loaded as `main` by VS Code) is **not** what gets
+patched. What gets patched is a **different, already-installed extension**: Anthropic's Claude Code
+(`anthropic.claude-code-<version>-<platform>`), found by scanning the VS Code-family host's real
+extensions directory for the newest matching folder (see `extensionsDirs()` below). Three files inside
+that folder are the actual patch targets:
+
+| File | What it controls |
+|---|---|
+| `extension.js` | Plan Mode preview webview (font sizes, CSP) |
+| `webview/index.css` | Chat code-block font size and related CSS |
+| `webview/index.js` | Chat Edit/MultiEdit diff cards (a Monaco diff editor with hardcoded options), plus the injected chat-enhancement `<script>`/`<style>` block |
+
+### `patcher.ts` — the patch engine (~2,600 lines, the core of this extension)
+
+Everything about *how* a byte-level edit is made to Claude Code's files lives here. Three kinds of edits,
+each with its own declarative table and apply/restore/analyze functions:
+
+- **`PATCH_POINTS`** (`PatchPoint[]`) — a *size* swap: replaces a hardcoded px number or CSS value via an
+  anchor regex. `pointSet()` / `pointRestore()` / `pointCurrentPx()`.
+- **`TOGGLE_POINTS`** (`TogglePoint[]`) — a *boolean* flip (e.g. diff-card line numbers, the CSP patch,
+  the always-on chat-enhancements injection gate). `toggleSet()` / `toggleCurrentOn()`.
+- **`INJECT_POINTS`** (`InjectPoint[]`) — adds CSS/JS that doesn't exist natively (custom font family,
+  the whole chat-enhancement feature bundle). `readInject()` / `injectEq()`.
+
+Each point declares a `section: Section` (`"Chat Panel" | "Plan Preview"`) used to group rows in the
+settings panel. `ALWAYS_ON_TOGGLES` (`chatEnhancements`, `faroCsp`) are toggles the UI can never turn off.
+
+Top-level flow, in the order a caller actually invokes it:
+
+1. **`findLatestClaudeExt(context)`** — resolves the real Claude Code install folder via
+   `extensionsDirs(context)`, which reads `context.extensionUri` first (this is what makes discovery
+   host-agnostic across every VS Code-family fork — see the "Must Work in EVERY VS Code-Based IDE"
+   section below).
+2. **`analyze()` / `analyzeToggles()` / `analyzeInjects()`** — read the three target files off disk and
+   report each point's live status (`current` / `stock` / `custom` / `missing`) against the user's
+   `smartsClaudeManager.*` settings — this drives the panel's green/yellow sync dots. Always a live read,
+   never a cached assumption.
+3. **`applyPatch()`** — the actual write. Loops over the three files; each file's edits are wrapped in
+   their own try/catch (one file's write failure never aborts the others — see the EPERM/partial-apply
+   incident further down), and every write goes through **`writeFileAtomic()`** (temp file + rename, with
+   retry on `EPERM`/`EBUSY`/`EACCES` for Windows' transient post-update file locks).
+4. **`restorePatch()`** — reverts every patched file back to its captured native/stock values
+   (`captureStockValues()` records the pristine bytes the first time a file is touched, keyed by Claude
+   Code version).
+5. **`class Patcher`** (constructor + `register()`) — the stateful orchestrator: activation-time
+   drift-check + `applyOnActivation()` (auto-applies and, if real edits were written, auto-reloads the
+   window once), `discard()` / `enable()` / `restore()` for the panel's buttons, all gated on
+   `smartsClaudeManager.patchEnabled`. `readSizes()` / `readToggles()` build the desired state from VS
+   Code configuration; `readFeatureDefaults()` supplies per-feature on/off defaults.
+
+### Chat-enhancement features — a separate injection layer
+
+`behaviorFeatures.<id>.ts` (16 files — `faro`, `reply`, `search`, `datetime`, `askquestion`, `userstyle`,
+`blockquote`, `copybuttons`, `codeblock`, `toc-export-scroll`, `askcollapse`, `autocontinue`,
+`draftsave`, `usernav`, plus `behaviorToolbar.ts`/`behaviorBootstrap.ts` for shared infrastructure) are
+fundamentally different from a `PatchPoint`/`TogglePoint`/`InjectPoint`: those swap an *existing* value
+already in the bundle, these add *new* client-side JS/CSS behavior that doesn't exist in the stock bundle
+at all.
+
+- **`behaviorFeatures.ts`** is the registry — each `behaviorFeatures.*.ts` module calls
+  `registerFeature({id, label, js, css})` at import time; `patcher.ts` imports this registry and folds
+  every feature's `js`/`css` into one `chatEnhancements` `TogglePoint`.
+- **`behaviorInject.ts`** assembles the final injected block: one marker-tagged inline `<script nonce>` +
+  one `<style>` block, spliced into `webview/index.js`/`index.css` right before `</body>`/the CSS end —
+  never separate asset files with `<script src>` (the webview's CSP is `script-src 'nonce-${u}'` only).
+  `escapeForTemplateLiteral()` doubles backslashes so injected text survives being re-embedded inside
+  Claude Code's own outer template-literal source.
+- **`behaviorBootstrap.ts`** is the shared runtime every feature's IIFE registers against
+  (`window.__ccOnChatDoc`) — `document` already *is* the chat document in this VS Code webview target (no
+  nested iframe to hunt for).
+- Per-feature on/off is controlled **only** by its own `smartsClaudeManager.feature.<id>` VS Code
+  setting, surfaced as a checkbox in the settings panel — there is no in-chat toggle UI and no master
+  switch for the whole pack (it is always injected).
+
+Full behavioral detail (Faro/CSP, DraftSave's storage-key history, AutoContinue's false-fire guards, and
+more) is documented feature-by-feature further down in this file, under
+["Chat-Enhancement Features Architecture"](#chat-enhancement-features-architecture) — consult it before
+touching a `behaviorFeatures.*.ts` file.
+
+### `panel.ts` — two webview hosts, one shared renderer
+
+`abstract class PatchWebviewHost` owns `html()` / `knobHtml()` / `featureHtml()` / `onMessage()` /
+`update()` — the actual UI rendering and message-handling logic. Two concrete subclasses reuse it against
+VS Code's two different webview surfaces (`vscode.WebviewPanel` and `vscode.WebviewView` expose the same
+`.html` / `.postMessage` / `.onDidReceiveMessage` / `.cspSource` interface):
+
+- **`PatchPanel`** — a floating editor-tab panel, opened via the `smartsClaudeManager.panel` command.
+- **`PatchSidebarView`** — an Activity Bar-docked sidebar view (`registerWebviewViewProvider`), lazily
+  resolved the first time its Activity Bar icon is opened.
+
+When adding a new panel feature, add it to the shared base class — adding it to only one subclass makes
+the sidebar and the floating panel silently diverge. Full layout/CSS detail is under
+["Two Host Surfaces, One Shared Control-Surface Renderer"](#two-host-surfaces-one-shared-control-surface-renderer)
+further down.
+
+### `extension.ts` — activation/deactivation
+
+`activate()` runs two one-time settings migrations (`migrateNamespaceRename()` for the pre-2.0.0
+`claudeCodeUiPatch` → `smartsClaudeManager` rename, `migrateLegacyKeys()` for pre-rename `chatDiff*` →
+`chatDiffCard*` keys), then constructs `Patcher`, `StatusBar`, and `PatchSidebarView` and registers the
+`smartsClaudeManager.panel` command. `deactivate()` is a deliberate no-op — see
+["`deactivate()` Is a Pure No-Op"](#deactivate-is-a-pure-no-op--it-never-reverts-the-on-disk-patch)
+below for why.
+
+### `statusBar.ts`
+
+A single status-bar item (`aA`) showing a hover summary of patch state; click opens the panel.
+
+### Configuration surface
+
+Every setting lives under the `smartsClaudeManager.*` namespace in `package.json`'s
+`contributes.configuration.properties`. When adding a new config key, it must be declared in
+`package.json` **and** wired into the matching `PATCH_POINTS`/`TOGGLE_POINTS`/`INJECT_POINTS` table in
+`patcher.ts` (with a shipped default matching the JSON schema default) for the panel's drift-detection to
+work correctly — see also
+["Shipped Default vs Native Restore Value"](#shipped-default-vs-native-restore-value--owned-by-smarts-app-vscode)
+further down.
 
 ## This Is a VS Code Extension — `smarts-app-vscode` Governs It, ALWAYS Invoke It
 

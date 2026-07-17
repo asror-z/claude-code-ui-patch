@@ -33,3 +33,7 @@ out/
 /.claude/Diagnose chat webview Something went wrong crash/Tests/
 /.claude/Create browser extension for API extraction/Scripts/
 /.claude/Rename Installer Skills/Scripts/
+/.claude/Convert smarts-file-increment to classes/Tests/
+/.claude/history-json-cap-check/Tests/
+/.claude/VSCode Claude extension non-blocking user input/Tests/
+/.claude/Fix prompt-first rule violation in Setting Sync Engine/Tests/
