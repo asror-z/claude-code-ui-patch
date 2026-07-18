@@ -67,12 +67,21 @@ export const BOOTSTRAP_SOURCE = `
   // NOTIFICATION_RE, which this mirrors for the "don't bubble-ize it" half).
   // ALWAYS ON — rides with the bootstrap itself, no per-feature toggle, since a
   // stray raw-XML block is never something a user would want left visible.
-  var NOTIFICATION_RE = /^\s*<\s*(?:task-notification|task-id|tool-use-id|system-notification|system-reminder)\b/i;
+  //
+  // NOT anchored to the very start of textContent (no leading ^): a "Show
+  // more"/"Show less" toggle button, a role/avatar label, or any other small
+  // leading UI text sharing the same container pushes the real tag text past
+  // position 0, silently defeating a ^-anchored match (confirmed live: a
+  // real notification stayed visible despite this hider being correctly
+  // injected and running). Matching anywhere in the first ~200 chars is
+  // still specific enough to avoid a false positive on unrelated prose that
+  // merely quotes one of these tag names deep in a long message.
+  var NOTIFICATION_RE = /<\s*(?:task-notification|task-id|tool-use-id|output-file|system-notification|system-reminder)\b/i;
   var NOTIFICATION_HIDE_ATTR = "data-cc-notif-hidden";
   var NOTIFICATION_CONTAINER_SELECTORS =
     "[class*='userMessage'],[class*='UserMessage'],[class*='messageContainer']," +
     "[class*='message-container'],[data-message-id],[class*='chatMessage']," +
-    "[class*='bubble'],[class*='turn_']";
+    "[class*='bubble'],[class*='turn_'],[class*='message_']";
 
   function hideNotificationBlocks(doc) {
     try {
@@ -91,7 +100,7 @@ export const BOOTSTRAP_SOURCE = `
       var matched = [];
       for (var n = 0; n < nodeList.length; n++) {
         var cand = nodeList[n];
-        var ct = cand.textContent || "";
+        var ct = (cand.textContent || "").slice(0, 200);
         if (NOTIFICATION_RE.test(ct)) matched.push(cand);
       }
       var matchedSet = new Set(matched);

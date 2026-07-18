@@ -27,19 +27,25 @@ const JS = `
   // agent finished, and similar <tool-use-id>/<system-reminder> blocks) are AGENT/system
   // messages that the webview renders INSIDE a user-role container (userMessageContainer).
   // They are NOT user messages and must NOT be turned into a right-aligned user bubble —
-  // they stay in the standard agent style. Detect them version-proof by the element's own
-  // trimmed text STARTING WITH one of these leading notification tags (a raw angle-bracket
-  // tag the webview shows verbatim), mirroring how AutoContinue hard-excludes containers.
-  var NOTIFICATION_RE = /^\\s*<\\s*(?:task-notification|task-id|tool-use-id|system-notification|system-reminder)\\b/i;
+  // they stay in the standard agent style. Detect them version-proof by one of these
+  // leading notification tags (a raw angle-bracket tag the webview shows verbatim)
+  // appearing near the start of the element's own trimmed text, mirroring how
+  // AutoContinue hard-excludes containers. NOT anchored to position 0 (no leading ^):
+  // a "Show more" toggle or a role/avatar label sharing the same container can push the
+  // real tag text past the very first character, silently defeating a ^-anchored match
+  // (confirmed live — see behaviorBootstrap.ts's own hideNotificationBlocks for the same
+  // fix and the incident it was found from). Checking only the first ~200 chars keeps
+  // this from false-matching a tag name merely quoted deep inside unrelated prose.
+  var NOTIFICATION_RE = /<\\s*(?:task-notification|task-id|tool-use-id|output-file|system-notification|system-reminder)\\b/i;
   function isUserNotification(el) {
     if (!el) return false;
     // (a) the candidate itself leads with a notification tag …
-    var t = (el.textContent || "");
+    var t = (el.textContent || "").slice(0, 200);
     if (NOTIFICATION_RE.test(t)) return true;
     // (b) … or it lives inside such a block (an ancestor leads with the tag).
     var p = el.parentElement;
     while (p) {
-      if (p.textContent && NOTIFICATION_RE.test(p.textContent)) return true;
+      if (p.textContent && NOTIFICATION_RE.test(p.textContent.slice(0, 200))) return true;
       p = p.parentElement;
     }
     return false;

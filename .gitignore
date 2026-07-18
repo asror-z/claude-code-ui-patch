@@ -39,3 +39,4 @@ out/
 /.claude/Fix prompt-first rule violation in Setting Sync Engine/Tests/
 /.claude/Composer Font Size Config/Tests/
 /.claude/googlesearch-diag/Tests/
+/.claude/UserCollapse Feature/Tests/
