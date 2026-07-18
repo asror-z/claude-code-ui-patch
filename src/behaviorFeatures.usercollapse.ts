@@ -111,18 +111,35 @@ const JS = `
   }
 
   // Dock OUR toggle immediately to the LEFT of the native "Message actions"
-  // button, inside that button's own parent row — a small, always-present,
-  // fixed top-right action row every message has — rather than beside the
-  // native Show-more/Show-less control itself (position:absolute bottom:0;
-  // right:0 on the expandable content box, only shown on hover, and drifting
-  // separately near the bottom of the message). Falls back to docking beside
-  // the native control when "Message actions" can't be found (a future
-  // Claude Code build renaming/removing it), so the feature degrades instead
-  // of silently doing nothing.
+  // button's OWN CONTAINER — as a SIBLING of that container (one level up),
+  // never as a child inserted INSIDE it. Claude Code's "Message actions"
+  // wrapper is a live React component (uYe) that attaches its own
+  // mouseenter/mouseleave listeners on the message and re-renders itself
+  // (toggling its own container/actionButton classes) on every hover
+  // transition. React reconciles that component's own children against its
+  // virtual DOM on every such re-render, and a manually-inserted DOM node
+  // living INSIDE that container is exactly the kind of "unexpected child"
+  // React removes as part of reconciling it back to what its render function
+  // returned — confirmed live: our button existed right after insertion, then
+  // vanished the moment the message was hovered (the same interaction that
+  // reveals the container's own hover-only Show more/less button). Docking
+  // one level higher, as a sibling of the whole actions-button container
+  // instead of a child inside it, keeps our button in a DOM slot that
+  // component's own
+  // reconciliation never inspects, since it only ever touches its own
+  // subtree, not its position among ITS parent's other children.
+  // Falls back to docking beside the native Show-more/Show-less control
+  // itself when "Message actions" can't be found at all (a future Claude
+  // Code build renaming/removing it), so the feature degrades instead of
+  // silently doing nothing.
   function anchorRow(msgEl, ctl) {
     var actionsBtn = msgEl.querySelector ? msgEl.querySelector(MSG_ACTIONS_SEL) : null;
-    if (actionsBtn && actionsBtn.parentElement) {
-      return { parent: actionsBtn.parentElement, before: actionsBtn };
+    if (actionsBtn) {
+      var actionsContainer = actionsBtn.parentElement; // uYe's own <div class="container">
+      var siblingParent = actionsContainer && actionsContainer.parentElement;
+      if (siblingParent) {
+        return { parent: siblingParent, before: actionsContainer };
+      }
     }
     return { parent: ctl.el.parentElement, before: ctl.el };
   }
