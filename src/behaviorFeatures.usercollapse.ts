@@ -26,6 +26,19 @@ const JS = `
   var EXPAND_SEL = "[class*='expandButton_']";
   var COLLAPSE_SEL = "[class*='collapseButton_']";
 
+  // Claude Code's own "Message actions" (⤴) button — a round icon-only button
+  // native to EVERY message, always present regardless of overflow, sitting in
+  // its own small top-right action row. Docking OUR toggle here (instead of
+  // beside the native Show-more/Show-less control, which is position:absolute
+  // bottom:0;right:0 on the expandable content box and only appears on hover —
+  // see patcher.ts's SHOW_MORE_MARKER comment) keeps our icon in a fixed,
+  // always-visible top-right spot next to a control the user already looks at,
+  // rather than floating separately near the bottom of long messages (reported
+  // live: the icon appeared "in the middle at the bottom" instead of up top).
+  // Matched by its title attribute, which is stable, human-readable UI text —
+  // not a minifier-hashed class name — so no hash-suffix wildcard is needed.
+  var MSG_ACTIONS_SEL = "button[title='Message actions']";
+
   // The user-bubble selector (mirrors UserStyle's own robust list) — restricted to
   // USER prompts only, per this feature's scope.
   var USER_SELECTORS = [
@@ -97,19 +110,32 @@ const JS = `
     return b;
   }
 
-  // Ensure OUR toggle sits immediately to the LEFT of the currently-live native
-  // control (same parent, inserted right before it) — mirrors AskCollapse's own
-  // "dock beside the native control" pattern, so it lands in whatever action row
-  // that control already renders in, wherever that is.
+  // Dock OUR toggle immediately to the LEFT of the native "Message actions"
+  // button, inside that button's own parent row — a small, always-present,
+  // fixed top-right action row every message has — rather than beside the
+  // native Show-more/Show-less control itself (position:absolute bottom:0;
+  // right:0 on the expandable content box, only shown on hover, and drifting
+  // separately near the bottom of the message). Falls back to docking beside
+  // the native control when "Message actions" can't be found (a future
+  // Claude Code build renaming/removing it), so the feature degrades instead
+  // of silently doing nothing.
+  function anchorRow(msgEl, ctl) {
+    var actionsBtn = msgEl.querySelector ? msgEl.querySelector(MSG_ACTIONS_SEL) : null;
+    if (actionsBtn && actionsBtn.parentElement) {
+      return { parent: actionsBtn.parentElement, before: actionsBtn };
+    }
+    return { parent: ctl.el.parentElement, before: ctl.el };
+  }
+
   function ensureButton(msgEl, ctl) {
-    var parent = ctl.el.parentElement;
-    if (!parent) return;
+    var anchor = anchorRow(msgEl, ctl);
+    if (!anchor.parent) return;
     var btn = msgEl.querySelector ? msgEl.querySelector("[" + BTN_ATTR + "]") : null;
     if (!btn) {
       btn = makeButton(msgEl);
-      parent.insertBefore(btn, ctl.el);
-    } else if (btn.parentElement !== parent || btn.nextElementSibling !== ctl.el) {
-      parent.insertBefore(btn, ctl.el);
+      anchor.parent.insertBefore(btn, anchor.before);
+    } else if (btn.parentElement !== anchor.parent || btn.nextElementSibling !== anchor.before) {
+      anchor.parent.insertBefore(btn, anchor.before);
     }
     btn.textContent = ctl.collapsed ? EXPAND_ICON : COLLAPSE_ICON;
     var label = ctl.collapsed ? "Expand message" : "Collapse message";
@@ -209,12 +235,13 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* UserCollapse — replaces the native "Show more" / "Show less" TEXT controls on a
-   long user prompt with a single small ICON toggle, docked immediately to the
-   LEFT of whichever native control is currently live (so it lands in the same
-   action row the native control already renders in). The native controls
-   themselves are hidden; ours proxies a real click onto them, so Claude Code's
-   own expand/collapse logic (and its own >2-line overflow heuristic that decides
+/* UserCollapse — adds a small ICON toggle for a long user prompt, docked
+   immediately to the LEFT of the native "Message actions" button in its
+   always-present top-right action row. The native "Show more" / "Show less"
+   TEXT controls are left fully in place, untouched and unhidden — ours is an
+   ADDITIONAL shortcut, not a replacement; clicking it proxies a real click onto
+   whichever native control is currently live, so Claude Code's own
+   expand/collapse logic (and its own >2-line overflow heuristic that decides
    whether a control exists AT ALL) is untouched. */
 
 button.cc-usercol-btn[data-cc-usercol-btn="1"] {
@@ -237,14 +264,6 @@ button.cc-usercol-btn[data-cc-usercol-btn="1"] {
 button.cc-usercol-btn[data-cc-usercol-btn="1"]:hover {
   opacity: 1;
   background: var(--cc-chip-bg, var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.18)));
-}
-
-/* Hide the native "Show more" / "Show less" text controls entirely — our icon
-   button replaces them. Version-proof: matched by class-name SUBSTRING, not a
-   literal hashed token. */
-[class*="expandButton_"],
-[class*="collapseButton_"] {
-  display: none !important;
 }
 `.trim();
 
