@@ -122,7 +122,6 @@ abstract class PatchWebviewHost {
         <span class="label">${k.label}</span>
         <span class="controls">
           <input type="number" class="px-input" value="${k.px}" min="${MIN_PX}" max="${k.max}" step="1">
-          <span class="px-unit">px</span>
         </span>
       </div>`;
   }
@@ -530,16 +529,15 @@ const baseCss = `
   .feature-row:hover { background: var(--vscode-list-hoverBackground); }
   .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; accent-color: var(--ccp-accent); width: 14px; height: 14px; }
   .feature-label { flex: 1 1 auto; }
-  .knob .controls { display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 84px; flex-shrink: 0; margin-left: 16px; }
+  .knob .controls { display: flex; align-items: center; justify-content: flex-end; width: 60px; flex-shrink: 0; margin-left: 16px; }
   .knob .px-input {
-    width: 52px; text-align: right; font-family: var(--vscode-editor-font-family);
+    width: 60px; text-align: right; font-family: var(--vscode-editor-font-family);
     font-variant-numeric: tabular-nums; color: var(--vscode-input-foreground);
     background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent);
     border-radius: var(--ccp-radius-sm); padding: 3px 6px; font-size: inherit; transition: border-color .12s ease;
   }
   .knob .px-input:hover { border-color: var(--vscode-inputOption-activeBorder, var(--vscode-focusBorder)); }
   .knob .px-input:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-  .knob .px-unit { color: var(--vscode-descriptionForeground); flex-shrink: 0; }
   .knob .note { color: var(--vscode-descriptionForeground); margin-left: 8px; }
 
   /* --- Buttons --- */
@@ -638,10 +636,10 @@ const baseCss = `
        the row's height grows instead of the text being cut off. */
     .knob { flex-wrap: nowrap; align-items: center; gap: 8px; padding: 6px 4px; }
     .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word; }
-    /* The wide-view .controls box is a fixed 84px so a size-input and a
+    /* The wide-view .controls box is a fixed 60px so a size-input and a
        toggle-switch line up in a column; at this width there's no column to
        line up (one knob per row), so let it shrink to its actual content
-       instead of reserving 84px of now-empty space before the switch/input. */
+       instead of reserving 60px of now-empty space before the switch/input. */
     .knob .controls { order: 1; margin-left: 0; flex-shrink: 0; width: auto; }
     .knob .switch { width: auto; }
     /* Footer buttons: a 2-up row truncated "Restore Last Applied" / "Open VS Code
