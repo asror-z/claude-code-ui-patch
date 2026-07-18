@@ -110,7 +110,7 @@ interface NativeKnob {
 }
 
 const NATIVE_KNOBS: NativeKnob[] = [
-  { id: "chatText", label: "text", vscodeKey: "chat.fontSize", fallback: 13 },
+  { id: "chatText", label: "Text", vscodeKey: "chat.fontSize", fallback: 13 },
 ];
 
 function nativePx(k: NativeKnob): number {
@@ -239,7 +239,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "chatCode",
     section: "Chat Panel",
-    label: "code block",
+    label: "Code block",
     key: "chatCodeblockFontSize",
     defaultPx: 14,
     maxPx: 24,
@@ -260,7 +260,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "chatComposer",
     section: "Chat Panel",
-    label: "message input box",
+    label: "Message input box",
     key: "chatComposerFontSize",
     defaultPx: 14,
     maxPx: 24,
@@ -278,7 +278,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "diffCard",
     section: "Chat Panel",
-    label: "diff card",
+    label: "Diff card",
     key: "chatDiffCardFontSize",
     defaultPx: 14,
     maxPx: 24,
@@ -292,7 +292,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "text",
     section: "Plan Preview",
-    label: "agent response",
+    label: "Agent response",
     key: "planPreviewFontSize",
     defaultPx: 14,
     maxPx: 24,
@@ -311,7 +311,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "code",
     section: "Plan Preview",
-    label: "code block",
+    label: "Code block",
     key: "planPreviewCodeblockFontSize",
     defaultPx: 13,
     maxPx: 24,
@@ -326,7 +326,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "preview",
     section: "Plan Preview",
-    label: "comment quote",
+    label: "Comment quote",
     key: "planPreviewCommentQuoteFontSize",
     defaultPx: 12,
     maxPx: 24,
@@ -340,7 +340,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "input",
     section: "Plan Preview",
-    label: "comment input box",
+    label: "Comment input box",
     key: "planPreviewCommentInputFontSize",
     defaultPx: 13,
     maxPx: 24,
@@ -354,7 +354,7 @@ const PATCH_POINTS: PatchPoint[] = [
   {
     id: "badge",
     section: "Plan Preview",
-    label: "comment badge",
+    label: "Comment badge",
     key: "planPreviewCommentBadgeFontSize",
     defaultPx: 10,
     maxPx: 12,
@@ -730,7 +730,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   {
     id: "chatEnhancements",
     section: "Chat Panel",
-    label: "chat enhancements",
+    label: "Chat enhancements",
     key: "chatEnhancements",
     defaultOn: false,
     file: "extension.js",
@@ -746,7 +746,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   {
     id: "hideUsageWarning",
     section: "Chat Panel",
-    label: "usage-limit warning banner",
+    label: "Usage-limit warning banner",
     key: "chatHideUsageWarning",
     defaultOn: false,
     file: "webview/index.js",
@@ -757,7 +757,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   {
     id: "diffLineNumbers",
     section: "Chat Panel",
-    label: "diff card line numbers",
+    label: "Diff card line numbers",
     key: "chatDiffCardLineNumbers",
     defaultOn: true,
     file: "webview/index.js",
@@ -776,7 +776,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   {
     id: "diffThemeSync",
     section: "Chat Panel",
-    label: "diff card theme sync",
+    label: "Diff card theme sync",
     key: "chatDiffCardThemeSync",
     defaultOn: true,
     file: "webview/index.js",
@@ -788,7 +788,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   {
     id: "effortSyncFix",
     section: "Chat Panel",
-    label: "effort-level indicator sync",
+    label: "Effort-level indicator sync",
     key: "effortSyncFix",
     defaultOn: false,
     file: "webview/index.js",
@@ -799,7 +799,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
   {
     id: "permCode",
     section: "Chat Panel",
-    label: "permission code fontsize sync",
+    label: "Permission code fontsize sync",
     key: "chatPermissionCodeMatchChatCodeblock",
     defaultOn: false,
     file: "webview/index.css",
@@ -817,7 +817,7 @@ const TOGGLE_POINTS: TogglePoint[] = [
     // rides with chatEnhancements rather than being independently toggleable.
     id: "faroCsp",
     section: "Chat Panel",
-    label: "faro logging CSP allowance",
+    label: "Faro logging CSP allowance",
     key: "faroCsp",
     defaultOn: false,
     file: "extension.js",
@@ -1187,7 +1187,7 @@ const INJECT_POINTS: InjectPoint[] = [
   {
     id: "chatHistorySize",
     section: "Chat Panel",
-    label: "agent response",
+    label: "Agent response",
     key: "chatHistoryFontSize",
     kind: "size",
     file: "webview/index.css",
@@ -1215,7 +1215,7 @@ const INJECT_POINTS: InjectPoint[] = [
   {
     id: "chatHistoryFamily",
     section: "Chat Panel",
-    label: "font family",
+    label: "Font family",
     key: "chatHistoryFontFamily",
     kind: "family",
     file: "webview/index.css",
@@ -1243,7 +1243,7 @@ const INJECT_POINTS: InjectPoint[] = [
   {
     id: "planFamily",
     section: "Plan Preview",
-    label: "font family",
+    label: "Font family",
     key: "planPreviewFontFamily",
     kind: "family",
     file: "extension.js",
@@ -1269,7 +1269,7 @@ const INJECT_POINTS: InjectPoint[] = [
   {
     id: "planCommentRows",
     section: "Plan Preview",
-    label: "comment rows",
+    label: "Comment rows",
     key: "planPreviewCommentInputRows",
     kind: "rows",
     file: "extension.js",
@@ -1292,7 +1292,7 @@ const INJECT_POINTS: InjectPoint[] = [
   {
     id: "chatCodeInline",
     section: "Chat Panel",
-    label: "inline code",
+    label: "Inline code",
     key: "chatCodeInlineFontSize",
     kind: "size",
     file: "webview/index.css",
@@ -1321,7 +1321,7 @@ const INJECT_POINTS: InjectPoint[] = [
   {
     id: "planCodeInline",
     section: "Plan Preview",
-    label: "inline code",
+    label: "Inline code",
     key: "planPreviewCodeInlineFontSize",
     kind: "size",
     file: "extension.js",
@@ -1342,7 +1342,7 @@ const INJECT_POINTS: InjectPoint[] = [
   {
     id: "showMoreAlign",
     section: "Chat Panel",
-    label: "show more/less align",
+    label: "Show more/less align",
     key: "chatShowMoreAndLessAlign",
     kind: "align",
     file: "webview/index.css",
