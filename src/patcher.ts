@@ -16,6 +16,7 @@ import {
 // may call from its own init() — later features assume the sink already exists.
 import "./behaviorFeatures.faro";
 import "./behaviorFeatures.reply";
+import "./behaviorFeatures.googlesearch";
 import "./behaviorFeatures.search";
 import "./behaviorFeatures.datetime";
 import "./behaviorFeatures.askquestion";

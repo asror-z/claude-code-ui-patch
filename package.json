@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.67",
+  "version": "2.0.68",
   "publisher": "zeyutang",
   "icon": "icon.png",
   "license": "MIT",
@@ -207,6 +207,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Reply on selection: quote selected chat text into the prompt input."
+        },
+        "smartsClaudeManager.feature.googlesearch": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Add \"Search on Google\" to the right-click menu for selected chat text."
         },
         "smartsClaudeManager.feature.search": {
           "type": "boolean",
