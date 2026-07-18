@@ -19,8 +19,28 @@ const JS = `
   // truncation heuristic) — never guessed here, just detected. Version-proof:
   // matched by CLASS-NAME SUBSTRING (the extension mints the hash suffix), never a
   // literal hashed token.
-  var EXPAND_SEL = "[class*='expandButton_']";
-  var COLLAPSE_SEL = "[class*='collapseButton_']";
+  //
+  // CRITICAL: "Show more" (expandButton_) is rendered ONLY while the message is
+  // actively HOVERED — Claude Code's own component gates it on a local hover
+  // state, so on a collapsed, non-hovered message it does not exist in the DOM
+  // AT ALL (confirmed live: our popup item never appeared for a collapsed
+  // message, hover or not, because by the time this ran the hover state had
+  // already lapsed). "Show less" (collapseButton_) has NO such gate — it is
+  // present whenever the message is expanded, regardless of hover.
+  //
+  // The FIX: detect "collapsed with overflow" via the hover-INDEPENDENT
+  // collapsed_<hash> class Claude Code applies to the content div itself
+  // (set purely from expanded/overflow state, never from hover) — and click
+  // its PARENT contentWrapper_<hash> div instead of the maybe-absent
+  // "Show more" button. The button itself has NO click handler of its own; it
+  // relies entirely on bubbling from the wrapper's own onClick (attached
+  // whenever collapsed+overflowing, independent of hover) — so dispatching a
+  // click directly on the wrapper reproduces the exact same effect, reliably,
+  // whether or not "Show more" happens to be currently rendered.
+  var EXPAND_SEL = "[class*='expandButton_']"; // used opportunistically when it IS present
+  var COLLAPSE_SEL = "[class*='collapseButton_']"; // always reliable when expanded
+  var COLLAPSED_MARKER_SEL = "[class*='collapsed_']"; // hover-independent: collapsed WITH overflow
+  var CONTENT_WRAPPER_SEL = "[class*='contentWrapper_']"; // click target when Show-more isn't rendered
 
   // Claude Code's own "Message actions" (⤴) button — a round icon-only button
   // native to EVERY message, opening a dropdown POPUP with options like "Fork
@@ -72,15 +92,27 @@ const JS = `
     });
   }
 
-  // Find the currently-live native control inside this message: whichever of
-  // "Show more" (collapsed state) / "Show less" (expanded state) is present. Only
-  // one exists in the DOM at a time (React swaps them), so this also IS the
-  // collapsed/expanded signal — no separate state to track ourselves.
+  // Find the currently-live overflow state + click target inside this message.
+  // Checked in this order:
+  //  1. "Show less" (collapseButton_) — reliable, hover-independent signal of
+  //     EXPANDED + overflowing. Click it directly to collapse.
+  //  2. The hover-independent "collapsed_" marker — signals COLLAPSED +
+  //     overflowing even when "Show more" itself isn't currently rendered
+  //     (not hovered). Prefer clicking the real "Show more" button when it
+  //     DOES happen to be present (marginally more "native"-feeling), else
+  //     fall back to its parent contentWrapper_, which carries the same
+  //     click-to-expand handler regardless of hover.
+  // Returns null only when the message genuinely has no overflow at all (no
+  // native control would ever exist for it, hover or not).
   function nativeControl(msgEl) {
-    var exp = msgEl.querySelector ? msgEl.querySelector(EXPAND_SEL) : null;
-    if (exp) return { el: exp, collapsed: true };
     var col = msgEl.querySelector ? msgEl.querySelector(COLLAPSE_SEL) : null;
     if (col) return { el: col, collapsed: false };
+    var collapsedMarker = msgEl.querySelector ? msgEl.querySelector(COLLAPSED_MARKER_SEL) : null;
+    if (!collapsedMarker) return null;
+    var exp = msgEl.querySelector ? msgEl.querySelector(EXPAND_SEL) : null;
+    if (exp) return { el: exp, collapsed: true };
+    var wrapper = msgEl.querySelector ? msgEl.querySelector(CONTENT_WRAPPER_SEL) : null;
+    if (wrapper) return { el: wrapper, collapsed: true };
     return null;
   }
 
@@ -170,6 +202,25 @@ const JS = `
     for (var i = 0; i < msgs.length; i++) ensurePopupItem(msgs[i]);
   }
 
+  // NEVER route this feature's observer through window.__ccObserve. Its
+  // self-churn filter classifies a mutation as "ours" by checking whether the
+  // ADDED/REMOVED node itself carries our own class/attribute — which is
+  // exactly backwards for this feature's failure mode: when Claude Code's
+  // OWN React reconciliation removes OUR previously-inserted popup item
+  // (rebuilding the popup's children on every re-render of its owning
+  // component, per this feature's own CLAUDE.md history), the REMOVED node
+  // still carries our "cc-usercol-item" class, so __ccObserve's isOwnNode()
+  // matches it and the whole removal gets misclassified as harmless
+  // self-churn — silently suppressing the very resweep that would put the
+  // item back. This is the SAME class of bug userstyle.ts's own comment
+  // documents ("the shared filter treated the tag-attribute write as
+  // self-churn... suppressed the sweep so NEW messages never got tagged"),
+  // just triggered by React's removal instead of a streaming batch. The
+  // fix mirrors userstyle.ts's own choice: use the PLAIN observer below,
+  // whose schedule() checks the mutation's TARGET (the popup's parent,
+  // which never carries our class) rather than the added/removed nodes —
+  // so React silently wiping our item still counts as an external change
+  // and correctly re-triggers run().
   var pending = null;
   function schedule(mutations) {
     // Ignore mutations confined to our own button (icon/label swap self-churn).
@@ -194,11 +245,7 @@ const JS = `
     W = win || window;
     try { run(); } catch (e) {}
     try {
-      if (W.__ccObserve) {
-        W.__ccObserve(D.body, run, { ownClass: "cc-usercol-item", ownAttrPrefix: "data-cc-usercol" });
-      } else {
-        new W.MutationObserver(schedule).observe(D.body, { childList: true, subtree: true });
-      }
+      new W.MutationObserver(schedule).observe(D.body, { childList: true, subtree: true });
     } catch (e) {}
   }
 
