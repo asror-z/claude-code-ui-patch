@@ -16,10 +16,11 @@ const JS = `
 
   // Right-clicking a text selection inside a chat message adds a "Search
   // <selection> on Google" item to the browser's own native context menu (Cut/
-  // Copy/Paste). Selecting it opens a Google search for the selected text in
-  // the user's default browser. Mirrors behaviorFeatures.reply.ts's own
-  // selection-scoping: never offered for text selected inside the composer
-  // (that is editing, not researching).
+  // Copy/Paste). Selecting it copies the Google search URL for the selected
+  // text to the clipboard (the chat webview's sandbox blocks opening a new
+  // browser window directly -- see copyToClipboard()'s comment below).
+  // Mirrors behaviorFeatures.reply.ts's own selection-scoping: never offered
+  // for text selected inside the composer (that is editing, not researching).
   function init(D, W) {
     try {
       console.log("[cc-googlesearch] Google Search Feature loaded");
@@ -74,26 +75,69 @@ const JS = `
       if (el) el.style.display = "none";
     }
 
-    // A VS Code webview is a sandboxed Electron content process: window.open()
-    // has no host window to spawn a new browser tab from and is a silent no-op
-    // there (confirmed live: the menu item worked, the click did nothing). VS
-    // Code DOES intercept a real <a href="https://..."> click from webview
-    // content and forwards it to the extension host's vscode.env.openExternal
-    // automatically -- no postMessage bridge required. So build a real anchor,
-    // click it, then discard it, instead of calling window.open().
-    function openGoogleSearch(text) {
+    // The chat webview is an iframe VS Code sandboxes WITHOUT "allow-popups"
+    // (confirmed live: "Blocked opening '...' in a new window because the
+    // request was made in a sandboxed frame whose 'allow-popups' permission is
+    // not set" -- both window.open() and a real <a target="_blank"> click hit
+    // this same wall, since it blocks new-window navigation outright, not just
+    // the API used to request it). Reaching the extension host's real
+    // vscode.env.openExternal would need a postMessage bridge into Claude
+    // Code's own webview panel, which this extension does not own/create and
+    // cannot safely patch (their message dispatcher is a private, minified
+    // router -- see acquireVsCodeApi's documented double-acquire crash for why
+    // we don't reach for our own vscode API handle here either). So: copy the
+    // URL to the clipboard instead (the one channel this sandbox does not
+    // block) and show a brief on-screen confirmation telling the user to
+    // paste it into their browser.
+    function copyToClipboard(text, done) {
+      try {
+        if (W.navigator && W.navigator.clipboard && W.navigator.clipboard.writeText) {
+          W.navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text, done); });
+          return;
+        }
+      } catch (e) {}
+      legacyCopy(text, done);
+    }
+
+    function legacyCopy(text, done) {
+      try {
+        var ta = D.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        ta.style.pointerEvents = "none";
+        D.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { D.execCommand("copy"); } catch (e) {}
+        D.body.removeChild(ta);
+        if (done) done();
+      } catch (e) {}
+    }
+
+    function showCopiedToast(x, y) {
+      var el = D.createElement("div");
+      el.id = "cc-googlesearch-toast";
+      el.setAttribute("role", "status");
+      el.textContent = "Search link copied \\u2014 paste it into your browser";
+      D.body.appendChild(el);
+      var w = el.offsetWidth || 260;
+      var h = el.offsetHeight || 32;
+      var left = Math.min(x, W.innerWidth - w - 6);
+      var top = Math.min(y, W.innerHeight - h - 6);
+      el.style.left = Math.max(6, Math.round(left)) + "px";
+      el.style.top = Math.max(6, Math.round(top)) + "px";
+      W.setTimeout(function () {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, 2200);
+    }
+
+    function openGoogleSearch(text, x, y) {
       var url = "https://www.google.com/search?q=" + encodeURIComponent(text);
       try {
-        var a = D.createElement("a");
-        a.href = url;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.style.display = "none";
-        D.body.appendChild(a);
-        a.click();
-        D.body.removeChild(a);
+        copyToClipboard(url, function () { showCopiedToast(x, y); });
       } catch (e) {
-        try { console.error("[cc-googlesearch] failed to open search", e); } catch (e2) {}
+        try { console.error("[cc-googlesearch] failed to copy search link", e); } catch (e2) {}
       }
     }
 
@@ -107,7 +151,7 @@ const JS = `
       item.addEventListener("mousedown", function (e) {
         e.preventDefault();
         e.stopPropagation();
-        openGoogleSearch(text);
+        openGoogleSearch(text, x, y);
         hideMenu();
       });
       menu.appendChild(item);
@@ -179,6 +223,22 @@ const CSS = `
 .cc-googlesearch-item:hover {
   background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
   color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+}
+
+/* Brief "copied" confirmation shown after the search link is copied (the chat
+   webview's sandbox blocks opening a new browser window directly). */
+#cc-googlesearch-toast {
+  position: fixed;
+  z-index: 2147483647;
+  padding: 6px 10px;
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: 12px;
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  background: var(--vscode-menu-background, #1f1f1f);
+  border: 1px solid var(--vscode-menu-border, transparent);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 `.trim();
 
