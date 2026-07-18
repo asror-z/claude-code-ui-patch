@@ -74,10 +74,24 @@ const JS = `
       if (el) el.style.display = "none";
     }
 
+    // A VS Code webview is a sandboxed Electron content process: window.open()
+    // has no host window to spawn a new browser tab from and is a silent no-op
+    // there (confirmed live: the menu item worked, the click did nothing). VS
+    // Code DOES intercept a real <a href="https://..."> click from webview
+    // content and forwards it to the extension host's vscode.env.openExternal
+    // automatically -- no postMessage bridge required. So build a real anchor,
+    // click it, then discard it, instead of calling window.open().
     function openGoogleSearch(text) {
       var url = "https://www.google.com/search?q=" + encodeURIComponent(text);
       try {
-        W.open(url, "_blank", "noopener,noreferrer");
+        var a = D.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.style.display = "none";
+        D.body.appendChild(a);
+        a.click();
+        D.body.removeChild(a);
       } catch (e) {
         try { console.error("[cc-googlesearch] failed to open search", e); } catch (e2) {}
       }
