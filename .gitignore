@@ -37,3 +37,4 @@ out/
 /.claude/history-json-cap-check/Tests/
 /.claude/VSCode Claude extension non-blocking user input/Tests/
 /.claude/Fix prompt-first rule violation in Setting Sync Engine/Tests/
+/.claude/Composer Font Size Config/Tests/

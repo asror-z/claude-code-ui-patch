@@ -74,6 +74,7 @@ const KNOB_ORDER: string[] = [
   "chatHistorySize", // agent response
   "chatCodeInline", // inline code
   "chatCode", // code block
+  "chatComposer", // message input box
   "diffCard",
   "diffLineNumbers",
   "diffThemeSync",
@@ -176,6 +177,27 @@ function applyChatCodeCss(css: string, px: string): string {
     : css + line;
 }
 
+// Chat message-input box (composer). The composer is a contenteditable div
+// (role="textbox", aria-label="Message input", className messageInput_<hash>),
+// not a <textarea> — Claude Code's own CSS sets no font-size on it at all, so it
+// inherits the webview's base font-size (~13px, VS Code's own editor font).
+// There is no existing value to swap, so — same approach as chatCode above — we
+// append a marker-tagged !important rule targeting the same hashed class,
+// re-reading the hash from the stock messageInputContainer_<hash> rule at patch
+// time so this survives a re-minify that changes the hash.
+const CHAT_COMPOSER_MARKER = "/*cc-ui-patch:chatComposer*/";
+const CHAT_COMPOSER_HASH_RE = /\.messageInputContainer_([-\w]+)\{/;
+const CHAT_COMPOSER_LINE_RE = /\n?\/\*cc-ui-patch:chatComposer\*\/[^\n]*/;
+
+function applyChatComposerCss(css: string, px: string): string {
+  const hash = css.match(CHAT_COMPOSER_HASH_RE)?.[1];
+  if (!hash) return css; // container rule gone (version changed): nothing to anchor
+  const line = `\n${CHAT_COMPOSER_MARKER}.messageInput_${hash}{font-size:${px}px !important}`;
+  return css.includes(CHAT_COMPOSER_MARKER)
+    ? css.replace(CHAT_COMPOSER_LINE_RE, line)
+    : css + line;
+}
+
 // Chat Edit-diff card font. The Edit/MultiEdit tool body renders a read-only
 // Monaco diff editor whose options hardcode fontSize:12 (no setting reaches it).
 // We rewrite the number in both createDiffEditor option blocks (the inline card
@@ -227,6 +249,24 @@ const PATCH_POINTS: PatchPoint[] = [
     },
     fnApply: (c, px) => applyChatCodeCss(c, px),
     fnRestore: (c) => c.replace(CHAT_CODE_LINE_RE, ""),
+  },
+  {
+    id: "chatComposer",
+    section: "Chat Panel",
+    label: "message input box",
+    key: "chatComposerFontSize",
+    defaultPx: 14,
+    maxPx: 24,
+    file: "webview/index.css",
+    originalPx: 13,
+    fnPresent: (c) =>
+      c.includes(CHAT_COMPOSER_MARKER) || CHAT_COMPOSER_HASH_RE.test(c),
+    fnCurrentPx: (c) => {
+      const line = c.match(CHAT_COMPOSER_LINE_RE)?.[0];
+      return line?.match(/font-size:(\d+(?:\.\d+)?)px/)?.[1];
+    },
+    fnApply: (c, px) => applyChatComposerCss(c, px),
+    fnRestore: (c) => c.replace(CHAT_COMPOSER_LINE_RE, ""),
   },
   {
     id: "diffCard",
