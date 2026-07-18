@@ -8,15 +8,11 @@ const JS = `
     console.log("[cc-usercol] Chat UserCollapse Feature.js loaded");
   } catch (e) {}
 
-  var BTN_ATTR = "data-cc-usercol-btn";   // marks OUR toggle button
-  var ATTACHED_ATTR = "data-cc-usercol";  // "1" once a message has been processed
+  var BTN_ATTR = "data-cc-usercol-btn"; // marks OUR injected menu item
 
   // D/W = the chat Document/Window (set by init()).
   var D = document;
   var W = window;
-
-  var EXPAND_ICON = "⌄";   // chevron-down: message is collapsed, click to expand
-  var COLLAPSE_ICON = "⌃"; // chevron-up: message is expanded, click to collapse
 
   // Native "Show more" / "Show less" controls Claude Code itself only renders when
   // a message's content actually overflows its collapsed height (its own >2-line
@@ -27,17 +23,16 @@ const JS = `
   var COLLAPSE_SEL = "[class*='collapseButton_']";
 
   // Claude Code's own "Message actions" (⤴) button — a round icon-only button
-  // native to EVERY message, always present regardless of overflow, sitting in
-  // its own small top-right action row. Docking OUR toggle here (instead of
-  // beside the native Show-more/Show-less control, which is position:absolute
-  // bottom:0;right:0 on the expandable content box and only appears on hover —
-  // see patcher.ts's SHOW_MORE_MARKER comment) keeps our icon in a fixed,
-  // always-visible top-right spot next to a control the user already looks at,
-  // rather than floating separately near the bottom of long messages (reported
-  // live: the icon appeared "in the middle at the bottom" instead of up top).
-  // Matched by its title attribute, which is stable, human-readable UI text —
-  // not a minifier-hashed class name — so no hash-suffix wildcard is needed.
+  // native to EVERY message, opening a dropdown POPUP with options like "Fork
+  // conversation from here" / "Rewind code to here". Matched by its title
+  // attribute, which is stable, human-readable UI text — not a
+  // minifier-hashed class name — so no hash-suffix wildcard is needed.
   var MSG_ACTIONS_SEL = "button[title='Message actions']";
+  // The popup itself and its option rows — version-proof CLASS-NAME SUBSTRING
+  // match (the extension mints the hash suffix), mirroring EXPAND_SEL/COLLAPSE_SEL.
+  var POPUP_SEL = "[class*='popup_']";
+  var POPUP_OPTION_SEL = "[class*='popupOption_']";
+  var OPTION_TEXT_SEL = "[class*='optionText_']";
 
   // The user-bubble selector (mirrors UserStyle's own robust list) — restricted to
   // USER prompts only, per this feature's scope.
@@ -97,105 +92,82 @@ const JS = `
     }
   }
 
-  function makeButton(msgEl) {
-    var b = D.createElement("button");
-    b.type = "button";
-    b.className = "cc-usercol-btn cc-btn";
-    b.setAttribute(BTN_ATTR, "1");
-    b.addEventListener("click", function (ev) {
+  // Grab the FIRST popupOption's class list so our injected item matches the
+  // native ones exactly (font, padding, hover state) without hardcoding the
+  // hash. Falls back to a bare class name if no option ever rendered yet
+  // (harmless — it just means nothing is open to copy from right now).
+  function popupOptionClass(popupEl) {
+    var sample = popupEl.querySelector ? popupEl.querySelector(POPUP_OPTION_SEL) : null;
+    return sample ? sample.className : "";
+  }
+  function optionTextClass(popupEl) {
+    var sample = popupEl.querySelector ? popupEl.querySelector(OPTION_TEXT_SEL) : null;
+    return sample ? sample.className : "";
+  }
+
+  function makeMenuItem(msgEl, popupEl) {
+    var btn = D.createElement("button");
+    btn.type = "button";
+    btn.className = popupOptionClass(popupEl) + " cc-usercol-item";
+    btn.setAttribute(BTN_ATTR, "1");
+    var span = D.createElement("span");
+    span.className = optionTextClass(popupEl) + " cc-usercol-item-text";
+    btn.appendChild(span);
+    btn.addEventListener("click", function (ev) {
       try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
       var ctl = nativeControl(msgEl);
       if (ctl) fireClick(ctl.el);
+      // Close the native popup the same way a real option click would (it
+      // has its own outside-click / onClick handlers we don't control, so
+      // dispatching a click on the "Message actions" trigger toggles it shut).
+      var trigger = msgEl.querySelector ? msgEl.querySelector(MSG_ACTIONS_SEL) : null;
+      if (trigger) fireClick(trigger);
     });
-    return b;
-  }
-
-  // Dock OUR toggle immediately to the LEFT of the native "Message actions"
-  // button's OWN CONTAINER — as a SIBLING of that container (one level up),
-  // never as a child inserted INSIDE it. Claude Code's "Message actions"
-  // wrapper is a live React component (uYe) that attaches its own
-  // mouseenter/mouseleave listeners on the message and re-renders itself
-  // (toggling its own container/actionButton classes) on every hover
-  // transition. React reconciles that component's own children against its
-  // virtual DOM on every such re-render, and a manually-inserted DOM node
-  // living INSIDE that container is exactly the kind of "unexpected child"
-  // React removes as part of reconciling it back to what its render function
-  // returned — confirmed live: our button existed right after insertion, then
-  // vanished the moment the message was hovered (the same interaction that
-  // reveals the container's own hover-only Show more/less button). Docking
-  // one level higher, as a sibling of the whole actions-button container
-  // instead of a child inside it, keeps our button in a DOM slot that
-  // component's own
-  // reconciliation never inspects, since it only ever touches its own
-  // subtree, not its position among ITS parent's other children.
-  // Falls back to docking beside the native Show-more/Show-less control
-  // itself when "Message actions" can't be found at all (a future Claude
-  // Code build renaming/removing it), so the feature degrades instead of
-  // silently doing nothing.
-  function anchorRow(msgEl, ctl) {
-    var actionsBtn = msgEl.querySelector ? msgEl.querySelector(MSG_ACTIONS_SEL) : null;
-    if (actionsBtn) {
-      var actionsContainer = actionsBtn.parentElement; // uYe's own <div class="container">
-      var siblingParent = actionsContainer && actionsContainer.parentElement;
-      if (siblingParent) {
-        return { parent: siblingParent, before: actionsContainer };
-      }
-    }
-    return { parent: ctl.el.parentElement, before: ctl.el };
-  }
-
-  function ensureButton(msgEl, ctl) {
-    var anchor = anchorRow(msgEl, ctl);
-    if (!anchor.parent) return;
-    var btn = msgEl.querySelector ? msgEl.querySelector("[" + BTN_ATTR + "]") : null;
-    if (!btn) {
-      btn = makeButton(msgEl);
-      anchor.parent.insertBefore(btn, anchor.before);
-    } else if (btn.parentElement !== anchor.parent || btn.nextElementSibling !== anchor.before) {
-      anchor.parent.insertBefore(btn, anchor.before);
-    }
-    btn.textContent = ctl.collapsed ? EXPAND_ICON : COLLAPSE_ICON;
-    var label = ctl.collapsed ? "Expand message" : "Collapse message";
-    btn.setAttribute("aria-label", label);
-    btn.setAttribute("title", label);
-    btn.setAttribute("aria-expanded", ctl.collapsed ? "false" : "true");
     return btn;
   }
 
-  function removeButton(msgEl) {
-    var btn = msgEl.querySelector ? msgEl.querySelector("[" + BTN_ATTR + "]") : null;
-    if (btn && btn.parentElement) btn.parentElement.removeChild(btn);
-  }
-
-  function process(msgEl) {
+  // Insert OUR menu item as the FIRST row of the native "Message actions"
+  // POPUP — never as a persistently-docked floating icon. Two things this
+  // sidesteps, both confirmed live on this project:
+  //  (1) A message with no overflowing content (or one where the always-on
+  //      "Message actions" trigger itself never rendered in time, e.g. a
+  //      harness <task-notification> block) has nothing stable to anchor a
+  //      floating icon to at all — a bare "no native control found" case.
+  //  (2) Even when anchored correctly, "Message actions" is a live React
+  //      component (uYe) that re-renders on hover/state changes and
+  //      reconciles ANY manually-inserted sibling out of existence — a
+  //      floating icon docked next to it can vanish on the very next hover.
+  // The popup itself only exists in the DOM while OPEN (a real user click,
+  // not hover), so it is a far rarer, more deliberate re-render trigger —
+  // and menu items are a well-understood, already-idiomatic place users look
+  // for "more actions on this message" in this exact UI.
+  function ensurePopupItem(msgEl) {
+    var popupEl = msgEl.querySelector ? msgEl.querySelector(POPUP_SEL) : null;
+    if (!popupEl) return;
     var ctl = nativeControl(msgEl);
     if (!ctl) {
-      // 1-2 line message (or already fully native, no overflow): no native
-      // control exists, so no button of ours either — nothing to do.
-      if (msgEl.getAttribute(ATTACHED_ATTR) === "1") removeButton(msgEl);
-      msgEl.removeAttribute(ATTACHED_ATTR);
-      return false;
+      // No overflow on this message right now — nothing to toggle, so no
+      // item to inject even while the popup happens to be open.
+      var stale = popupEl.querySelector ? popupEl.querySelector("[" + BTN_ATTR + "]") : null;
+      if (stale && stale.parentElement) stale.parentElement.removeChild(stale);
+      return;
     }
-    msgEl.setAttribute(ATTACHED_ATTR, "1");
-    ensureButton(msgEl, ctl);
-    return true;
+    var item = popupEl.querySelector ? popupEl.querySelector("[" + BTN_ATTR + "]") : null;
+    if (!item) {
+      item = makeMenuItem(msgEl, popupEl);
+      popupEl.insertBefore(item, popupEl.firstChild);
+    } else if (item.parentElement !== popupEl || popupEl.firstChild !== item) {
+      popupEl.insertBefore(item, popupEl.firstChild);
+    }
+    var label = ctl.collapsed ? "Expand message" : "Collapse message";
+    var span = item.querySelector ? item.querySelector(".cc-usercol-item-text") : null;
+    if (span) span.textContent = label;
+    item.setAttribute("aria-label", label);
   }
 
   function run() {
     var msgs = findUserMessages();
-    for (var i = 0; i < msgs.length; i++) process(msgs[i]);
-    // Drop stray buttons left behind in a message that no longer has a native
-    // expand/collapse control at all (e.g. content shrank after an edit).
-    var strays = D.querySelectorAll ? D.querySelectorAll("[" + BTN_ATTR + "]") : [];
-    for (var s = 0; s < strays.length; s++) {
-      var host = null;
-      for (var m = 0; m < msgs.length; m++) {
-        if (msgs[m].contains(strays[s])) { host = msgs[m]; break; }
-      }
-      if (!host || !nativeControl(host)) {
-        if (strays[s].parentElement) strays[s].parentElement.removeChild(strays[s]);
-      }
-    }
+    for (var i = 0; i < msgs.length; i++) ensurePopupItem(msgs[i]);
   }
 
   var pending = null;
@@ -223,7 +195,7 @@ const JS = `
     try { run(); } catch (e) {}
     try {
       if (W.__ccObserve) {
-        W.__ccObserve(D.body, run, { ownClass: "cc-usercol-btn", ownAttrPrefix: "data-cc-usercol" });
+        W.__ccObserve(D.body, run, { ownClass: "cc-usercol-item", ownAttrPrefix: "data-cc-usercol" });
       } else {
         new W.MutationObserver(schedule).observe(D.body, { childList: true, subtree: true });
       }
@@ -252,35 +224,22 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* UserCollapse — adds a small ICON toggle for a long user prompt, docked
-   immediately to the LEFT of the native "Message actions" button in its
-   always-present top-right action row. The native "Show more" / "Show less"
-   TEXT controls are left fully in place, untouched and unhidden — ours is an
-   ADDITIONAL shortcut, not a replacement; clicking it proxies a real click onto
-   whichever native control is currently live, so Claude Code's own
-   expand/collapse logic (and its own >2-line overflow heuristic that decides
-   whether a control exists AT ALL) is untouched. */
+/* UserCollapse — adds an "Expand message" / "Collapse message" MENU ITEM as
+   the first row of Claude Code's own native "Message actions" popup (beside
+   "Fork conversation from here", "Rewind code to here", etc.) for a long user
+   prompt that has native overflow. It reuses the popup's own native
+   popupOption/optionText classes (copied live from a sibling option, so it
+   inherits the exact same font/padding/hover styling with no hash to
+   hardcode) and only adds a thin visual affordance on top. The native
+   "Show more" / "Show less" TEXT controls stay fully in place, untouched and
+   unhidden — clicking our item proxies a real click onto whichever native
+   control is currently live, so Claude Code's own expand/collapse logic (and
+   its own overflow heuristic deciding whether a control exists AT ALL) is
+   untouched. */
 
-button.cc-usercol-btn[data-cc-usercol-btn="1"] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.7em;
-  height: 1.7em;
-  padding: 0 0.3em;
-  margin: 0 0.25em 0 0;
-  font-size: 1.05em;
-  line-height: 1;
-  cursor: pointer;
-  border: none;
-  border-radius: var(--cc-radius, 6px);
-  background: transparent;
-  color: inherit;
-  opacity: 0.75;
-}
-button.cc-usercol-btn[data-cc-usercol-btn="1"]:hover {
-  opacity: 1;
-  background: var(--cc-chip-bg, var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.18)));
+button.cc-usercol-item[data-cc-usercol-btn="1"] {
+  width: 100%;
+  text-align: left;
 }
 `.trim();
 
