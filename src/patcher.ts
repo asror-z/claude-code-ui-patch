@@ -178,14 +178,20 @@ function applyChatCodeCss(css: string, px: string): string {
     : css + line;
 }
 
-// Chat message-input box (composer). The composer is a contenteditable div
-// (role="textbox", aria-label="Message input", className messageInput_<hash>),
-// not a <textarea> — Claude Code's own CSS sets no font-size on it at all, so it
-// inherits the webview's base font-size (~13px, VS Code's own editor font).
-// There is no existing value to swap, so — same approach as chatCode above — we
-// append a marker-tagged !important rule targeting the same hashed class,
-// re-reading the hash from the stock messageInputContainer_<hash> rule at patch
-// time so this survives a re-minify that changes the hash.
+// Chat message-input box (composer). The composer is actually TWO stacked
+// elements sharing one CSS-module hash: the real contenteditable div (role=
+// "textbox", aria-label="Message input", className messageInput_<hash>) is
+// painted INVISIBLE (color:#0000 — it exists only to hold the caret/selection),
+// while className mentionMirror_<hash> (aria-hidden, positioned absolutely on
+// top) is what actually renders the visible text, incl. @-mention highlighting.
+// Patching messageInput_<hash> alone changes the invisible layer's metrics but
+// not what the user sees — both classes must be sized together. Claude Code's
+// own CSS sets no font-size on either, so it inherits the webview's base
+// font-size (~13px, VS Code's own editor font). There is no existing value to
+// swap, so — same approach as chatCode above — we append a marker-tagged
+// !important rule targeting both hashed classes, re-reading the hash from the
+// stock messageInputContainer_<hash> rule at patch time so this survives a
+// re-minify that changes the hash.
 const CHAT_COMPOSER_MARKER = "/*cc-ui-patch:chatComposer*/";
 const CHAT_COMPOSER_HASH_RE = /\.messageInputContainer_([-\w]+)\{/;
 const CHAT_COMPOSER_LINE_RE = /\n?\/\*cc-ui-patch:chatComposer\*\/[^\n]*/;
@@ -193,7 +199,7 @@ const CHAT_COMPOSER_LINE_RE = /\n?\/\*cc-ui-patch:chatComposer\*\/[^\n]*/;
 function applyChatComposerCss(css: string, px: string): string {
   const hash = css.match(CHAT_COMPOSER_HASH_RE)?.[1];
   if (!hash) return css; // container rule gone (version changed): nothing to anchor
-  const line = `\n${CHAT_COMPOSER_MARKER}.messageInput_${hash}{font-size:${px}px !important}`;
+  const line = `\n${CHAT_COMPOSER_MARKER}.messageInput_${hash},.mentionMirror_${hash}{font-size:${px}px !important}`;
   return css.includes(CHAT_COMPOSER_MARKER)
     ? css.replace(CHAT_COMPOSER_LINE_RE, line)
     : css + line;

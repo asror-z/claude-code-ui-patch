@@ -229,21 +229,33 @@ The 17 chat-webview behavior features (Faro, Reply, Google Search, Search, DateT
 - **A scratch-copy test can STILL accidentally patch the live install if the fake `context.extensionUri.fsPath` used to construct a real `Patcher` instance points anywhere UNDER the real `~/.vscode/extensions/` (or `~/.antigravity-ide/extensions/`, etc.) directory — `findLatestClaudeExt()`/`extensionsDirs()` scan `path.dirname(context.extensionUri.fsPath)` for `anthropic.claude-code-*` folders, so this is true EVEN IF the scratch Claude Code copy itself lives fully outside that tree.** Real incident: a proof-test constructing a real `Patcher({extensionUri: {fsPath: 'C:/Users/.../.vscode/extensions/zzz-test-fake-ext-dir'}}, ...)` to verify the activation-time drift-check — with the SCRATCH Claude Code copy sitting safely elsewhere — still found and patched the REAL live `anthropic.claude-code-2.1.210` install as a side effect, because `zzz-test-fake-ext-dir`'s *parent* was the real extensions folder, and `findLatestClaudeExt` scans that parent directory, finds the real (not scratch) Claude Code folder there, and patches it for real. The test's own conclusion ("proven, reload fixes it") was therefore not actually proven by that run — it was a real but *accidental* fix. **The correct isolation:** build a FULLY throwaway parent directory (e.g. under the session's own `.claude/{title}/Tests/` scratch area) containing BOTH a fake own-extension folder AND the scratch Claude Code copy as siblings, and point `extensionUri.fsPath` at the fake own-extension folder inside THAT throwaway parent — never at any path whose parent is a real, live extensions directory, even if the scratch Claude Code copy itself is safely isolated.
 - **A DOM-text-matching feature's false-fire guard belongs in STRUCTURAL checks, not in narrowing the trigger regex/phrase list.** AutoContinue (`behaviorFeatures.autocontinue.ts`) once false-fired on a chat message that merely *quoted* "API Error: …", and the fix at the time was to narrow the trigger regex down from a bare `\bAPI Error\b` to a curated list of specific stream-drop/5xx phrases — which then missed real, previously-unseen "API Error:" banners the narrow list didn't anticipate. The regex breadth was never the actual guard: `isBannerEl()` (the element must be an actual `role=alert`/`status` or error/banner/alert/toast-classed element) and `insideMessage()` (exclude anything inside a chat message/blockquote container) are what correctly reject a quoted mention while accepting a real banner. `DROP_RE` is now back to a bare `\bAPI Error\b` match (plus a few non-"API Error"-prefixed stream/throttle phrases) per explicit user request ("istalgan API Error: bolsa avtomatik ishlasin" — any API Error should auto-trigger), and correctness is verified via the structural guards, not regex narrowness. When a future false-fire shows up in this feature (or a similar DOM-text-watcher), tighten `isBannerEl()`/`insideMessage()` first — only narrow the trigger phrase list as a last resort, since narrowing it is what causes real banners to go undetected.
 
-## Chat Composer Font Size — No Existing Value to Swap, So It's a Marker-Appended `!important` Rule
+## Chat Composer Font Size — Two Stacked Elements Share One Hash; Patching Only One Is Invisible
 
-The chat message-input box (composer) is a `contenteditable` div (`role="textbox"`, `aria-label="Message
-input"`, className `messageInput_<hash>`), NOT a `<textarea>` — and Claude Code's own CSS sets no
-`font-size` on it at all (`font-family: inherit` only), so it silently inherits the webview's base
-font-size (~13px). Because there is no existing numeric value to regex-swap, the `chatComposer`
-`PATCH_POINT` (`patcher.ts`, `webview/index.css`) follows the exact same pattern as `chatCode` (the
-code-block font point): it appends a marker-tagged `/*cc-ui-patch:chatComposer*/.messageInput_<hash>
-{font-size:<px>px !important}` line, re-reading the hash at patch time from the stock
-`.messageInputContainer_<hash>{...}` rule so it survives a re-minify that changes the hash. Exposed as
-`smartsClaudeManager.chatComposerFontSize` (default 14px; `originalPx: 13` is the true native/inherited
-stock, used only for the restore-to-stock path — setting the knob to exactly 13 removes the marker line
-entirely rather than writing a redundant `13px !important`). Verified end-to-end against a scratch copy of
-the real installed extension: apply writes/updates the marker in place (no duplicates across repeated
-value changes), and restore reverts `webview/index.css` byte-for-byte to baseline.
+The chat message-input box (composer) is actually **two stacked elements sharing one CSS-module hash**,
+not a single `<textarea>`: the real `contenteditable` div (`role="textbox"`, `aria-label="Message input"`,
+className `messageInput_<hash>`) is painted **invisible** (`color:#0000` in the stock CSS — it exists only
+to hold the caret/selection and receive input events), while a sibling `aria-hidden` div, className
+`mentionMirror_<hash>`, is positioned absolutely on top and is what **actually renders the visible text**
+(including @-mention highlighting). **A patch that only sizes `messageInput_<hash>` changes the invisible
+layer's metrics but leaves the visible text's size untouched** — confirmed live: the first cut of this
+knob patched `messageInput_<hash>` alone, and the user reported exactly this symptom ("korinmaydigan
+fontning size ozgarvotti, korinadigan esa ozgarmadi" — the invisible font's size changed, the visible one
+didn't). Both classes share the same hash suffix as the third sibling rule `messageInputContainer_<hash>`,
+so the fix sizes **both** together in one rule. Claude Code's own CSS sets no `font-size` on either, so
+they silently inherit the webview's base font-size (~13px). Because there is no existing numeric value to
+regex-swap, the `chatComposer` `PATCH_POINT` (`patcher.ts`, `webview/index.css`) follows the exact same
+append pattern as `chatCode` (the code-block font point): it appends a marker-tagged
+`/*cc-ui-patch:chatComposer*/.messageInput_<hash>,.mentionMirror_<hash>{font-size:<px>px !important}`
+line, re-reading the hash at patch time from the stock `.messageInputContainer_<hash>{...}` rule so it
+survives a re-minify that changes the hash. Exposed as `smartsClaudeManager.chatComposerFontSize` (default
+14px; `originalPx: 13` is the true native/inherited stock, used only for the restore-to-stock path —
+setting the knob to exactly 13 removes the marker line entirely rather than writing a redundant `13px
+!important`). Verified end-to-end against a scratch copy of the real installed extension: apply
+writes/updates the marker (both selectors) in place (no duplicates across repeated value changes), and
+restore reverts `webview/index.css` byte-for-byte to baseline. **The lesson for any future
+composer/contenteditable patch point in this project: always check for a sibling mirror/overlay class
+sharing the same hash before assuming the element you found in the DOM inspector is the one that's
+actually visible** — a `color:#0000`/`visibility:hidden` rule on the "obvious" target is the tell.
 
 ## Toggle Switches Show No "On"/"Off" Text — the Switch's Own State IS the Label
 
