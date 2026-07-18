@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.87",
+  "version": "2.0.88",
   "publisher": "zeyutang",
   "icon": "icon.png",
   "license": "MIT",
@@ -271,7 +271,7 @@
         "smartsClaudeManager.feature.usercollapse": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Replace \"Show more\"/\"Show less\" on long user messages with a single expand/collapse icon."
+          "markdownDescription": "Add an \"Expand message\"/\"Collapse message\" item to the native \"Message actions\" popup on long user messages."
         },
         "smartsClaudeManager.feature.autocontinue": {
           "type": "boolean",
@@ -292,6 +292,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Ship chat-enhancement feature diagnostics to Grafana Cloud (console + Loki via Faro). Unchecking silences logging everywhere immediately, with no reload. Only a feature that is itself checked ON logs anything, even while this is checked ON."
+        },
+        "smartsClaudeManager.feature.filelinks": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Make a file path shown as inline code (relative or absolute) clickable — opens it in a real editor tab."
         }
       }
     }

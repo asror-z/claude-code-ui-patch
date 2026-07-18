@@ -38,6 +38,7 @@ import "./behaviorFeatures.autocontinue";
 import "./behaviorFeatures.draftsave";
 import "./behaviorFeatures.usernav";
 import "./behaviorFeatures.toc-export-scroll";
+import "./behaviorFeatures.filelinks";
 
 // The installed Claude Code extension is laid down as one directory per
 // version/platform, e.g. anthropic.claude-code-2.1.200-darwin-arm64. We patch
