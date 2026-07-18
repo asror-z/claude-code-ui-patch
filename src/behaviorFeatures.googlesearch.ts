@@ -16,11 +16,14 @@ const JS = `
 
   // Right-clicking a text selection inside a chat message adds a "Search
   // <selection> on Google" item to the browser's own native context menu (Cut/
-  // Copy/Paste). Selecting it copies the Google search URL for the selected
-  // text to the clipboard (the chat webview's sandbox blocks opening a new
-  // browser window directly -- see copyToClipboard()'s comment below).
-  // Mirrors behaviorFeatures.reply.ts's own selection-scoping: never offered
-  // for text selected inside the composer (that is editing, not researching).
+  // Copy/Paste). Selecting it opens a Google search for the selected text in
+  // the user's real default browser via the openExternalBridge (patcher.ts's
+  // openExternalHost/openExternalWebview TogglePoints), falling back to a
+  // clipboard-copy + toast if that bridge isn't available -- see
+  // openViaBridge()'s comment below for why a browser can't be opened directly
+  // from this webview. Mirrors behaviorFeatures.reply.ts's own
+  // selection-scoping: never offered for text selected inside the composer
+  // (that is editing, not researching).
   function init(D, W) {
     try {
       console.log("[cc-googlesearch] Google Search Feature loaded");
@@ -81,14 +84,27 @@ const JS = `
     // not set" -- both window.open() and a real <a target="_blank"> click hit
     // this same wall, since it blocks new-window navigation outright, not just
     // the API used to request it). Reaching the extension host's real
-    // vscode.env.openExternal would need a postMessage bridge into Claude
-    // Code's own webview panel, which this extension does not own/create and
-    // cannot safely patch (their message dispatcher is a private, minified
-    // router -- see acquireVsCodeApi's documented double-acquire crash for why
-    // we don't reach for our own vscode API handle here either). So: copy the
-    // URL to the clipboard instead (the one channel this sandbox does not
-    // block) and show a brief on-screen confirmation telling the user to
-    // paste it into their browser.
+    // vscode.env.openExternal needs a postMessage bridge; patcher.ts's
+    // openExternalHost/openExternalWebview TogglePoints inject exactly that
+    // (see openExternalBridge.ts): window.__ccVsCodeApi is the chat webview's
+    // OWN already-acquired vscode API object (captured as a side effect of its
+    // single real acquireVsCodeApi() call -- we never call it ourselves, since
+    // a second call there crashes the whole webview), and the extension host
+    // has a second, additive onDidReceiveMessage listener for our
+    // {type:"ccOpenExternal"} message. If either half of the bridge is
+    // missing (an older/mismatched Claude Code build the anchor doesn't match)
+    // this silently falls back to copying the URL to the clipboard instead,
+    // with a brief on-screen confirmation to paste it into the browser.
+    function openViaBridge(url) {
+      try {
+        if (W.__ccVsCodeApi && typeof W.__ccVsCodeApi.postMessage === "function") {
+          W.__ccVsCodeApi.postMessage({ type: "ccOpenExternal", url: url });
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+
     function copyToClipboard(text, done) {
       try {
         if (W.navigator && W.navigator.clipboard && W.navigator.clipboard.writeText) {
@@ -135,9 +151,10 @@ const JS = `
     function openGoogleSearch(text, x, y) {
       var url = "https://www.google.com/search?q=" + encodeURIComponent(text);
       try {
+        if (openViaBridge(url)) return;
         copyToClipboard(url, function () { showCopiedToast(x, y); });
       } catch (e) {
-        try { console.error("[cc-googlesearch] failed to copy search link", e); } catch (e2) {}
+        try { console.error("[cc-googlesearch] failed to open search", e); } catch (e2) {}
       }
     }
 

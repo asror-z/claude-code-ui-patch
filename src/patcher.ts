@@ -12,6 +12,14 @@ import {
   featureIds,
   BEHAVIOR_CSS_MARKER,
 } from "./behaviorInject";
+import {
+  hostBridgePresent,
+  applyHostBridge,
+  removeHostBridge,
+  webviewBridgePresent,
+  applyWebviewBridge,
+  removeWebviewBridge,
+} from "./openExternalBridge";
 // faro is FIRST: it exposes window.__ccFaroLog, which every other feature below
 // may call from its own init() — later features assume the sink already exists.
 import "./behaviorFeatures.faro";
@@ -609,6 +617,30 @@ function cspContentOff(content: string): string {
   return out;
 }
 
+// Open-external bridge (see openExternalBridge.ts for the full rationale):
+// two ALWAYS-ON TogglePoints, one per file, that together let the injected
+// chat-enhancement scripts open a URL in the user's real browser despite the
+// chat webview's no-"allow-popups" sandbox. Neither has a user-facing
+// setting -- both ride with chatEnhancements the same way faroCsp does.
+function openExternalHostPresent(c: string): boolean {
+  return hostBridgePresent(c);
+}
+function openExternalHostCurrentOn(c: string): boolean | undefined {
+  return hostBridgePresent(c) ? true : false;
+}
+function openExternalHostSet(c: string, on: boolean): string {
+  return on ? applyHostBridge(c).out : removeHostBridge(c);
+}
+function openExternalWebviewPresent(c: string): boolean {
+  return webviewBridgePresent(c);
+}
+function openExternalWebviewCurrentOn(c: string): boolean | undefined {
+  return webviewBridgePresent(c) ? true : false;
+}
+function openExternalWebviewSet(c: string, on: boolean): string {
+  return on ? applyWebviewBridge(c).out : removeWebviewBridge(c);
+}
+
 // The chat message "Show more" (.expandButton_<hash>) and "Show less"
 // (.collapseButton_<hash>) buttons live in the expandable-content module. "Show
 // more" is position:absolute (bottom:0;right:0) anchored to the fit-content
@@ -825,6 +857,34 @@ const TOGGLE_POINTS: TogglePoint[] = [
     fnCurrentOn: cspCurrentOn,
     fnSet: cspSet,
   },
+  {
+    // Extension-host half of the open-external bridge — see
+    // openExternalBridge.ts. ALWAYS ON: no user-facing setting, rides with
+    // chatEnhancements (googlesearch depends on it to open a real browser
+    // window despite the chat webview's sandbox).
+    id: "openExternalHost",
+    section: "Chat Panel",
+    label: "Open-external bridge (host)",
+    key: "openExternalHost",
+    defaultOn: false,
+    file: "extension.js",
+    fnPresent: openExternalHostPresent,
+    fnCurrentOn: openExternalHostCurrentOn,
+    fnSet: openExternalHostSet,
+  },
+  {
+    // Webview half of the open-external bridge — see openExternalBridge.ts.
+    // ALWAYS ON, same rationale as openExternalHost above.
+    id: "openExternalWebview",
+    section: "Chat Panel",
+    label: "Open-external bridge (webview)",
+    key: "openExternalWebview",
+    defaultOn: false,
+    file: "webview/index.js",
+    fnPresent: openExternalWebviewPresent,
+    fnCurrentOn: openExternalWebviewCurrentOn,
+    fnSet: openExternalWebviewSet,
+  },
 ];
 
 export type ToggleMap = Record<string, boolean>;
@@ -833,7 +893,12 @@ export type ToggleMap = Record<string, boolean>;
 // smartsClaudeManager.* config. chatEnhancements is one of these — the individual
 // smartsClaudeManager.feature.<id> checkboxes are the only per-feature control; there
 // is no separate master on/off (removed per user feedback: "doim on bo'ladi").
-const ALWAYS_ON_TOGGLES = new Set(["chatEnhancements", "faroCsp"]);
+const ALWAYS_ON_TOGGLES = new Set([
+  "chatEnhancements",
+  "faroCsp",
+  "openExternalHost",
+  "openExternalWebview",
+]);
 
 export function readToggles(): ToggleMap {
   const c = vscode.workspace.getConfiguration(CONFIG_NS);
