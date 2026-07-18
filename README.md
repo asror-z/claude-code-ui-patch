@@ -88,6 +88,7 @@ Chat Enhancement Features              # always injected; each feature has its o
    ├── export           # export the whole chat to Markdown / HTML / clipboard
    ├── scroll           # jump to the first / latest message
    ├── askcollapse      # collapse/expand the AskUserQuestion dialog
+   ├── usercollapse     # expand/collapse icon on long user messages (replaces Show more/less)
    ├── autocontinue     # auto-submit "continue" on a stream-error banner
    ├── draftsave        # autosave/restore the composer's draft text per chat
    └── usernav          # jump between your own messages (up/down)
@@ -145,6 +146,7 @@ Chat Enhancement Features              # always injected; each feature has its o
     "smartsClaudeManager.feature.export": true,
     "smartsClaudeManager.feature.scroll": true,
     "smartsClaudeManager.feature.askcollapse": true,
+    "smartsClaudeManager.feature.usercollapse": true,
     "smartsClaudeManager.feature.autocontinue": true,
     "smartsClaudeManager.feature.draftsave": true,
     "smartsClaudeManager.feature.usernav": true

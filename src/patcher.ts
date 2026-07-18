@@ -33,6 +33,7 @@ import "./behaviorFeatures.blockquote";
 import "./behaviorFeatures.copybuttons";
 import "./behaviorFeatures.codeblock";
 import "./behaviorFeatures.askcollapse";
+import "./behaviorFeatures.usercollapse";
 import "./behaviorFeatures.autocontinue";
 import "./behaviorFeatures.draftsave";
 import "./behaviorFeatures.usernav";
