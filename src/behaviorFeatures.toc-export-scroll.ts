@@ -247,9 +247,32 @@ const TOC_JS = `
     }
   }
 
+  // The panel is position:fixed, so its "right" offset is measured from the
+  // WHOLE CSS viewport — which, in this webview, can be noticeably WIDER
+  // than the composer's own visually-bordered box (confirmed live via a
+  // screenshot: a plain "right:16px" left the panel floating well past the
+  // composer's right edge, out in open space). Align the panel's right edge
+  // to the composer's OWN right edge instead of a flat viewport-relative
+  // offset: the composer's action-footer row (".cc-toolbar" itself docks
+  // into it, see behaviorToolbar.ts) spans the composer box corner to
+  // corner, so its own getBoundingClientRect().right IS the composer's
+  // right edge.
+  function positionPanel() {
+    if (!panel) return;
+    var footer = D.querySelector("[class*='inputFooter']");
+    if (!footer || !footer.getBoundingClientRect) return;
+    var rect;
+    try { rect = footer.getBoundingClientRect(); } catch (e) { return; }
+    var viewportWidth = W.innerWidth || (D.documentElement && D.documentElement.clientWidth) || 0;
+    if (!viewportWidth) return;
+    var right = Math.max(0, viewportWidth - rect.right);
+    panel.style.right = right + "px";
+  }
+
   function setOpen(v) {
     open = v;
     if (!panel) return;
+    if (v) positionPanel();
     panel.style.display = v ? "flex" : "none";
     if (toggleBtn) {
       toggleBtn.classList.toggle("cc-toc-active", v);
@@ -275,6 +298,9 @@ const TOC_JS = `
     });
     // Rebuild the outline when pins change (from the Pin feature) while open.
     try { W.addEventListener("cc-pins-changed", function () { if (open) rebuild(); }); } catch (e) {}
+    // Keep the panel's right edge pinned to the composer's own right edge if
+    // the window/panel is resized while open.
+    try { W.addEventListener("resize", function () { if (open) positionPanel(); }); } catch (e) {}
   }
 
   function run() {
@@ -848,8 +874,26 @@ const EXPORT_JS = `
   var menu = null;
   var menuOpen = false;
 
+  // Same fix as the TOC panel's positionPanel() (see its own comment): a
+  // flat "right:16px" is measured from the whole CSS viewport, which can be
+  // noticeably wider than the composer's own bordered box in this webview —
+  // align the menu's right edge to the composer action-footer's real right
+  // edge instead.
+  function positionMenu() {
+    if (!menu) return;
+    var footer = D.querySelector("[class*='inputFooter']");
+    if (!footer || !footer.getBoundingClientRect) return;
+    var rect;
+    try { rect = footer.getBoundingClientRect(); } catch (e) { return; }
+    var viewportWidth = W.innerWidth || (D.documentElement && D.documentElement.clientWidth) || 0;
+    if (!viewportWidth) return;
+    var right = Math.max(0, viewportWidth - rect.right);
+    menu.style.right = right + "px";
+  }
+
   function setMenu(v) {
     menuOpen = v;
+    if (v) positionMenu();
     if (menu) menu.style.display = v ? "flex" : "none";
     if (toggleBtn) {
       toggleBtn.classList.toggle("cc-export-active", v);
@@ -951,6 +995,9 @@ const EXPORT_JS = `
       if (toggleBtn && toggleBtn.contains(ev.target)) return;
       setMenu(false);
     });
+    // Keep the menu's right edge pinned to the composer's own right edge if
+    // the window/panel is resized while open.
+    try { W.addEventListener("resize", function () { if (menuOpen) positionMenu(); }); } catch (e) {}
   }
 
   // Expose the pure builders for the jsdom effect test.
