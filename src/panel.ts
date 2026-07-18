@@ -114,7 +114,7 @@ abstract class PatchWebviewHost {
     if (k.kind === "toggle") {
       return `      <div class="knob" data-id="${k.id}" data-kind="toggle">
         <span class="label">${k.label}</span>
-        <span class="controls"><button class="switch ${k.on ? "on" : "off"}" data-cmd="toggle" role="switch" aria-checked="${k.on}"><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-text">${k.on ? "On" : "Off"}</span></button></span>
+        <span class="controls"><button class="switch ${k.on ? "on" : "off"}" data-cmd="toggle" role="switch" aria-checked="${k.on}"><span class="switch-track"><span class="switch-thumb"></span></span></button></span>
       </div>`;
     }
     const cmd = k.native ? "nativeSet" : "set";
@@ -196,7 +196,7 @@ ${csp}
   <span class="version-pill">v${snap.extVersion}<span class="version-sep">&#8226;</span>Claude Code v${snap.version}</span>
   <div class="header-status">${statusInner(snap)}</div>
   <div class="knob patch-enabled-row" data-kind="toggle">
-    <span class="controls"><button class="switch ${snap.patchEnabled ? "on" : "off"}" data-cmd="patchToggle" role="switch" aria-checked="${snap.patchEnabled}" title="Enable or fully disable the patch (reverts Claude Code to native when off; re-applies your saved settings when on). Reloads the window immediately."><span class="switch-track"><span class="switch-thumb"></span></span><span class="switch-text">${snap.patchEnabled ? "On" : "Off"}</span></button></span>
+    <span class="controls"><button class="switch ${snap.patchEnabled ? "on" : "off"}" data-cmd="patchToggle" role="switch" aria-checked="${snap.patchEnabled}" title="Enable or fully disable the patch (reverts Claude Code to native when off; re-applies your saved settings when on). Reloads the window immediately."><span class="switch-track"><span class="switch-thumb"></span></span></button></span>
     <span class="label patch-enabled-label">${snap.patchEnabled ? "Disable patch" : "Enable patch"}</span>
   </div>
   <div class="card">
@@ -218,8 +218,6 @@ ${sections}
     function setToggleBtn(btn, on) {
       btn.classList.toggle('on', on);
       btn.classList.toggle('off', !on);
-      const txt = btn.querySelector('.switch-text');
-      if (txt) txt.textContent = on ? 'On' : 'Off';
       btn.setAttribute('aria-checked', String(on));
     }
 
@@ -463,7 +461,7 @@ const baseCss = `
     color: var(--vscode-foreground);
     background: var(--vscode-editor-background);
     max-width: 1400px;
-    padding: 18px 24px 24px;
+    padding: 14px 14px 18px;
   }
   .empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px; color: var(--vscode-descriptionForeground); text-align: center; }
   .empty-icon { font-size: 2em; opacity: .7; }
@@ -588,8 +586,6 @@ const baseCss = `
     background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.35); transition: transform .15s ease;
   }
   .switch.on .switch-thumb { transform: translateX(16px); }
-  .switch-text { min-width: 26px; text-align: right; color: var(--vscode-descriptionForeground); }
-  .switch.on .switch-text { color: var(--ccp-green); }
 
   /* --- Bottom action bar --- */
   .actions { margin-top: 16px; display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; }
@@ -630,6 +626,8 @@ const baseCss = `
      never after it (a prior bug: this same block sat above the later .link-icon/
      a.link.link-reload rules and got silently overridden by them at every width). */
   @media (max-width: 500px) {
+    body { padding: 10px 10px 14px; }
+    .card { padding: 12px 10px; }
     .feature-grid, .section-grid { grid-template-columns: 1fr; }
     .section-col + .section-col { border-left: none; padding-left: 0; border-top: 1px solid var(--vscode-panel-border); padding-top: 12px; margin-top: 4px; }
     /* Stay on ONE row (not stacked) even at this width, but put the controls
