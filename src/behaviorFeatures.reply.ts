@@ -127,7 +127,7 @@ const JS = `
     // Build the quote as a SINGLE line (no "\\n"). This input mirrors its text
     // into an overlay that ignores line breaks, so any "\\n" makes multi-line
     // text overlap. Collapse the selection's newlines into spaces and prefix
-    // once with "> ".
+    // once with "> ", suffixed with ": " so typing continues right after it.
     function buildQuoteText(text, existing) {
       var oneLine = text
         .replace(/\\r\\n/g, "\\n")
@@ -139,7 +139,7 @@ const JS = `
           return l.length;
         })
         .join(" ");
-      var quote = "> " + oneLine + " ";
+      var quote = "> " + oneLine + ": ";
       // If there is already content, separate with a space so the quote doesn't
       // glue onto it.
       var prefix = existing && existing.trim().length ? " " : "";
