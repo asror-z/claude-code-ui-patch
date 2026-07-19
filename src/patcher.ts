@@ -718,14 +718,18 @@ export function readFeatureDefaults(): Record<string, boolean> {
   return m;
 }
 
-// Numeric per-feature tunables (currently just AutoContinue's quiet-ms delay) —
-// same "read fresh on every apply" contract as readFeatureDefaults() above, so a
-// settings.json edit is picked up by the next re-patch without waiting on anything
-// else to change.
+// Numeric per-feature tunables (AutoContinue's timing/cap values, DraftSave's
+// staleness/debounce delays) — same "read fresh on every apply" contract as
+// readFeatureDefaults() above, so a settings.json edit is picked up by the next
+// re-patch without waiting on anything else to change.
 export function readNumericConfig(): NumericConfig {
   const c = vscode.workspace.getConfiguration(CONFIG_NS);
   return {
     autoContinueQuietMs: c.get<number>("autoContinueQuietMs", 500),
+    autoContinueCooldownMs: c.get<number>("autoContinueCooldownMs", 4000),
+    autoContinueDefaultCap: c.get<number>("autoContinueDefaultCap", 5),
+    draftSaveStaleMs: c.get<number>("draftSaveStaleMs", 10 * 60 * 1000),
+    draftSaveDebounceMs: c.get<number>("draftSaveDebounceMs", 250),
   };
 }
 

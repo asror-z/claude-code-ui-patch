@@ -36,13 +36,27 @@ function unescapeFromTemplateLiteral(src: string): string {
 // window reload (the same "reload to apply" contract as every other patch setting) —
 // there is no separate live in-chat control to defer to.
 //
-// Numeric per-feature tunables (e.g. AutoContinue's quiet-ms delay) ride the SAME
-// seed mechanism, under their own dedicated localStorage keys — see numericConfig
-// below. This keeps every VS Code-settings-sourced runtime value on one seed script
-// rather than inventing a second injection path per new tunable.
+// Numeric per-feature tunables (AutoContinue's timing/cap values, DraftSave's
+// staleness/debounce delays) ride the SAME seed mechanism, under their own
+// dedicated localStorage keys — see NUMERIC_KEYS below. This keeps every VS
+// Code-settings-sourced runtime value on one seed script rather than inventing a
+// second injection path per new tunable; adding a future one is a single entry
+// in NUMERIC_KEYS plus the matching field in NumericConfig.
 export interface NumericConfig {
   autoContinueQuietMs: number;
+  autoContinueCooldownMs: number;
+  autoContinueDefaultCap: number;
+  draftSaveStaleMs: number;
+  draftSaveDebounceMs: number;
 }
+
+const NUMERIC_KEYS: { field: keyof NumericConfig; storageKey: string }[] = [
+  { field: "autoContinueQuietMs", storageKey: "cc-autocontinue-quietms" },
+  { field: "autoContinueCooldownMs", storageKey: "cc-autocontinue-cooldownms" },
+  { field: "autoContinueDefaultCap", storageKey: "cc-autocontinue-defaultcap" },
+  { field: "draftSaveStaleMs", storageKey: "cc-draftsave-stalems" },
+  { field: "draftSaveDebounceMs", storageKey: "cc-draftsave-debouncems" },
+];
 
 function seedScript(defaults: Record<string, boolean>, numeric?: NumericConfig): string {
   const entries = Object.entries(defaults);
@@ -53,9 +67,11 @@ function seedScript(defaults: Record<string, boolean>, numeric?: NumericConfig):
     );
   }
   if (numeric) {
-    parts.push(
-      `localStorage.setItem('cc-autocontinue-quietms',${JSON.stringify(String(numeric.autoContinueQuietMs))});`,
-    );
+    for (const { field, storageKey } of NUMERIC_KEYS) {
+      parts.push(
+        `localStorage.setItem('${storageKey}',${JSON.stringify(String(numeric[field]))});`,
+      );
+    }
   }
   if (!parts.length) return "";
   return "(function(){try{" + parts.join("") + "}catch(e){}})();";

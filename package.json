@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.93",
+  "version": "2.0.94",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -209,6 +209,34 @@
           "minimum": 0,
           "maximum": 60000,
           "markdownDescription": "AutoContinue: how long (ms) an error/rate-limit banner must sit with no new message before \"continue\" is auto-submitted."
+        },
+        "smartsClaudeManager.autoContinueCooldownMs": {
+          "type": "number",
+          "default": 4000,
+          "minimum": 0,
+          "maximum": 60000,
+          "markdownDescription": "AutoContinue: minimum gap (ms) between two auto-submitted \"continue\" messages."
+        },
+        "smartsClaudeManager.autoContinueDefaultCap": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 100,
+          "markdownDescription": "AutoContinue: maximum number of auto-submitted \"continue\" messages per session."
+        },
+        "smartsClaudeManager.draftSaveStaleMs": {
+          "type": "number",
+          "default": 600000,
+          "minimum": 0,
+          "maximum": 86400000,
+          "markdownDescription": "DraftSave: a saved draft older than this (ms) is treated as expired and never restored. Default 600000 = 10 minutes."
+        },
+        "smartsClaudeManager.draftSaveDebounceMs": {
+          "type": "number",
+          "default": 250,
+          "minimum": 0,
+          "maximum": 10000,
+          "markdownDescription": "DraftSave: how long (ms) after you stop typing before the composer's draft text is saved."
         },
         "smartsClaudeManager.feature.reply": {
           "type": "boolean",

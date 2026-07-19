@@ -56,9 +56,24 @@ const JS = `
   } catch (e) {}
 
   var KEY = "cc-draft:global";
-  var STALE_MS = 10 * 60 * 1000; // a draft older than this is treated as expired, never restored
   var SAME_INSTANCE_FLAG = "cc-draft-instance-live"; // sessionStorage — unset on a fresh webview instance
-  var SAVE_DEBOUNCE_MS = 250;
+
+  // STALE_MS/SAVE_DEBOUNCE_MS are USER-CONFIGURABLE VS Code settings
+  // (smartsClaudeManager.draftSaveStaleMs/draftSaveDebounceMs), seeded into localStorage
+  // on every webview load by behaviorInject.ts's seedScript() — same mechanism
+  // AutoContinue's tunables use. A missing/invalid value (an older cached webview from
+  // before this setting existed, a corrupted localStorage entry) falls back to the
+  // same defaults the settings themselves ship with.
+  function readNumSetting(key, fallback) {
+    try {
+      var v = parseInt(window.localStorage.getItem(key), 10);
+      return v > 0 ? v : fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  var STALE_MS = readNumSetting("cc-draftsave-stalems", 10 * 60 * 1000); // a draft older than this is treated as expired, never restored
+  var SAVE_DEBOUNCE_MS = readNumSetting("cc-draftsave-debouncems", 250);
 
   var D = document;
   var W = window;

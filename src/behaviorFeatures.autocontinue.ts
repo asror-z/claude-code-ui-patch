@@ -29,10 +29,23 @@ const JS = `
   } catch (e) {}
 
   var DONE_ATTR = "data-cc-autocont";     // marks a banner we already handled
-  var COOLDOWN_MS = 4000;                  // min gap between two auto-continues
-  var DEFAULT_CAP = 5;                     // max auto-continues per session
   var COUNT_KEY = "cc-autocontinue-count"; // localStorage session counter
   var OFF_KEY = "cc-autocontinue";         // localStorage 'off' override
+
+  // COOLDOWN_MS/DEFAULT_CAP are USER-CONFIGURABLE VS Code settings
+  // (smartsClaudeManager.autoContinueCooldownMs/autoContinueDefaultCap), seeded into
+  // localStorage on every webview load by behaviorInject.ts's seedScript() — same
+  // mechanism and same missing/invalid-value fallback contract as QUIET_MS below.
+  function readNumSetting(key, fallback) {
+    try {
+      var v = parseInt(W.localStorage.getItem(key), 10);
+      return v > 0 ? v : fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  var COOLDOWN_MS = readNumSetting("cc-autocontinue-cooldownms", 4000); // min gap between two auto-continues
+  var DEFAULT_CAP = readNumSetting("cc-autocontinue-defaultcap", 5);    // max auto-continues per session
 
   // ANY "API Error:" banner auto-continues (explicit user requirement), plus a few
   // stream-drop/throttle phrases that a real error banner uses WITHOUT necessarily
@@ -302,18 +315,11 @@ const JS = `
   // QUIET_MS is a USER-CONFIGURABLE VS Code setting (smartsClaudeManager.autoContinueQuietMs,
   // default 500ms), never a hardcoded constant — behaviorInject.ts's seedScript() writes
   // it into localStorage on every webview load (the same seed mechanism the per-feature
-  // on/off toggles already use), read here once at bootstrap. A missing/invalid value
-  // (an older cached webview from before this setting existed, a corrupted localStorage
-  // entry) falls back to the same 500ms default the setting itself ships with.
-  function readQuietMs() {
-    try {
-      var v = parseInt(W.localStorage.getItem("cc-autocontinue-quietms"), 10);
-      return v > 0 ? v : 500;
-    } catch (e) {
-      return 500;
-    }
-  }
-  var QUIET_MS = readQuietMs();
+  // on/off toggles already use), read via the shared readNumSetting() helper above. A
+  // missing/invalid value (an older cached webview from before this setting existed, a
+  // corrupted localStorage entry) falls back to the same 500ms default the setting
+  // itself ships with.
+  var QUIET_MS = readNumSetting("cc-autocontinue-quietms", 500);
   var quietTimer = null;
   var armedBanner = null; // the banner element the current quiet-timer is waiting on
   var lastMsgCount = -1;  // message-container count as of the last successful arm/restart
