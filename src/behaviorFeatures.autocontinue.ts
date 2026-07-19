@@ -138,8 +138,42 @@ const JS = `
 
   var rejected = 0; // count of near-miss rejects this sweep (for diagnose)
 
+  // A message-shaped element — user turn, assistant turn, or any timeline entry.
+  // Same class-substring set messageCount() below reuses for consistency.
+  var MSG_SEL = "[class*='userMessageContainer'],[class*='timelineMessage'],[class*='turn_']";
+
+  // The NEWEST message in the chat, if (and only if) its own text LEADS with a
+  // drop phrase — regardless of whether it is a user or assistant/system turn.
+  //
+  // WHY THIS EXISTS (confirmed live, not theoretical): a real drop/throttle event
+  // does NOT always surface as a styled role=alert/error-classed banner element —
+  // Claude Code can instead surface it as an ORDINARY NEW MESSAGE in the timeline
+  // (observed directly: "API Error: Server is temporarily limiting requests (not
+  // your usage limit) · Rate limited" arrived framed exactly like a fresh user
+  // turn). findErrorBanners()'s own insideMessage() guard EXCLUDES anything inside
+  // a message container on purpose (so ordinary chat prose discussing "API Error"
+  // never false-fires) — that guard stays exactly as-is for the banner-ELEMENT
+  // scan below. This is a SEPARATE, additive detection path: only the CHAT'S OWN
+  // NEWEST message is ever checked (never an older one buried mid-history), so a
+  // user's earlier, unrelated message that happens to mention the phrase can never
+  // retroactively trigger this — only the single most recent turn can, exactly
+  // the same "eng oxirida" (the newest/latest one) semantics requested.
+  function findLastMessageDrop() {
+    var root = chatRoot();
+    var msgs = root.querySelectorAll(MSG_SEL);
+    if (!msgs.length) return null;
+    var last = msgs[msgs.length - 1];
+    if (last.getAttribute(DONE_ATTR) === "1") return null;
+    var t = (last.textContent || "").trim();
+    if (!t || t.length > 220) return null; // a real drop message is compact, not a long turn
+    if (!phraseLeads(t)) return null;      // phrase must lead this message's own text
+    return last;
+  }
+
   // Find TRUE error banners: an explicit banner element, NOT inside a message container,
   // whose own short text LEADS with a specific drop phrase. No leaf-block escape hatch.
+  // PLUS (see findLastMessageDrop above): the chat's own newest message, whichever side
+  // authored it, when ITS text leads with the same drop phrase.
   function findErrorBanners() {
     var root = chatRoot();
     var out = [];
@@ -163,6 +197,14 @@ const JS = `
         if (out[k].contains(b) || b.contains(out[k])) { contained = true; break; }
       }
       if (!contained) out.push(b);
+    }
+    var msgDrop = findLastMessageDrop();
+    if (msgDrop) {
+      var msgContained = false;
+      for (var k2 = 0; k2 < out.length; k2++) {
+        if (out[k2].contains(msgDrop) || msgDrop.contains(out[k2])) { msgContained = true; break; }
+      }
+      if (!msgContained) out.push(msgDrop);
     }
     return out;
   }
