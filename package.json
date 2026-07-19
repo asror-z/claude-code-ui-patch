@@ -2,18 +2,18 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.91",
-  "publisher": "zeyutang",
+  "version": "2.0.92",
+  "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zeyutang/smarts-claude-manager.git"
+    "url": "https://github.com/asror-z/smarts-claude-manager.git"
   },
   "bugs": {
-    "url": "https://github.com/zeyutang/smarts-claude-manager/issues"
+    "url": "https://github.com/asror-z/smarts-claude-manager/issues"
   },
-  "homepage": "https://github.com/zeyutang/smarts-claude-manager#readme",
+  "homepage": "https://github.com/asror-z/smarts-claude-manager#readme",
   "engines": {
     "vscode": "^1.85.0"
   },

@@ -16,12 +16,8 @@ Patch Claude Code VS Code extension UI to provide finegrained settings for vario
 |     Adjust the knobs, then **Reload Window**      | Hover the `aA` to show summary, and click to open panel |
 
 The same controls also dock into the Activity Bar as a sidebar view, so you can keep them
-visible alongside your editor instead of a floating tab:
-
-|                                  Activity Bar Sidebar                                 |
-| :------------------------------------------------------------------------------------: |
-|                          ![Sidebar view](docs/img/sidebar-view.png)                          |
-| The Smarts Claude Manager icon in the Activity Bar opens the identical panel, docked |
+visible alongside your editor instead of a floating tab — the Smarts Claude Manager icon in
+the Activity Bar opens the identical panel, docked.
 
 The panel lays its content out in a responsive grid — 15 feature checkboxes, the Chat Panel
 or Tab knobs, and the Plan Mode Markdown Preview knobs each in their own column on a wide
