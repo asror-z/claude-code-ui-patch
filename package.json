@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.92",
+  "version": "2.0.93",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -202,6 +202,13 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Permanently hide the \"You've used X% of your weekly limit\" usage banner and its \"View usage\" link, instead of it reappearing after each dismissal."
+        },
+        "smartsClaudeManager.autoContinueQuietMs": {
+          "type": "number",
+          "default": 500,
+          "minimum": 0,
+          "maximum": 60000,
+          "markdownDescription": "AutoContinue: how long (ms) an error/rate-limit banner must sit with no new message before \"continue\" is auto-submitted."
         },
         "smartsClaudeManager.feature.reply": {
           "type": "boolean",

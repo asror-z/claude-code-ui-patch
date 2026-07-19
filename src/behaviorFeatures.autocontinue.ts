@@ -289,16 +289,31 @@ const JS = `
 
   // ---- main sweep -----------------------------------------------------------------
   //
-  // TWO-PHASE fire, matching "5 soniya davomida yangi message kelmasa — Automatically
-  // continue deb yozvoradi" (if no new message arrives for 5 seconds, auto-type
-  // "continue"): detecting an error banner does NOT submit "continue" immediately — it
-  // arms a QUIET_MS countdown. The countdown RESTARTS whenever the chat's message count
-  // increases (a real new message/turn appearing — not just any DOM churn, which would
-  // make the timer effectively never fire in a live, constantly-repainting chat UI), and
-  // is cancelled outright if the banner itself clears (the run recovered on its own).
-  // Only once QUIET_MS has elapsed with NO new message AND the same banner still present
-  // does it actually submit "continue".
-  var QUIET_MS = 5000;
+  // TWO-PHASE fire ("N ms davomida yangi message kelmasa — Automatically continue deb
+  // yozvoradi": if no new message arrives for N ms, auto-type "continue"): detecting an
+  // error banner does NOT submit "continue" immediately — it arms a QUIET_MS countdown.
+  // The countdown RESTARTS whenever the chat's message count increases (a real new
+  // message/turn appearing — not just any DOM churn, which would make the timer
+  // effectively never fire in a live, constantly-repainting chat UI), and is cancelled
+  // outright if the banner itself clears (the run recovered on its own). Only once
+  // QUIET_MS has elapsed with NO new message AND the same banner still present does it
+  // actually submit "continue".
+  //
+  // QUIET_MS is a USER-CONFIGURABLE VS Code setting (smartsClaudeManager.autoContinueQuietMs,
+  // default 500ms), never a hardcoded constant — behaviorInject.ts's seedScript() writes
+  // it into localStorage on every webview load (the same seed mechanism the per-feature
+  // on/off toggles already use), read here once at bootstrap. A missing/invalid value
+  // (an older cached webview from before this setting existed, a corrupted localStorage
+  // entry) falls back to the same 500ms default the setting itself ships with.
+  function readQuietMs() {
+    try {
+      var v = parseInt(W.localStorage.getItem("cc-autocontinue-quietms"), 10);
+      return v > 0 ? v : 500;
+    } catch (e) {
+      return 500;
+    }
+  }
+  var QUIET_MS = readQuietMs();
   var quietTimer = null;
   var armedBanner = null; // the banner element the current quiet-timer is waiting on
   var lastMsgCount = -1;  // message-container count as of the last successful arm/restart

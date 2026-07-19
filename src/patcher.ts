@@ -11,6 +11,7 @@ import {
   behaviorCssMarkedLine,
   featureIds,
   BEHAVIOR_CSS_MARKER,
+  NumericConfig,
 } from "./behaviorInject";
 import {
   hostBridgePresent,
@@ -717,6 +718,17 @@ export function readFeatureDefaults(): Record<string, boolean> {
   return m;
 }
 
+// Numeric per-feature tunables (currently just AutoContinue's quiet-ms delay) —
+// same "read fresh on every apply" contract as readFeatureDefaults() above, so a
+// settings.json edit is picked up by the next re-patch without waiting on anything
+// else to change.
+export function readNumericConfig(): NumericConfig {
+  const c = vscode.workspace.getConfiguration(CONFIG_NS);
+  return {
+    autoContinueQuietMs: c.get<number>("autoContinueQuietMs", 500),
+  };
+}
+
 function chatEnhancementsPresent(c: string): boolean {
   return behaviorPresent(c);
 }
@@ -743,15 +755,16 @@ function chatEnhancementsContentDigest(c: string): string | undefined {
   return cur === undefined ? undefined : cheapDigest(cur);
 }
 function chatEnhancementsWantDigest(): string {
-  return cheapDigest(wantedBehaviorScript(readFeatureDefaults()));
+  return cheapDigest(wantedBehaviorScript(readFeatureDefaults(), readNumericConfig()));
 }
 function chatEnhancementsSet(c: string, on: boolean): string {
   if (!on) return removeBehaviorScript(c);
   const defaults = readFeatureDefaults();
+  const numeric = readNumericConfig();
   const cur = currentBehaviorScript(c);
-  const want = wantedBehaviorScript(defaults);
+  const want = wantedBehaviorScript(defaults, numeric);
   if (cur === want) return c; // already in sync: no-op write
-  return applyBehaviorScript(c, defaults).out;
+  return applyBehaviorScript(c, defaults, numeric).out;
 }
 // The full marker-tagged line to write when ON — always re-derived from the
 // CURRENT feature registry (mirrors diffLinesCssBuild's shape above), so an

@@ -35,24 +35,43 @@ function unescapeFromTemplateLiteral(src: string): string {
 // EVERY webview load, unconditionally, so a checkbox flip takes effect the next
 // window reload (the same "reload to apply" contract as every other patch setting) —
 // there is no separate live in-chat control to defer to.
-function seedScript(defaults: Record<string, boolean>): string {
+//
+// Numeric per-feature tunables (e.g. AutoContinue's quiet-ms delay) ride the SAME
+// seed mechanism, under their own dedicated localStorage keys — see numericConfig
+// below. This keeps every VS Code-settings-sourced runtime value on one seed script
+// rather than inventing a second injection path per new tunable.
+export interface NumericConfig {
+  autoContinueQuietMs: number;
+}
+
+function seedScript(defaults: Record<string, boolean>, numeric?: NumericConfig): string {
   const entries = Object.entries(defaults);
-  if (!entries.length) return "";
-  return (
-    "(function(){try{" +
-    `localStorage.setItem('cc-feature-toggles',JSON.stringify(${JSON.stringify(defaults)}));` +
-    "}catch(e){}})();"
-  );
+  const parts: string[] = [];
+  if (entries.length) {
+    parts.push(
+      `localStorage.setItem('cc-feature-toggles',JSON.stringify(${JSON.stringify(defaults)}));`,
+    );
+  }
+  if (numeric) {
+    parts.push(
+      `localStorage.setItem('cc-autocontinue-quietms',${JSON.stringify(String(numeric.autoContinueQuietMs))});`,
+    );
+  }
+  if (!parts.length) return "";
+  return "(function(){try{" + parts.join("") + "}catch(e){}})();";
 }
 
 // The full assembled script: infrastructure (bootstrap, toolbar) first, then the
-// one-time feature-default seed (from VS Code settings), then every registered
-// feature, in registration order (a dependent, e.g. CopyButtons on DateTime, must be
-// registered after its dependency in behaviorFeatures.ts imports).
-function assembledScript(featureDefaults?: Record<string, boolean>): string {
+// one-time feature-default + numeric-tunable seed (from VS Code settings), then every
+// registered feature, in registration order (a dependent, e.g. CopyButtons on
+// DateTime, must be registered after its dependency in behaviorFeatures.ts imports).
+function assembledScript(
+  featureDefaults?: Record<string, boolean>,
+  numeric?: NumericConfig,
+): string {
   const parts: string[] = [];
   for (const s of infrastructureSources()) parts.push(s.js);
-  if (featureDefaults) parts.push(seedScript(featureDefaults));
+  if (featureDefaults || numeric) parts.push(seedScript(featureDefaults ?? {}, numeric));
   for (const f of allFeatures()) parts.push(f.js);
   return parts.join("\n");
 }
@@ -71,11 +90,13 @@ export function behaviorPresent(extensionJs: string): boolean {
 // Apply (or refresh) the behavior script block. Idempotent: an existing block is
 // removed first, so re-applying (e.g. after a feature is added/changed) never
 // double-injects and always reflects the CURRENT assembled source. featureDefaults
-// (from the smartsClaudeManager.feature.<id> settings) seeds the runtime toggle map on
-// the webview's first load only — see seedScript() above.
+// (from the smartsClaudeManager.feature.<id> settings) and numeric (from the
+// smartsClaudeManager.autoContinueQuietMs-style settings) seed their respective
+// runtime values on the webview's first load only — see seedScript() above.
 export function applyBehaviorScript(
   extensionJs: string,
   featureDefaults?: Record<string, boolean>,
+  numeric?: NumericConfig,
 ): {
   out: string;
   changed: boolean;
@@ -84,7 +105,7 @@ export function applyBehaviorScript(
   const m = stripped.match(BODY_ANCHOR_RE);
   if (!m) return { out: extensionJs, changed: false }; // anchor gone: leave native
   const [full, moduleScriptLine, nonceVar, , existingExtra, bodyClose] = m;
-  const script = assembledScript(featureDefaults);
+  const script = assembledScript(featureDefaults, numeric);
   const block =
     `        <script nonce="\${${nonceVar}}">${BEHAVIOR_MARKER}\n` +
     escapeForTemplateLiteral(script) +
@@ -111,8 +132,11 @@ export function currentBehaviorScript(extensionJs: string): string | undefined {
   return m ? unescapeFromTemplateLiteral(m[1]) : undefined;
 }
 
-export function wantedBehaviorScript(featureDefaults?: Record<string, boolean>): string {
-  return assembledScript(featureDefaults);
+export function wantedBehaviorScript(
+  featureDefaults?: Record<string, boolean>,
+  numeric?: NumericConfig,
+): string {
+  return assembledScript(featureDefaults, numeric);
 }
 
 // The declared feature ids, for building both the settings schema
