@@ -323,6 +323,11 @@
           "default": true,
           "markdownDescription": "Toolbar buttons to jump between your own messages."
         },
+        "smartsClaudeManager.feature.forkconv": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "A \"Fork conversation\" icon button to the left of each of your own messages, forking the chat from that message."
+        },
         "smartsClaudeManager.feature.faro": {
           "type": "boolean",
           "default": true,
@@ -344,6 +349,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "jsdom": "^29.1.1",
     "typescript": "^5.4.0"
   }
 }

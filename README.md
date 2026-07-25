@@ -87,7 +87,8 @@ Chat Enhancement Features              # always injected; each feature has its o
    ├── usercollapse     # expand/collapse icon on long user messages (replaces Show more/less)
    ├── autocontinue     # auto-submit "continue" on a stream-error banner
    ├── draftsave        # autosave/restore the composer's draft text per chat
-   └── usernav          # jump between your own messages (up/down)
+   ├── usernav          # jump between your own messages (up/down)
+   └── forkconv         # "Fork conversation" button to the left of each of your own messages
 ```
 
 ## Using Smarts Claude Manager
@@ -145,7 +146,8 @@ Chat Enhancement Features              # always injected; each feature has its o
     "smartsClaudeManager.feature.usercollapse": true,
     "smartsClaudeManager.feature.autocontinue": true,
     "smartsClaudeManager.feature.draftsave": true,
-    "smartsClaudeManager.feature.usernav": true
+    "smartsClaudeManager.feature.usernav": true,
+    "smartsClaudeManager.feature.forkconv": true
   }
   ```
 

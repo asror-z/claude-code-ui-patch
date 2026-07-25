@@ -8,6 +8,14 @@ All notable changes to Smarts Claude Manager (formerly Claude Code UI Patch) are
 | ----------- | ---------------------- |
 | 2.1.201+    | 2.0.x                  |
 
+## 2.0.4
+
+- Add a new `forkconv` chat-enhancement feature: a "Fork conversation" icon
+  button docked to the left of each of your own (user) messages. Clicking it
+  forks the chat from that exact message by proxying a click onto Claude
+  Code's own native "Message actions" -> "Fork conversation from here" popup
+  option, so no extra click through that menu is needed.
+
 ## 2.0.3
 
 - Fix: in the narrow Activity Bar sidebar view, a knob row's toggle/input is

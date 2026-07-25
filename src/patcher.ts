@@ -38,6 +38,7 @@ import "./behaviorFeatures.usercollapse";
 import "./behaviorFeatures.autocontinue";
 import "./behaviorFeatures.draftsave";
 import "./behaviorFeatures.usernav";
+import "./behaviorFeatures.forkconv";
 import "./behaviorFeatures.toc-export-scroll";
 import "./behaviorFeatures.filelinks";
 
@@ -2127,7 +2128,7 @@ export interface Snapshot {
   version: string; // installed Claude Code extension's version
   extVersion: string; // this extension's OWN version (context.extension.packageJSON.version — never hardcoded)
   knobs: Knob[]; // native chat + present patch knobs, in section order
-  features: FeatureState[]; // the 16 chat-enhancement feature seed settings
+  features: FeatureState[]; // the chat-enhancement feature seed settings (one per registered feature)
   applied: boolean;
   actionable: boolean;
   needsReload: boolean; // bundle written this session but window not reloaded

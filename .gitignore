@@ -41,3 +41,4 @@ out/
 /.claude/googlesearch-diag/Tests/
 /.claude/UserCollapse Feature/Tests/
 /.claude/Fix usercollapse icon placement/Tests/
+/.claude/forkconv-verify/Tests/
