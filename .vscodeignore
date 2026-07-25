@@ -28,3 +28,8 @@ MEMORY.md
 !readme.md
 !CHANGELOG.md
 !changelog.md
+
+# Root-level scratch/debugging scripts left over from earlier sessions
+# (e.g. _launch_sample.cmd, _launch_sample_diag1.cmd, _verify_png.mjs) —
+# never a real extension asset.
+_*

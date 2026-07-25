@@ -39,18 +39,26 @@ const JS = `
   // the chat actually uses (headings, p, strong/em, code, pre, a, ul/ol/li,
   // blockquote, br, hr). Anything unknown degrades to its text content.
 
-  // Find the element that actually holds the message's rendered content. The
+  // Find EVERY element that holds a piece of the message's rendered content. The
   // stamped element is the message wrapper (a turn_/userMessageContainer block);
-  // prefer an inner prose/markdown container if present, else the wrapper itself.
+  // an assistant OUTPUT turn can render its reply as SEVERAL SEPARATE
+  // markdown/prose sub-containers (e.g. prose interleaved with tool-call chips,
+  // or a long streamed reply split across multiple markdown blocks) — a single
+  // "return the first one found" used to silently drop every other block, which
+  // is why Copy as Markdown/HTML only ever copied one paragraph. So this now
+  // returns ALL qualifying, non-nested candidates in DOCUMENT ORDER, not just one.
   // CRITICAL: a live \`turn_…\` OUTPUT wrapper NESTS the user prompt bubble
   // (\`userMessageContainer_…\`, which has its OWN \`messageContent\`) BEFORE the
-  // assistant response's \`markdown\` container. A naive querySelector returns that
-  // nested user content first — so "Copy" copied the USER message instead of the
-  // OUTPUT. So we (a) collect ALL candidate containers, (b) SKIP any that live inside
-  // a \`userMessageContainer\` subtree (unless msgEl itself is that user bubble), and
-  // (c) prefer a \`markdown\`/\`prose\` container (the response) over a generic
-  // \`messageContent\`/\`content\` one.
-  function contentRoot(msgEl) {
+  // assistant response's \`markdown\` container(s). A naive querySelector returns
+  // that nested user content first — so "Copy" copied the USER message instead of
+  // the OUTPUT. So we (a) collect ALL candidate containers, (b) SKIP any that live
+  // inside a \`userMessageContainer\` subtree (unless msgEl itself is that user
+  // bubble), (c) SKIP any tool-call/tool-result chip, (d) prefer \`markdown\`/\`prose\`
+  // containers (the response) over a generic \`messageContent\`/\`content\` one when
+  // BOTH kinds are present, and (e) drop any candidate that is an ANCESTOR of
+  // another kept candidate, so a message never counts once as a whole AND again
+  // via its own children.
+  function contentRoots(msgEl) {
     var selfIsUser = isUserMessage(msgEl);
     var cands = msgEl.querySelectorAll
       ? msgEl.querySelectorAll(
@@ -58,7 +66,8 @@ const JS = `
             "[class*='messageContent'],[class*='content']"
         )
       : [];
-    var best = null;
+    var prose = [];
+    var generic = [];
     for (var i = 0; i < cands.length; i++) {
       var c = cands[i];
       if (!c.textContent || !c.textContent.trim().length) continue; // skip empty shells
@@ -76,12 +85,36 @@ const JS = `
       if (isInToolBlock(c)) continue;
       var cn = (c.getAttribute && c.getAttribute("class")) || "";
       var isProse = /markdown|prose/i.test(cn);
-      // Prefer a markdown/prose container; otherwise take the first valid one.
-      if (isProse) return c;
-      if (!best) best = c;
+      (isProse ? prose : generic).push(c);
     }
-    if (best) return best;
-    return msgEl;
+    // Prefer the markdown/prose set when it has anything; fall back to the
+    // generic messageContent/content set only when NO prose candidate exists.
+    var kept = prose.length ? prose : generic;
+    if (!kept.length) return [msgEl];
+    // Drop any candidate that is an ancestor of another kept candidate (keep only
+    // the innermost/outermost-non-overlapping set so nothing is double-counted).
+    var out = [];
+    for (var k = 0; k < kept.length; k++) {
+      var el = kept[k];
+      var isAncestorOfAnother = false;
+      for (var m = 0; m < kept.length; m++) {
+        if (m !== k && el !== kept[m] && el.contains(kept[m])) { isAncestorOfAnother = true; break; }
+      }
+      if (!isAncestorOfAnother) out.push(el);
+    }
+    // Sort into document order (querySelectorAll already returns document order,
+    // but the prose/generic split plus the ancestor-drop above can reorder it).
+    out.sort(function (a, b) {
+      try { return (a.compareDocumentPosition(b) & 4) !== 0 ? -1 : 1; } catch (e) { return 0; }
+    });
+    return out.length ? out : [msgEl];
+  }
+
+  // Back-compat single-root accessor for callers that only need ONE anchor
+  // element (e.g. indent measurement) — never used for content extraction.
+  function contentRoot(msgEl) {
+    var roots = contentRoots(msgEl);
+    return roots[0] || msgEl;
   }
 
   // True if \`el\` is, or lives inside, a tool-call/tool-result chip block (whose
@@ -96,14 +129,18 @@ const JS = `
   }
 
   function htmlOf(msgEl) {
-    var root = contentRoot(msgEl);
-    // Clone so we can strip our own button group AND any tool-chip blocks out of the copy.
-    var clone = root.cloneNode(true);
-    stripOwnNodes(clone);
-    var inner = (clone.innerHTML || "").trim();
+    var roots = contentRoots(msgEl);
+    var parts = [];
+    for (var i = 0; i < roots.length; i++) {
+      // Clone so we can strip our own button group AND any tool-chip blocks out of the copy.
+      var clone = roots[i].cloneNode(true);
+      stripOwnNodes(clone);
+      var inner = (clone.innerHTML || "").trim();
+      if (inner) parts.push(inner);
+    }
     // Wrap the prose in a full standalone HTML document (<html><body>…</body></html>) so
     // the clipboard holds a complete document, not a bare fragment.
-    return "<html>\\n<body>\\n" + inner + "\\n</body>\\n</html>";
+    return "<html>\\n<body>\\n" + parts.join("\\n") + "\\n</body>\\n</html>";
   }
 
   // Remove any of OUR nodes (button groups) AND any tool-call/tool-result chip blocks
@@ -118,11 +155,15 @@ const JS = `
   }
 
   function markdownOf(msgEl) {
-    var root = contentRoot(msgEl);
-    var clone = root.cloneNode(true);
-    stripOwnNodes(clone);
-    var md = mdFromNode(clone).replace(/\\n{3,}/g, "\\n\\n").trim();
-    return md;
+    var roots = contentRoots(msgEl);
+    var parts = [];
+    for (var i = 0; i < roots.length; i++) {
+      var clone = roots[i].cloneNode(true);
+      stripOwnNodes(clone);
+      var md = mdFromNode(clone).replace(/\\n{3,}/g, "\\n\\n").trim();
+      if (md) parts.push(md);
+    }
+    return parts.join("\\n\\n").replace(/\\n{3,}/g, "\\n\\n").trim();
   }
 
   // Minimal, dependency-free DOM→Markdown. Recurses children; block elements get
