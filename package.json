@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.102",
+  "version": "2.0.103",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -352,6 +352,21 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Make a file path shown as inline code (relative or absolute) clickable — opens it in a real editor tab."
+        },
+        "smartsClaudeManager.notifyFlashOnAsk": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Flash the VS Code taskbar icon (via a native notification) when an AskUserQuestion dialog appears."
+        },
+        "smartsClaudeManager.notifyFlashOnComplete": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Flash the VS Code taskbar icon (via a native notification) when a reply finishes streaming."
+        },
+        "smartsClaudeManager.notifySoundOnComplete": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Play a soft audible ping when a reply finishes streaming (or an AskUserQuestion dialog appears)."
         }
       }
     }

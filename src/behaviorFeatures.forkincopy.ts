@@ -77,18 +77,43 @@ const JS = `
   //  2. SIBLING — a separate, earlier stamped USER entry that precedes
   //     outputEl in document order (kept as a fallback for a DOM shape where
   //     the user/output really are two distinct stamped elements).
+  // Short, human-readable snippet of an element's own text — for diagnostic
+  // logging only (never used for matching/comparison logic).
+  function snippet(el) {
+    if (!el) return "(null)";
+    var t = (el.textContent || "").trim().replace(/\\s+/g, " ");
+    return t.length > 60 ? t.slice(0, 60) + "…" : t;
+  }
+
   function precedingUserMessage(outputEl) {
     if (outputEl.querySelector) {
+      var allNested = outputEl.querySelectorAll ? outputEl.querySelectorAll(USER_BUBBLE_SEL) : [];
       var nested = outputEl.querySelector(USER_BUBBLE_SEL);
-      if (nested) return nested;
+      if (nested) {
+        try {
+          console.log(
+            "[cc-forkincopy] precedingUserMessage: NESTED path, nestedCount=" + allNested.length +
+              " chosen=\\"" + snippet(nested) + "\\" outputSnippet=\\"" + snippet(outputEl) + "\\""
+          );
+        } catch (e) {}
+        return nested;
+      }
     }
     var all = stampedMessages();
     var best = null;
+    var outputIdx = -1;
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
-      if (el === outputEl) break;
+      if (el === outputEl) { outputIdx = i; break; }
       if (isUserMessage(el)) best = el;
     }
+    try {
+      console.log(
+        "[cc-forkincopy] precedingUserMessage: SIBLING fallback path, outputIdx=" + outputIdx +
+          " totalStamped=" + all.length + " chosen=\\"" + snippet(best) + "\\" outputSnippet=\\"" +
+          snippet(outputEl) + "\\""
+      );
+    } catch (e) {}
     return best;
   }
 
@@ -180,7 +205,11 @@ const JS = `
       // ensureButton() on every sweep, never the userEl this closure was
       // originally created with) — so a re-bind between creation and click
       // is honored, never the stale value captured at makeButton() time.
-      forkFrom(b.__ccForkUserEl || userEl);
+      var target = b.__ccForkUserEl || userEl;
+      try {
+        console.log("[cc-forkincopy] CLICK: forking from userSnippet=\\"" + snippet(target) + "\\"");
+      } catch (e2) {}
+      forkFrom(target);
     });
     return b;
   }
