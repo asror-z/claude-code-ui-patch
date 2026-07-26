@@ -154,9 +154,35 @@ const JS = `
   // this output message — i.e. to the right of the time label + Markdown + HTML
   // buttons. Only when a preceding user message actually exists to fork from (a
   // reply's very first message in the chat has no earlier prompt).
+  //
+  // NOTE: querySelector(":scope > .cc-copy-group") requires the group to be a
+  // DIRECT CHILD of outputEl — the exact element CopyButtons itself appends to
+  // (msgEl.appendChild(group) in copybuttons.ts). If a future Claude Code
+  // rebuild nests CopyButtons' group under an intermediate wrapper instead of
+  // appending directly to the stamped message, this direct-child match would
+  // silently stop finding it. Kept as ":scope >" deliberately (never a bare
+  // descendant match) so a future group ending up nested INSIDE a tool-call
+  // chip or another sub-container is never mistaken for THIS message's own row.
+  var _diagLogged = 0;
   function ensureButton(outputEl) {
     var group = outputEl.querySelector ? outputEl.querySelector(":scope > ." + GROUP_CLASS) : null;
-    if (!group) return; // CopyButtons hasn't attached its row here (yet) — nothing to dock into
+    if (!group) {
+      // Diagnostic: does a .cc-copy-group exist ANYWHERE inside this message (just
+      // not as a direct child)? Distinguishes "CopyButtons hasn't run yet" from "the
+      // group exists but our direct-child selector is too strict for the real DOM
+      // shape." Throttled to the first 5 misses per page load to avoid log spam.
+      if (_diagLogged < 5 && outputEl.querySelector) {
+        var anyGroup = outputEl.querySelector("." + GROUP_CLASS);
+        try {
+          console.log(
+            "[cc-forkincopy] no direct-child .cc-copy-group on output; anyGroupAnywhereInside=" +
+              !!anyGroup + " outputClass=" + ((outputEl.getAttribute && outputEl.getAttribute("class")) || "")
+          );
+        } catch (e) {}
+        _diagLogged++;
+      }
+      return; // CopyButtons hasn't attached its row here (yet) — nothing to dock into
+    }
     var userEl = precedingUserMessage(outputEl);
     var existing = group.querySelector ? group.querySelector("[" + BTN_MARK_ATTR + "]") : null;
     if (!userEl) {
@@ -171,10 +197,16 @@ const JS = `
 
   function run() {
     var msgs = stampedMessages();
+    var outputCount = 0;
     for (var i = 0; i < msgs.length; i++) {
       if (isUserMessage(msgs[i])) continue; // only OUTPUT messages carry CopyButtons' row
+      outputCount++;
       ensureButton(msgs[i]);
     }
+    try {
+      console.log("[cc-forkincopy] sweep stampedCount=" + msgs.length + " outputCount=" + outputCount +
+        " attachedCount=" + (D.querySelectorAll ? D.querySelectorAll("[" + BTN_MARK_ATTR + "]").length : -1));
+    } catch (e) {}
   }
 
   // init(doc, win) — bootstrap hands us the chat document; bind + observe it.
