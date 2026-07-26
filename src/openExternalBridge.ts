@@ -15,6 +15,22 @@
 // acquireVsCodeApi() a second time (documented elsewhere as a full
 // chat-webview crash):
 //
+// The SAME host listener also handles a THIRD message shape,
+// {type:"ccNotify", flash, sound}, from behaviorFeatures.notify.ts -- fired
+// when an AskUserQuestion dialog appears or a reply finishes streaming, so the
+// user gets a real OS-level nudge (Windows taskbar flash via VS Code's own
+// showInformationMessage -- Windows flashes an unfocused app's taskbar icon
+// when it posts a notification while the window doesn't have focus, which is
+// exactly the case this is for) even while looking at a different window. No
+// native win32 FlashWindowEx call is made (that would need a native-compiled
+// dependency); this rides VS Code's own notification API instead, which is
+// dependency-free and portable. A short console.log-driven "beep" isn't
+// available from the extension host either, so a soft audible ping is played
+// FROM THE WEBVIEW SIDE instead (behaviorFeatures.notify.ts's own JS, a tiny
+// WebAudio beep) -- ccNotify's "sound" flag is passed through here only so a
+// future host-side sound mechanism has a place to hook in; today only "flash"
+// is actually acted on host-side.
+//
 // 1. webview/index.js: the webview's OWN acquireVsCodeApi() call (Claude
 //    Code's chat React app calls it exactly once) is wrapped so its return
 //    value is ALSO stashed on window.__ccVsCodeApi -- the call itself still
@@ -115,6 +131,7 @@ export function applyHostBridge(extensionJs: string): { out: string; changed: bo
     `c.forEach(function(u2){chain=chain.catch(function(){return ${alias}.workspace.fs.stat(u2).then(function(){return ${alias}.window.showTextDocument(u2,{preview:false})})})});` +
     `chain.catch(function(){})` +
     `})(u.path)` +
+    `else if(u&&u.type==="ccNotify"&&u.flash)${alias}.window.showInformationMessage(String(u.text||"Claude Code"));` +
     `}catch(e){}},null,this.disposables);`;
   const out = stripped.slice(0, (m.index ?? 0) + full.length) + injected + stripped.slice((m.index ?? 0) + full.length);
   return { out, changed: out !== extensionJs };

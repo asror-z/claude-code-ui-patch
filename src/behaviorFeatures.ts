@@ -16,6 +16,16 @@ export interface BehaviorFeature {
   label: string;
   js: string;
   css: string;
+  // true for a feature with NO smartsClaudeManager.feature.<id> master on/off
+  // checkbox of its own (e.g. "notify", whose 3 individual trigger settings —
+  // notifyFlashOnAsk/notifyFlashOnComplete/notifySoundOnComplete — already
+  // gate it fully in its OWN "Notifications" panel section; a redundant
+  // master switch in the Chat Features grid would just be one more control
+  // that has to also be checked). Excluded from featureIds()/the Chat
+  // Features grid, but its js/css still assemble into the injected script
+  // exactly like every other registered feature (its own DOM-side settings
+  // reads are the real gate).
+  noMasterToggle?: boolean;
 }
 
 // Populated by behaviorFeatures.*.ts modules (one per feature) via registerFeature().
