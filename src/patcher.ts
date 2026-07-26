@@ -2469,6 +2469,22 @@ export class Patcher {
   // applies the moment the extension loads, including the very first load,
   // without a manual Disable/Enable or a manual reload".
   //
+  // NEVER auto-reloads in Development mode (F5 / Extension Development Host) —
+  // context.extensionMode is VS Code's own real signal, not a guess or a timing
+  // delay. Real incident: firing reloadWindow() from inside the constructor
+  // (i.e. within the first tick of activate()) raced the Extension Development
+  // Host's own startup handshake with the renderer, producing "Extension host
+  // did not start in 10 seconds, it might be stopped on the first line and
+  // needs a debugger to continue." A fixed setTimeout delay was considered and
+  // rejected — there is no VS Code API event for "the extension host finished
+  // its own boot handshake," so any delay would be a guess (too short on a slow
+  // machine, wasted time on a fast one) rather than a real signal.
+  // extensionMode is checked instead: in Development mode the patch still
+  // writes to disk (so a manual "Developer: Reload Window" the developer
+  // already does habitually picks it up), it just never forces the reload
+  // itself. Production/installed activation is completely unaffected — this
+  // guard is scoped to F5 dev sessions only.
+  //
   // No reload loop: applyPatch() is idempotent (writes only on a real change),
   // so after the reload the bundle is fully applied → the next activation's
   // drift-check finds nothing drifted → applyOnActivation() is never called
@@ -2485,6 +2501,7 @@ export class Patcher {
   private async applyOnActivation(): Promise<void> {
     const changed = await this.autoApply();
     if (changed <= 0 || !this.ext) return; // already in sync: nothing to reload for
+    if (this.context.extensionMode === vscode.ExtensionMode.Development) return; // F5: never force-reload
     const guardKey = "smartsClaudeManager.activationReloadedFor";
     const stamp = `${this.context.extension.packageJSON.version}|${this.ext.version}|${changed}`;
     if (this.context.globalState.get<string>(guardKey) === stamp) return; // identical stuck state: don't loop
