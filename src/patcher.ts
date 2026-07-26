@@ -39,6 +39,7 @@ import "./behaviorFeatures.autocontinue";
 import "./behaviorFeatures.draftsave";
 import "./behaviorFeatures.usernav";
 import "./behaviorFeatures.forkconv";
+import "./behaviorFeatures.forkincopy";
 import "./behaviorFeatures.toc-export-scroll";
 import "./behaviorFeatures.filelinks";
 
