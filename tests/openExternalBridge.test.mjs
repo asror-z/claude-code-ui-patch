@@ -1,5 +1,5 @@
 // Regression test for a REAL bug that shipped: applyHostBridge()'s injected
-// if/else-if chain (ccOpenExternal / ccOpenFile / ccNotify) had a missing
+// if/else-if chain (ccOpenExternal / ccOpenFile) had a missing
 // semicolon between the ccOpenFile branch's IIFE call and the following
 // "else if" -- `})(u.path)else if(...)` is a syntax error
 // ("Unexpected token 'else'"), which broke Claude Code's OWN extension
@@ -46,9 +46,8 @@ async function run() {
   assert.ok(changed, "applyHostBridge reports a real change against the fixture");
   assert.ok(out.includes('"ccOpenExternal"'), "ccOpenExternal handling is present");
   assert.ok(out.includes('"ccOpenFile"'), "ccOpenFile handling is present");
-  assert.ok(out.includes('"ccNotify"'), "ccNotify handling is present");
 
-  console.log("PASS: applyHostBridge() injects all three message-type branches.");
+  console.log("PASS: applyHostBridge() injects both message-type branches.");
 
   // THE ACTUAL REGRESSION CHECK: the injected output, on its own, must be
   // syntactically valid JavaScript. This is what the missing-semicolon bug

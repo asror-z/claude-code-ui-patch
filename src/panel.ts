@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Patcher, Snapshot, Knob, FeatureState, NotifyState, SECTION_ORDER, STEP, MIN_PX } from "./patcher";
+import { Patcher, Snapshot, Knob, FeatureState, SECTION_ORDER, STEP, MIN_PX } from "./patcher";
 
 // Native modal Yes/No confirm for a hard-to-reverse panel action ("Restore
 // Last Applied", "Fully Disable Patch" — both revert on-disk state and, per
@@ -78,10 +78,6 @@ abstract class PatchWebviewHost {
         if (msg.target !== undefined && msg.on !== undefined)
           await this.patcher.setFeature(msg.target, msg.on);
         break;
-      case "notifySet":
-        if (msg.target !== undefined && msg.on !== undefined)
-          await this.patcher.setNotify(msg.target, msg.on);
-        break;
       case "discard":
         if (!(await confirmAction("Restore Last Applied", "Restore the last-applied settings, discarding any changes made since the last window reload?")))
           break;
@@ -137,13 +133,6 @@ abstract class PatchWebviewHost {
       </label>`;
   }
 
-  private notifyHtml(n: NotifyState): string {
-    return `      <label class="feature-row" data-notify-id="${n.id}">
-        <input type="checkbox" class="notify-cb"${n.on ? " checked" : ""}>
-        <span class="feature-label">${n.label}</span>
-      </label>`;
-  }
-
   private html(webview: vscode.Webview, snap: Snapshot | undefined): string {
     const nonce = getNonce();
     const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">`;
@@ -177,31 +166,22 @@ ${snap.features.map((f) => this.featureHtml(f)).join("\n")}
       </div>
     </div>`;
 
-    // Notifications: 3 standalone checkboxes (notifyFlashOnAsk/
-    // notifyFlashOnComplete/notifySoundOnComplete) — a taskbar flash (via
-    // showInformationMessage, relayed through the openExternalBridge's
-    // ccNotify handler) and/or a soft audible ping, fired when an
-    // AskUserQuestion dialog appears or a reply finishes streaming. Its own
-    // section (not folded into Chat Features) per explicit user request.
-    const notifyCol = `    <div class="section-col">
-      <h2><span class="h2-icon">&#128276;</span>Notifications</h2>
-      <div class="feature-grid feature-grid-1col">
-${snap.notify.map((n) => this.notifyHtml(n)).join("\n")}
-      </div>
-    </div>`;
-
-    // The columns: the feature checkboxes, the Notifications checkboxes, then
-    // each real Section (Chat Panel or Tab, Plan Preview) with its own ▼/▲
-    // knob rows — this fills the panel's full width with coherent blocks
-    // instead of one long vertical flow. Columns wrap to fewer/stacked
-    // automatically in a narrow window (see .section-grid below).
+    // The columns: the feature checkboxes, then each real Section (Chat Panel
+    // or Tab, Plan Preview) with its own ▼/▲ knob rows — this fills the
+    // panel's full width with coherent blocks instead of one long vertical
+    // flow. Columns wrap to fewer/stacked automatically in a narrow window
+    // (see .section-grid below). Question/reply notifications (taskbar flash,
+    // toast, audio beep) are configured entirely outside this panel now, via
+    // ~/.claude/config.json's vscodeNotify section (see
+    // ~/.claude/hooks/vscode-notify.mjs) — this extension no longer owns any
+    // notification UI.
     const sectionCols = groups
       .map((g) => {
         const rows = g.knobs.map((k) => this.knobHtml(k)).join("\n");
         return `    <div class="section-col">\n      <h2>${sectionIcon(g.sec)}${g.sec}</h2>\n${rows}\n    </div>`;
       })
       .join("\n");
-    const sections = `${featuresCol}\n${notifyCol}\n${sectionCols}`;
+    const sections = `${featuresCol}\n${sectionCols}`;
 
     return `<!DOCTYPE html>
 <html>
@@ -237,7 +217,6 @@ ${sections}
     const pending = {}; // knob id -> last optimistic value we sent (ignore stale echoes until it matches)
     const pendingToggle = {}; // toggle id -> last optimistic on/off we sent
     const pendingFeature = {}; // feature id -> last optimistic on/off we sent
-    const pendingNotify = {}; // notify setting id -> last optimistic on/off we sent
     function fmt(n) { return String(Math.round(n * 100) / 100); }
     function setToggleBtn(btn, on) {
       btn.classList.toggle('on', on);
@@ -289,15 +268,6 @@ ${sections}
     document.addEventListener('change', function (e) {
       const px = e.target.closest('.px-input');
       if (px) { commitPxInput(px); return; }
-      const ncb = e.target.closest('.notify-cb');
-      if (ncb) {
-        const nrow = ncb.closest('.feature-row');
-        if (!nrow) return;
-        const nid = nrow.dataset.notifyId;
-        pendingNotify[nid] = ncb.checked; // optimistic
-        vscode.postMessage({ command: 'notifySet', target: nid, on: ncb.checked });
-        return;
-      }
       const cb = e.target.closest('.feature-cb');
       if (!cb) return;
       const row = cb.closest('.feature-row');
@@ -338,14 +308,6 @@ ${sections}
         if (!cb) return;
         if (pendingFeature[f.id] === undefined) { cb.checked = f.on; }
         else if (pendingFeature[f.id] === f.on) { cb.checked = f.on; delete pendingFeature[f.id]; }
-      });
-      (m.notify || []).forEach(function (n) {
-        const row = document.querySelector('.feature-row[data-notify-id="' + n.id + '"]');
-        if (!row) return;
-        const cb = row.querySelector('.notify-cb');
-        if (!cb) return;
-        if (pendingNotify[n.id] === undefined) { cb.checked = n.on; }
-        else if (pendingNotify[n.id] === n.on) { cb.checked = n.on; delete pendingNotify[n.id]; }
       });
       if (typeof m.status === 'string') {
         const st = document.querySelector('.header-status');
@@ -476,14 +438,12 @@ function statusInner(snap: Snapshot): string {
 function syncPayload(snap: Snapshot): {
   knobs: Array<{ id: string; px: string; on: boolean }>;
   features: Array<{ id: string; on: boolean }>;
-  notify: Array<{ id: string; on: boolean }>;
   status: string;
   reloadPending: boolean;
 } {
   const knobs = snap.knobs.map((k) => ({ id: k.id, px: k.px, on: k.on }));
   const features = snap.features.map((f) => ({ id: f.id, on: f.on }));
-  const notify = snap.notify.map((n) => ({ id: n.id, on: n.on }));
-  return { knobs, features, notify, status: statusInner(snap), reloadPending: snap.needsReload };
+  return { knobs, features, status: statusInner(snap), reloadPending: snap.needsReload };
 }
 
 const baseCss = `

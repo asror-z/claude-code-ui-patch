@@ -58,29 +58,7 @@ const NUMERIC_KEYS: { field: keyof NumericConfig; storageKey: string }[] = [
   { field: "draftSaveDebounceMs", storageKey: "cc-draftsave-debouncems" },
 ];
 
-// Notify feature's own boolean tunables (smartsClaudeManager.notifyFlashOnAsk /
-// notifyFlashOnComplete / notifySoundOnComplete) — a separate namespace from the
-// per-feature-id toggles above (this isn't a smartsClaudeManager.feature.<id>
-// checkbox, it's the "Notifications" panel section), so it rides its own
-// localStorage keys via the same seed mechanism rather than overloading
-// 'cc-feature-toggles' with unrelated keys.
-export interface NotifyConfig {
-  notifyFlashOnAsk: boolean;
-  notifyFlashOnComplete: boolean;
-  notifySoundOnComplete: boolean;
-}
-
-const NOTIFY_KEYS: { field: keyof NotifyConfig; storageKey: string }[] = [
-  { field: "notifyFlashOnAsk", storageKey: "cc-notify-flash-on-ask" },
-  { field: "notifyFlashOnComplete", storageKey: "cc-notify-flash-on-complete" },
-  { field: "notifySoundOnComplete", storageKey: "cc-notify-sound-on-complete" },
-];
-
-function seedScript(
-  defaults: Record<string, boolean>,
-  numeric?: NumericConfig,
-  notify?: NotifyConfig,
-): string {
+function seedScript(defaults: Record<string, boolean>, numeric?: NumericConfig): string {
   const entries = Object.entries(defaults);
   const parts: string[] = [];
   if (entries.length) {
@@ -95,31 +73,22 @@ function seedScript(
       );
     }
   }
-  if (notify) {
-    for (const { field, storageKey } of NOTIFY_KEYS) {
-      parts.push(
-        `localStorage.setItem('${storageKey}',${JSON.stringify(String(!!notify[field]))});`,
-      );
-    }
-  }
   if (!parts.length) return "";
   return "(function(){try{" + parts.join("") + "}catch(e){}})();";
 }
 
 // The full assembled script: infrastructure (bootstrap, toolbar) first, then the
-// one-time feature-default + numeric-tunable + notify-tunable seed (from VS Code
-// settings), then every registered feature, in registration order (a dependent,
-// e.g. CopyButtons on DateTime, must be registered after its dependency in
-// behaviorFeatures.ts imports).
+// one-time feature-default + numeric-tunable seed (from VS Code settings), then
+// every registered feature, in registration order (a dependent, e.g. CopyButtons
+// on DateTime, must be registered after its dependency in behaviorFeatures.ts
+// imports).
 function assembledScript(
   featureDefaults?: Record<string, boolean>,
   numeric?: NumericConfig,
-  notify?: NotifyConfig,
 ): string {
   const parts: string[] = [];
   for (const s of infrastructureSources()) parts.push(s.js);
-  if (featureDefaults || numeric || notify)
-    parts.push(seedScript(featureDefaults ?? {}, numeric, notify));
+  if (featureDefaults || numeric) parts.push(seedScript(featureDefaults ?? {}, numeric));
   for (const f of allFeatures()) parts.push(f.js);
   return parts.join("\n");
 }
@@ -145,7 +114,6 @@ export function applyBehaviorScript(
   extensionJs: string,
   featureDefaults?: Record<string, boolean>,
   numeric?: NumericConfig,
-  notify?: NotifyConfig,
 ): {
   out: string;
   changed: boolean;
@@ -154,7 +122,7 @@ export function applyBehaviorScript(
   const m = stripped.match(BODY_ANCHOR_RE);
   if (!m) return { out: extensionJs, changed: false }; // anchor gone: leave native
   const [full, moduleScriptLine, nonceVar, , existingExtra, bodyClose] = m;
-  const script = assembledScript(featureDefaults, numeric, notify);
+  const script = assembledScript(featureDefaults, numeric);
   const block =
     `        <script nonce="\${${nonceVar}}">${BEHAVIOR_MARKER}\n` +
     escapeForTemplateLiteral(script) +
@@ -184,22 +152,16 @@ export function currentBehaviorScript(extensionJs: string): string | undefined {
 export function wantedBehaviorScript(
   featureDefaults?: Record<string, boolean>,
   numeric?: NumericConfig,
-  notify?: NotifyConfig,
 ): string {
-  return assembledScript(featureDefaults, numeric, notify);
+  return assembledScript(featureDefaults, numeric);
 }
 
 // The declared feature ids, for building both the settings schema
 // (smartsClaudeManager.feature.<id>) and the panel's Chat Features grid —
 // sourced from the SAME registry the injected script is built from, so it can
-// never drift out of sync with what's actually injected. A feature marked
-// noMasterToggle (e.g. "notify", whose own Notifications-section settings
-// already gate it) is excluded — its js/css still assemble via allFeatures()
-// below, only the redundant Chat Features checkbox is skipped.
+// never drift out of sync with what's actually injected.
 export function featureIds(): { id: string; label: string }[] {
-  return allFeatures()
-    .filter((f) => !f.noMasterToggle)
-    .map((f) => ({ id: f.id, label: f.label }));
+  return allFeatures().map((f) => ({ id: f.id, label: f.label }));
 }
 
 // --- CSS side: appended to webview/index.css as ONE marker-tagged LINE, matching

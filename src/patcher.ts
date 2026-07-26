@@ -12,7 +12,6 @@ import {
   featureIds,
   BEHAVIOR_CSS_MARKER,
   NumericConfig,
-  NotifyConfig,
 } from "./behaviorInject";
 import {
   hostBridgePresent,
@@ -45,7 +44,6 @@ import "./behaviorFeatures.forkincopy";
 import "./behaviorFeatures.toc-export-scroll";
 import "./behaviorFeatures.autoscroll";
 import "./behaviorFeatures.filelinks";
-import "./behaviorFeatures.notify";
 
 // The installed Claude Code extension is laid down as one directory per
 // version/platform, e.g. anthropic.claude-code-2.1.200-darwin-arm64. We patch
@@ -739,18 +737,6 @@ export function readNumericConfig(): NumericConfig {
   };
 }
 
-// Notify's own boolean tunables (the panel's "Notifications" section) — same
-// "read fresh on every apply" contract as readFeatureDefaults()/
-// readNumericConfig() above.
-export function readNotifyConfig(): NotifyConfig {
-  const c = vscode.workspace.getConfiguration(CONFIG_NS);
-  return {
-    notifyFlashOnAsk: c.get<boolean>("notifyFlashOnAsk", true),
-    notifyFlashOnComplete: c.get<boolean>("notifyFlashOnComplete", true),
-    notifySoundOnComplete: c.get<boolean>("notifySoundOnComplete", false),
-  };
-}
-
 function chatEnhancementsPresent(c: string): boolean {
   return behaviorPresent(c);
 }
@@ -777,19 +763,16 @@ function chatEnhancementsContentDigest(c: string): string | undefined {
   return cur === undefined ? undefined : cheapDigest(cur);
 }
 function chatEnhancementsWantDigest(): string {
-  return cheapDigest(
-    wantedBehaviorScript(readFeatureDefaults(), readNumericConfig(), readNotifyConfig()),
-  );
+  return cheapDigest(wantedBehaviorScript(readFeatureDefaults(), readNumericConfig()));
 }
 function chatEnhancementsSet(c: string, on: boolean): string {
   if (!on) return removeBehaviorScript(c);
   const defaults = readFeatureDefaults();
   const numeric = readNumericConfig();
-  const notify = readNotifyConfig();
   const cur = currentBehaviorScript(c);
-  const want = wantedBehaviorScript(defaults, numeric, notify);
+  const want = wantedBehaviorScript(defaults, numeric);
   if (cur === want) return c; // already in sync: no-op write
-  return applyBehaviorScript(c, defaults, numeric, notify).out;
+  return applyBehaviorScript(c, defaults, numeric).out;
 }
 // The full marker-tagged line to write when ON — always re-derived from the
 // CURRENT feature registry (mirrors diffLinesCssBuild's shape above), so an
@@ -2142,21 +2125,6 @@ export interface FeatureState {
   on: boolean; // current smartsClaudeManager.feature.<id> setting value
 }
 
-// The Notifications panel section's 3 checkboxes — separate from FeatureState
-// above (not a smartsClaudeManager.feature.<id> master toggle; each is its own
-// standalone boolean setting, per readNotifyConfig()/NOTIFY_KEYS).
-export interface NotifyState {
-  id: keyof NotifyConfig;
-  label: string;
-  on: boolean;
-}
-
-const NOTIFY_ROWS: { id: keyof NotifyConfig; label: string }[] = [
-  { id: "notifyFlashOnAsk", label: "Flash window on AskUserQuestion" },
-  { id: "notifyFlashOnComplete", label: "Flash window when a reply finishes" },
-  { id: "notifySoundOnComplete", label: "Play a sound on question / completion" },
-];
-
 export interface Snapshot {
   available: boolean;
   supported: boolean; // at least one patch anchor present
@@ -2164,7 +2132,6 @@ export interface Snapshot {
   extVersion: string; // this extension's OWN version (context.extension.packageJSON.version — never hardcoded)
   knobs: Knob[]; // native chat + present patch knobs, in section order
   features: FeatureState[]; // the chat-enhancement feature seed settings (one per registered feature)
-  notify: NotifyState[]; // the "Notifications" panel section's 3 checkboxes
   applied: boolean;
   actionable: boolean;
   needsReload: boolean; // bundle written this session but window not reloaded
@@ -2229,7 +2196,6 @@ export class Patcher {
       ...TOGGLE_POINTS.map((t) => t.key),
       ...INJECT_POINTS.map((ip) => ip.key),
       ...featureIds().map((f) => `feature.${f.id}`),
-      ...NOTIFY_ROWS.map((r) => r.id),
     ].map((k) => `${CONFIG_NS}.${k}`);
     const patchEnabledKey = `${CONFIG_NS}.patchEnabled`;
     // chat.fontSize is no longer a knob, but the chatHistoryFontSize knob shows it
@@ -2346,16 +2312,6 @@ export class Patcher {
       label: f.label,
       on: featureCfg.get<boolean>(`feature.${f.id}`, true),
     }));
-    const notifyDefaults: Record<keyof NotifyConfig, boolean> = {
-      notifyFlashOnAsk: true,
-      notifyFlashOnComplete: true,
-      notifySoundOnComplete: false,
-    };
-    const notify: NotifyState[] = NOTIFY_ROWS.map((r) => ({
-      id: r.id,
-      label: r.label,
-      on: featureCfg.get<boolean>(r.id, notifyDefaults[r.id]),
-    }));
     return {
       available: true,
       supported: anyPresent,
@@ -2365,7 +2321,6 @@ export class Patcher {
         (a, b) => knobOrder(a.id) - knobOrder(b.id),
       ),
       features,
-      notify,
       applied: anyPresent && allCurrent,
       actionable: !allCurrent,
       needsReload: this.pendingReload.size > 0,
@@ -2627,23 +2582,6 @@ export class Patcher {
     const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
     if (on === cfg.get<boolean>(key, true)) return;
     await cfg.update(key, on, vscode.ConfigurationTarget.Global);
-  }
-
-  // Flip one Notifications-section checkbox (notifyFlashOnAsk/
-  // notifyFlashOnComplete/notifySoundOnComplete) — same "seed value, takes
-  // effect via autoApply -> chatEnhancementsSet() re-deriving the injected
-  // script" contract as setFeature() above, just against a standalone setting
-  // key instead of the feature.<id> namespace.
-  async setNotify(id: string, on: boolean): Promise<void> {
-    if (!NOTIFY_ROWS.some((r) => r.id === id)) return;
-    const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
-    const defaults: Record<string, boolean> = {
-      notifyFlashOnAsk: true,
-      notifyFlashOnComplete: true,
-      notifySoundOnComplete: false,
-    };
-    if (on === cfg.get<boolean>(id, defaults[id])) return;
-    await cfg.update(id, on, vscode.ConfigurationTarget.Global);
   }
 
   // Discard modifications made since the last window reload: reset every knob to
