@@ -568,6 +568,14 @@ const JS = `
     W = win || window;
     try { run(); } catch (e) {}
     try {
+      // Expose the pure content-extraction builders so OTHER features (e.g.
+      // MultiSelect's batch-copy) can reuse the exact same markdownOf()/htmlOf()
+      // a single message's own Copy buttons use, rather than re-deriving
+      // DOM->text logic independently and risking the two disagreeing on what
+      // "a message's content" means.
+      W.__ccCopyButtons = { markdownOf: markdownOf, htmlOf: htmlOf, contentRoots: contentRoots };
+    } catch (e) {}
+    try {
       // Route the body observer through the shared self-churn-guarded helper so our
       // OWN group/text-node writes never reschedule the sweep (the webview-freeze
       // class). __ccObserve debounces internally, so the local \`schedule\` timer is

@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.97",
+  "version": "2.0.98",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -278,6 +278,11 @@
           "default": true,
           "markdownDescription": "Per-message date/time + Copy as Markdown/HTML buttons. Requires `#smartsClaudeManager.feature.datetime#`."
         },
+        "smartsClaudeManager.feature.multiselect": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "A checkbox on each assistant reply's Copy row plus a toolbar action to batch-copy every checked reply as one Markdown or HTML block (shift-click for HTML). Requires `#smartsClaudeManager.feature.copybuttons#`."
+        },
         "smartsClaudeManager.feature.codeblock": {
           "type": "boolean",
           "default": true,
@@ -332,6 +337,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Also add a \"Fork conversation\" icon button to the Copy row on each assistant reply, forking from that reply's preceding message. Requires `#smartsClaudeManager.feature.copybuttons#`."
+        },
+        "smartsClaudeManager.feature.autoscroll": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "A toolbar lock button that holds your scroll position while a reply is streaming, instead of being pulled back to the bottom on every new chunk."
         },
         "smartsClaudeManager.feature.faro": {
           "type": "boolean",

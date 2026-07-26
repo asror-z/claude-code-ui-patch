@@ -32,6 +32,7 @@ import "./behaviorFeatures.askquestion";
 import "./behaviorFeatures.userstyle";
 import "./behaviorFeatures.blockquote";
 import "./behaviorFeatures.copybuttons";
+import "./behaviorFeatures.multiselect";
 import "./behaviorFeatures.codeblock";
 import "./behaviorFeatures.askcollapse";
 import "./behaviorFeatures.usercollapse";
@@ -41,6 +42,7 @@ import "./behaviorFeatures.usernav";
 import "./behaviorFeatures.forkconv";
 import "./behaviorFeatures.forkincopy";
 import "./behaviorFeatures.toc-export-scroll";
+import "./behaviorFeatures.autoscroll";
 import "./behaviorFeatures.filelinks";
 
 // The installed Claude Code extension is laid down as one directory per

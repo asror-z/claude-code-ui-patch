@@ -268,6 +268,7 @@ export const BOOTSTRAP_SOURCE = `
     userstyle:    { neutralize: "[data-cc-user='1']{background:none !important;border:none !important;border-radius:0 !important;padding:0 !important;margin:0 !important;width:auto !important;max-width:none !important;font-weight:normal !important;} [data-cc-user='1'] p,[data-cc-user='1'] span,[data-cc-user='1'] li,[data-cc-user='1'] div{font-weight:normal !important;}" },
     blockquote:   { neutralize: "[data-cc-blockquote='1'],[data-cc-interrupt='1']{all:revert;}" },
     copybuttons:  { hide: [".cc-copy-group"] },
+    multiselect:  { hide: [".cc-multiselect-chk"] },
     codeblock:    { hide: [".cc-code-bar", ".cc-code-copy"] },
     toc:          { hide: [".cc-toc-toggle", ".cc-toc", ".cc-toc-panel"] },
     export:       { hide: [".cc-export-toggle", ".cc-export-menu"] },
@@ -276,6 +277,7 @@ export const BOOTSTRAP_SOURCE = `
     autocontinue: {},
     draftsave:    {},
     usernav:      { hide: [".cc-usernav-up", ".cc-usernav-down"] },
+    autoscroll:   { hide: [".cc-autoscroll-toggle"] },
   };
 
   window.__ccApplyToggles = function (doc) {
