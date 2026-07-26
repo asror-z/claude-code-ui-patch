@@ -130,7 +130,7 @@ export function applyHostBridge(extensionJs: string): { out: string; changed: bo
     `var chain=Promise.reject();` +
     `c.forEach(function(u2){chain=chain.catch(function(){return ${alias}.workspace.fs.stat(u2).then(function(){return ${alias}.window.showTextDocument(u2,{preview:false})})})});` +
     `chain.catch(function(){})` +
-    `})(u.path)` +
+    `})(u.path);` +
     `else if(u&&u.type==="ccNotify"&&u.flash)${alias}.window.showInformationMessage(String(u.text||"Claude Code"));` +
     `}catch(e){}},null,this.disposables);`;
   const out = stripped.slice(0, (m.index ?? 0) + full.length) + injected + stripped.slice((m.index ?? 0) + full.length);
