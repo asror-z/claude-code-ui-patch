@@ -152,6 +152,15 @@ const JS = `
     '<path d="M6 8.5v7"/><path d="M8.2 7.2c3 1 5.6 2.6 7.4 4.3"/><path d="M8.2 16.8c3-1 5.6-2.6 7.4-4.3"/>' +
     "</svg>";
 
+  // The button's bound userEl is stored on the element itself (a plain JS
+  // property, not a DOM attribute — never serialized, never confused with a
+  // real attribute) so a later sweep can cheaply check whether the CURRENTLY
+  // resolved userEl still matches what THIS button was created for, and
+  // re-bind (rather than silently keep a stale binding forever) when it
+  // doesn't. See the real incident note on ensureButton() below: a button
+  // created once and never re-verified can lock in a wrong userEl resolved
+  // during a transient DOM state (e.g. mid-stream, before a later message's
+  // own nested content has fully mounted).
   function makeButton(userEl) {
     var b = D.createElement("button");
     b.type = "button";
@@ -161,12 +170,17 @@ const JS = `
     b.setAttribute("title", "Fork conversation from here");
     b.setAttribute("aria-label", "Fork conversation from here");
     b.setAttribute("tabindex", "-1"); // don't steal tab order from the chat
+    b.__ccForkUserEl = userEl;
     b.addEventListener("mousedown", function (e) {
       try { e.stopPropagation(); } catch (x) {}
     });
     b.addEventListener("click", function (ev) {
       try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
-      forkFrom(userEl);
+      // Always read the LIVE-bound userEl off the button itself (updated by
+      // ensureButton() on every sweep, never the userEl this closure was
+      // originally created with) — so a re-bind between creation and click
+      // is honored, never the stale value captured at makeButton() time.
+      forkFrom(b.__ccForkUserEl || userEl);
     });
     return b;
   }
@@ -212,7 +226,22 @@ const JS = `
       if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
       return;
     }
-    if (existing) return; // React may re-render the group's children; re-added by the next sweep if stripped
+    if (existing) {
+      // RE-VERIFY, never just trust a prior binding — a real incident: a
+      // button created on an EARLY sweep (e.g. mid-stream, before a later
+      // output's own nested user bubble had fully mounted) could resolve the
+      // WRONG userEl at creation time and then keep forking from that wrong,
+      // stale message on every future click, since nothing ever re-checked
+      // it. Cheap to re-verify every sweep (a property read + reference
+      // compare, no DOM churn when it already matches).
+      if (existing.__ccForkUserEl !== userEl) {
+        try {
+          console.log("[cc-forkincopy] re-bound stale userEl on existing button (was pointing at the wrong message)");
+        } catch (e) {}
+        existing.__ccForkUserEl = userEl;
+      }
+      return;
+    }
     group.appendChild(makeButton(userEl));
   }
 

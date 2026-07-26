@@ -90,21 +90,22 @@ function wireMessageActions(doc, bubble) {
 // NESTS the user prompt bubble BEFORE the assistant's own markdown content —
 // exactly as copybuttons.ts's own contentRoots() comment documents. Only ONE
 // element carries [data-cc-dt-time] for the whole exchange.
-function buildNestedTurn(doc, timeStamp) {
+function buildNestedTurn(doc, timeStamp, promptText, replyText, idx) {
   const turn = doc.createElement("div");
   turn.className = "turn_def456";
   turn.setAttribute("data-cc-dt-time", timeStamp);
   turn.setAttribute("data-cc-dt-stamped", "1");
+  if (idx !== undefined) turn.setAttribute("data-test-turn-idx", String(idx));
 
   const userBubble = doc.createElement("div");
   userBubble.className = "userMessageContainer_abc";
-  userBubble.innerHTML = "<div class=\"messageContent_x\">What is the capital of France?</div>";
+  userBubble.innerHTML = "<div class=\"messageContent_x\">" + (promptText || "What is the capital of France?") + "</div>";
   wireMessageActions(doc, userBubble);
   turn.appendChild(userBubble);
 
   const block = doc.createElement("div");
   block.className = "markdown_xyz1";
-  block.innerHTML = "<p>Paris is the capital of France.</p>";
+  block.innerHTML = "<p>" + (replyText || "Paris is the capital of France.") + "</p>";
   turn.appendChild(block);
 
   return { turn, userBubble };
@@ -218,6 +219,109 @@ async function run() {
       "expected NO fork button when the output has no preceding/nested user message to fork from");
 
     console.log("PASS: No fork button is added when there is no preceding/nested user message.");
+  }
+
+  // --- Case 4: MULTI-TURN — each output's button must fork from ITS OWN turn's
+  // user bubble, never a neighboring (earlier or later) turn's. ---------------
+  // Real incident this guards against: in a real multi-exchange chat, clicking
+  // the fork button on message N forked from message N-1's prompt instead of
+  // N's own. Root cause: a button's bound userEl was captured ONCE at creation
+  // and never re-verified — ensureButton()'s `if (existing) return;` guard
+  // treated "a button already exists" as permanently correct, even if the
+  // FIRST sweep that created it (e.g. mid-stream, before later turns had fully
+  // mounted) resolved the wrong userEl. Fixed by re-verifying/re-binding
+  // (button.__ccForkUserEl) on every sweep, and by having each button's click
+  // handler read the LIVE-bound userEl off the button rather than a captured
+  // closure variable.
+  {
+    const dom = buildDom();
+    const { window } = dom;
+    const doc = window.document;
+    const root = doc.querySelector("#root");
+
+    const t1 = buildNestedTurn(doc, "10:00", "First question", "First answer", 1);
+    const t2 = buildNestedTurn(doc, "10:01", "Second question", "Second answer", 2);
+    const t3 = buildNestedTurn(doc, "10:02", "Third question", "Third answer", 3);
+    root.appendChild(t1.turn);
+    root.appendChild(t2.turn);
+    root.appendChild(t3.turn);
+
+    await driveFeatures(doc, window, root);
+
+    const turns = [t1, t2, t3];
+    for (let i = 0; i < turns.length; i++) {
+      const { turn, userBubble } = turns[i];
+      const group = turn.querySelector(":scope > .cc-copy-group");
+      assert.ok(group, `expected CopyButtons' row on turn ${i + 1}`);
+      const forkBtn = group.querySelector("[data-cc-forkincopy-btn='1']");
+      assert.ok(forkBtn, `expected a fork button on turn ${i + 1}`);
+
+      forkBtn.dispatchEvent(new window.Event("click", { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      assert.strictEqual(userBubble.getAttribute("data-test-forked"), "1",
+        `turn ${i + 1}'s fork button must fork from turn ${i + 1}'s OWN user bubble`);
+      // Every OTHER turn's user bubble must remain un-forked — proves this
+      // click did not cross-wire into a neighboring turn.
+      for (let j = 0; j < turns.length; j++) {
+        if (j === i) continue;
+        assert.ok(!turns[j].userBubble.hasAttribute("data-test-forked"),
+          `turn ${i + 1}'s fork click must NOT have forked turn ${j + 1}'s user bubble`);
+      }
+      // Reset for the next iteration's clean assertion.
+      userBubble.removeAttribute("data-test-forked");
+    }
+
+    console.log("PASS: In a 3-turn conversation, each output's fork button forks from its OWN turn's user message, never a neighbor's.");
+  }
+
+  // --- Case 5: SELF-HEALING RE-BIND — a button that was somehow bound to the
+  // WRONG userEl (simulating a bad first-sweep resolution, e.g. mid-stream
+  // timing) must be corrected by a LATER sweep, never keep forking the wrong
+  // message forever. This exercises the actual fix directly, rather than only
+  // relying on Case 4 happening to resolve correctly on its first sweep. -----
+  {
+    const dom = buildDom();
+    const { window } = dom;
+    const doc = window.document;
+    const root = doc.querySelector("#root");
+
+    const t1 = buildNestedTurn(doc, "10:00", "First question", "First answer", 1);
+    const t2 = buildNestedTurn(doc, "10:01", "Second question", "Second answer", 2);
+    root.appendChild(t1.turn);
+    root.appendChild(t2.turn);
+
+    await driveFeatures(doc, window, root);
+
+    const group2 = t2.turn.querySelector(":scope > .cc-copy-group");
+    const forkBtn2 = group2.querySelector("[data-cc-forkincopy-btn='1']");
+    assert.ok(forkBtn2, "expected a fork button on turn 2");
+
+    // Forcibly corrupt the binding to simulate a wrong first-sweep resolution
+    // (e.g. turn 2's button having been created before its own nested content
+    // mounted, so it fell back to resolving turn 1's user bubble instead).
+    forkBtn2.__ccForkUserEl = t1.userBubble;
+
+    // Trigger a REAL DOM mutation so the feature's own MutationObserver (via
+    // window.__ccObserve, the shared self-churn-guarded helper) picks it up
+    // and re-runs the real sweep — the genuine code path a live re-render
+    // takes, not a fabricated test-only hook. A harmless attribute touch on
+    // an unrelated element is enough to schedule a sweep; wait past the
+    // observer's ~150ms debounce before asserting.
+    const pingEl = doc.createElement("div");
+    pingEl.setAttribute("data-test-ping", "1");
+    root.appendChild(pingEl);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    forkBtn2.dispatchEvent(new window.Event("click", { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    assert.strictEqual(t2.userBubble.getAttribute("data-test-forked"), "1",
+      "expected the corrupted binding to self-heal back to turn 2's OWN user bubble after a later sweep");
+    assert.ok(!t1.userBubble.hasAttribute("data-test-forked"),
+      "expected turn 1's user bubble to NOT be forked once the binding was corrected");
+
+    console.log("PASS: A button whose binding was forced to the WRONG message self-heals to the correct one on the next sweep.");
   }
 }
 
