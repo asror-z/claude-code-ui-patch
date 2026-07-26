@@ -57,10 +57,31 @@ const JS = `
     return out;
   }
 
-  // Find, for a given OUTPUT message element, the nearest USER message that
-  // precedes it in document order — the prompt that reply answers, and what a
-  // fork "from here" forks from.
+  // The nested user-bubble selector — matches copybuttons.ts's own documented
+  // structure exactly: a live \`turn_…\` OUTPUT wrapper NESTS the user prompt
+  // bubble (\`userMessageContainer_…\`) BEFORE the assistant response inside the
+  // SAME stamped element, rather than the user/output being two separate,
+  // sibling-level stamped entries. This is why stampedMessages() often returns
+  // ONE element per exchange (the whole turn_ wrapper), not two.
+  var USER_BUBBLE_SEL = "[class*='userMessageContainer'],[class*='userMessage']";
+
+  // Find the USER message a given OUTPUT message's fork button should fork
+  // from. Checked in two steps, since Claude Code's real chat DOM can shape a
+  // "turn" either way depending on version/context:
+  //  1. NESTED — the user bubble lives INSIDE outputEl itself (a live turn_
+  //     wrapper containing both the prompt and the reply as one stamped
+  //     unit). This is the common case and was the actual cause of the fork
+  //     button never appearing: stampedMessages() returned one entry per
+  //     exchange, so the old sibling-only search below never had a distinct
+  //     "preceding" entry to find.
+  //  2. SIBLING — a separate, earlier stamped USER entry that precedes
+  //     outputEl in document order (kept as a fallback for a DOM shape where
+  //     the user/output really are two distinct stamped elements).
   function precedingUserMessage(outputEl) {
+    if (outputEl.querySelector) {
+      var nested = outputEl.querySelector(USER_BUBBLE_SEL);
+      if (nested) return nested;
+    }
     var all = stampedMessages();
     var best = null;
     for (var i = 0; i < all.length; i++) {

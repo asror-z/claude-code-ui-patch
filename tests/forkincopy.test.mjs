@@ -2,15 +2,23 @@
 // docked into CopyButtons' own .cc-copy-group row on assistant OUTPUT
 // messages.
 //
+// Real incident this guards against: the fork button never appeared for a
+// real 1-exchange chat. Root cause: precedingUserMessage() originally only
+// searched for a SIBLING stamped USER entry earlier in stampedMessages() —
+// but Claude Code's real chat DOM nests the user prompt bubble
+// (userMessageContainer_…) INSIDE the same turn_… wrapper DateTime stamps as
+// ONE unit (per copybuttons.ts's own contentRoots() comment documenting this
+// exact nesting), so a 1-exchange chat produces stampedCount=1, not 2 — there
+// is no separate sibling entry to find. Live Faro evidence confirmed this:
+// "[cc-forkincopy] sweep stampedCount=1 outputCount=1 attachedCount=0". Fixed
+// by searching INSIDE outputEl for a nested user bubble FIRST, falling back
+// to the sibling search only for a DOM shape where they really are distinct
+// stamped elements.
+//
 // This test runs BOTH the real CopyButtons injected script (which creates the
 // .cc-copy-group row this feature docks into) AND the real ForkInCopy
 // injected script — not hand-extracted copies of their logic — in a real
-// jsdom window, builds a synthetic user message followed by an assistant
-// output message, drives the real init()/run() flow for both features,
-// clicks the fork button, and asserts it proxies a click onto the PRECEDING
-// user message's native "Message actions" trigger and its popup's "Fork
-// conversation from here" option — never the output message's own (it has
-// none, since CopyButtons never attaches to user messages).
+// jsdom window, and covers BOTH DOM shapes.
 
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
@@ -46,16 +54,10 @@ function buildDom() {
   return dom;
 }
 
-// A USER message bubble carrying the native "Message actions" trigger + a
-// (not-yet-mounted) popup — mirrors the real webview's own structure, and
-// ForkConv/UserCollapse's own test fixtures for the same native markup.
-function buildUserMessage(doc, timeStamp) {
-  const bubble = doc.createElement("div");
-  bubble.className = "userMessageContainer_abc";
-  bubble.setAttribute("data-cc-dt-time", timeStamp);
-  bubble.setAttribute("data-cc-dt-stamped", "1");
-  bubble.innerHTML = "<div class=\"messageContent_x\">What is the capital of France?</div>";
-
+// Build a native "Message actions" trigger + popup on `bubble`, wired so
+// clicking the popup's "Fork conversation from here" option stamps
+// data-test-forked="1" on `bubble` — mirrors ForkConv's own real fixture.
+function wireMessageActions(doc, bubble) {
   const trigger = doc.createElement("button");
   trigger.setAttribute("title", "Message actions");
   trigger.className = "actionButton_x";
@@ -81,96 +83,142 @@ function buildUserMessage(doc, timeStamp) {
     }
   });
   bubble.appendChild(trigger);
-  return bubble;
+  return trigger;
 }
 
-// An assistant OUTPUT message — a plain turn_ wrapper with one markdown block,
-// no native "Message actions" trigger of its own is required for this test
-// (ForkInCopy must never look for one here — it forks from the PRECEDING user
-// message instead).
-function buildOutputMessage(doc, timeStamp) {
+// THE REAL SHAPE: a single turn_… wrapper (the DateTime-stamped element) that
+// NESTS the user prompt bubble BEFORE the assistant's own markdown content —
+// exactly as copybuttons.ts's own contentRoots() comment documents. Only ONE
+// element carries [data-cc-dt-time] for the whole exchange.
+function buildNestedTurn(doc, timeStamp) {
   const turn = doc.createElement("div");
   turn.className = "turn_def456";
   turn.setAttribute("data-cc-dt-time", timeStamp);
   turn.setAttribute("data-cc-dt-stamped", "1");
+
+  const userBubble = doc.createElement("div");
+  userBubble.className = "userMessageContainer_abc";
+  userBubble.innerHTML = "<div class=\"messageContent_x\">What is the capital of France?</div>";
+  wireMessageActions(doc, userBubble);
+  turn.appendChild(userBubble);
+
   const block = doc.createElement("div");
   block.className = "markdown_xyz1";
   block.innerHTML = "<p>Paris is the capital of France.</p>";
   turn.appendChild(block);
-  return turn;
+
+  return { turn, userBubble };
+}
+
+async function driveFeatures(doc, win, root) {
+  const copyScript = extractInjectedScript(readFileSync(COPYBUTTONS_SRC, "utf8"));
+  win.eval(copyScript);
+  assert.ok(Array.isArray(win.__ccPending) && win.__ccPending.length === 1,
+    "expected CopyButtons to queue exactly one init() via window.__ccPending");
+  win.__ccPending.shift()(doc, win);
+
+  const forkScript = extractInjectedScript(readFileSync(FORKINCOPY_SRC, "utf8"));
+  win.eval(forkScript);
+  assert.ok(Array.isArray(win.__ccPending) && win.__ccPending.length === 1,
+    "expected ForkInCopy to queue exactly one init() via window.__ccPending");
+  win.__ccPending.shift()(doc, win);
 }
 
 async function run() {
-  const dom = buildDom();
-  const { window } = dom;
-  const doc = window.document;
-  const root = doc.querySelector("#root");
+  // --- Case 1: THE REAL, NESTED shape (the actual bug scenario) ------------
+  {
+    const dom = buildDom();
+    const { window } = dom;
+    const doc = window.document;
+    const root = doc.querySelector("#root");
 
-  const userMsg = buildUserMessage(doc, "10:00");
-  const outputMsg = buildOutputMessage(doc, "10:01");
-  root.appendChild(userMsg);
-  root.appendChild(outputMsg);
+    const { turn, userBubble } = buildNestedTurn(doc, "10:00");
+    root.appendChild(turn);
 
-  // Load and drive CopyButtons FIRST (real load order in patcher.ts: copybuttons
-  // is imported before forkincopy) so its .cc-copy-group row exists on the
-  // output message before ForkInCopy's own run() sweeps.
-  const copyScript = extractInjectedScript(readFileSync(COPYBUTTONS_SRC, "utf8"));
-  window.eval(copyScript);
-  assert.ok(Array.isArray(window.__ccPending) && window.__ccPending.length === 1,
-    "expected CopyButtons to queue exactly one init() via window.__ccPending");
-  window.__ccPending.shift()(doc, window);
+    await driveFeatures(doc, window, root);
 
-  const group = outputMsg.querySelector(".cc-copy-group");
-  assert.ok(group, "expected CopyButtons to attach its .cc-copy-group to the OUTPUT message");
-  assert.ok(!userMsg.querySelector(".cc-copy-group"), "CopyButtons must never attach to the USER message");
+    const group = turn.querySelector(":scope > .cc-copy-group");
+    assert.ok(group, "expected CopyButtons to attach its .cc-copy-group to the turn_ wrapper");
 
-  // Now load and drive ForkInCopy.
-  const forkScript = extractInjectedScript(readFileSync(FORKINCOPY_SRC, "utf8"));
-  window.eval(forkScript);
-  assert.ok(Array.isArray(window.__ccPending) && window.__ccPending.length === 1,
-    "expected ForkInCopy to queue exactly one init() via window.__ccPending");
-  window.__ccPending.shift()(doc, window);
+    const forkBtn = group.querySelector("[data-cc-forkincopy-btn='1']");
+    assert.ok(forkBtn, "expected a fork button in a 1-exchange chat where the user bubble is NESTED inside the stamped turn_ wrapper (the real bug scenario)");
+    assert.strictEqual(group.lastElementChild, forkBtn, "fork button must be the LAST child (right end) of the group");
 
-  const forkBtn = group.querySelector("[data-cc-forkincopy-btn='1']");
-  assert.ok(forkBtn, "expected a fork button docked inside CopyButtons' own .cc-copy-group");
-  assert.strictEqual(forkBtn.parentElement, group, "fork button must be a direct child of .cc-copy-group");
-  assert.strictEqual(group.lastElementChild, forkBtn, "fork button must be the LAST child (right end) of the group");
-  assert.ok(!userMsg.querySelector("[data-cc-forkincopy-btn]"),
-    "ForkInCopy must never attach its own button directly to the user message");
+    forkBtn.dispatchEvent(new window.Event("click", { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
-  console.log("PASS: ForkInCopy docks its button as the last child of CopyButtons' row on the output message.");
+    assert.strictEqual(userBubble.getAttribute("data-test-forked"), "1",
+      "expected the click to reach the NESTED user bubble's native 'Fork conversation from here' option");
 
-  // Click it — must proxy through the PRECEDING USER message's native trigger,
-  // never anything on the output message itself.
-  forkBtn.dispatchEvent(new window.Event("click", { bubbles: true, cancelable: true }));
+    console.log("PASS: Fork button appears and works for the real NESTED user-bubble-inside-turn_ DOM shape.");
+  }
 
-  // The popup mount is polled every 20ms (bounded ~30 tries); give it a few ticks.
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  // --- Case 2: the SIBLING fallback shape (a distinct earlier stamped user entry) ---
+  {
+    const dom = buildDom();
+    const { window } = dom;
+    const doc = window.document;
+    const root = doc.querySelector("#root");
 
-  assert.strictEqual(userMsg.getAttribute("data-test-forked"), "1",
-    "expected the click to reach the PRECEDING user message's native 'Fork conversation from here' option");
+    const userMsg = doc.createElement("div");
+    userMsg.className = "userMessageContainer_abc";
+    userMsg.setAttribute("data-cc-dt-time", "10:00");
+    userMsg.setAttribute("data-cc-dt-stamped", "1");
+    userMsg.innerHTML = "<div class=\"messageContent_x\">What is the capital of France?</div>";
+    wireMessageActions(doc, userMsg);
 
-  console.log("PASS: Clicking the docked fork button forks from the preceding user message's native popup option.");
+    const outputMsg = doc.createElement("div");
+    outputMsg.className = "turn_ghi789";
+    outputMsg.setAttribute("data-cc-dt-time", "10:01");
+    outputMsg.setAttribute("data-cc-dt-stamped", "1");
+    outputMsg.innerHTML = "<div class=\"markdown_xyz1\"><p>Paris is the capital of France.</p></div>";
 
-  // --- No preceding user message => no button, and any stale one is removed ---
-  const dom2 = buildDom();
-  const win2 = dom2.window;
-  const doc2 = win2.document;
-  const root2 = doc2.querySelector("#root");
-  const soloOutput = buildOutputMessage(doc2, "09:00"); // no user message before it at all
-  root2.appendChild(soloOutput);
+    root.appendChild(userMsg);
+    root.appendChild(outputMsg);
 
-  win2.eval(extractInjectedScript(readFileSync(COPYBUTTONS_SRC, "utf8")));
-  win2.__ccPending.shift()(doc2, win2);
-  const group2 = soloOutput.querySelector(".cc-copy-group");
-  assert.ok(group2, "expected CopyButtons to still attach its row even with no preceding user message");
+    await driveFeatures(doc, window, root);
 
-  win2.eval(extractInjectedScript(readFileSync(FORKINCOPY_SRC, "utf8")));
-  win2.__ccPending.shift()(doc2, win2);
-  assert.ok(!group2.querySelector("[data-cc-forkincopy-btn]"),
-    "expected NO fork button when the output has no preceding user message to fork from");
+    const group = outputMsg.querySelector(":scope > .cc-copy-group");
+    assert.ok(group, "expected CopyButtons to attach its .cc-copy-group to the OUTPUT message");
+    assert.ok(!userMsg.querySelector(".cc-copy-group"), "CopyButtons must never attach to the USER message");
 
-  console.log("PASS: No fork button is added when there is no preceding user message.");
+    const forkBtn = group.querySelector("[data-cc-forkincopy-btn='1']");
+    assert.ok(forkBtn, "expected a fork button docked inside CopyButtons' own .cc-copy-group (sibling shape)");
+    assert.ok(!userMsg.querySelector("[data-cc-forkincopy-btn]"),
+      "ForkInCopy must never attach its own button directly to the user message");
+
+    forkBtn.dispatchEvent(new window.Event("click", { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    assert.strictEqual(userMsg.getAttribute("data-test-forked"), "1",
+      "expected the click to reach the preceding SIBLING user message's native popup option");
+
+    console.log("PASS: Fork button also works for the sibling (non-nested) DOM shape fallback.");
+  }
+
+  // --- Case 3: no preceding/nested user message => no button ---------------
+  {
+    const dom = buildDom();
+    const { window } = dom;
+    const doc = window.document;
+    const root = doc.querySelector("#root");
+
+    const soloOutput = doc.createElement("div");
+    soloOutput.className = "turn_solo";
+    soloOutput.setAttribute("data-cc-dt-time", "09:00");
+    soloOutput.setAttribute("data-cc-dt-stamped", "1");
+    soloOutput.innerHTML = "<div class=\"markdown_xyz1\"><p>Hello.</p></div>";
+    root.appendChild(soloOutput);
+
+    await driveFeatures(doc, window, root);
+
+    const group = soloOutput.querySelector(":scope > .cc-copy-group");
+    assert.ok(group, "expected CopyButtons to still attach its row even with no preceding user message");
+    assert.ok(!group.querySelector("[data-cc-forkincopy-btn]"),
+      "expected NO fork button when the output has no preceding/nested user message to fork from");
+
+    console.log("PASS: No fork button is added when there is no preceding/nested user message.");
+  }
 }
 
 run().catch((err) => {
