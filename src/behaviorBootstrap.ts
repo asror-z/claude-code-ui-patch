@@ -277,7 +277,6 @@ export const BOOTSTRAP_SOURCE = `
     autocontinue: {},
     draftsave:    {},
     usernav:      { hide: [".cc-usernav-up", ".cc-usernav-down"] },
-    autoscroll:   { hide: [".cc-autoscroll-toggle"] },
   };
 
   window.__ccApplyToggles = function (doc) {

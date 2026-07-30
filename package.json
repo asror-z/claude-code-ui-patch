@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.109",
+  "version": "2.0.110",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -337,11 +337,6 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Also add a \"Fork conversation\" icon button to the Copy row on each assistant reply, forking from that reply's preceding message. Requires `#smartsClaudeManager.feature.copybuttons#`."
-        },
-        "smartsClaudeManager.feature.autoscroll": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "A toolbar lock button that holds your scroll position while a reply is streaming, instead of being pulled back to the bottom on every new chunk."
         },
         "smartsClaudeManager.feature.faro": {
           "type": "boolean",
