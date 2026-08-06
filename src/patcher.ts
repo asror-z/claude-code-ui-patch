@@ -2657,7 +2657,6 @@ export class Patcher {
   // instead of leaving every knob at stock) and flips patchEnabled to false, so
   // the panel's button switches to "Enable Patch".
   async restore(): Promise<void> {
-    console.log("[SmartsClaudeManager DIAG] restore() called, this.ext =", JSON.stringify(this.ext));
     if (!this.ext) {
       void vscode.window.showErrorMessage(
         "Smarts Claude Manager: couldn't find an installed Claude Code extension.",
@@ -2689,11 +2688,9 @@ export class Patcher {
     await this.setPatchEnabled(false);
 
     try {
-      const report = restorePatch(this.ext, this.stockCapture);
-      console.log("[SmartsClaudeManager DIAG] restorePatch report:", JSON.stringify(report));
+      restorePatch(this.ext, this.stockCapture);
       this.reconcilePendingReload();
     } catch (err) {
-      console.log("[SmartsClaudeManager DIAG] restorePatch threw:", String(err));
       void vscode.window.showErrorMessage(
         `Smarts Claude Manager: failed to restore Claude Code v${this.ext.version}: ${(err as Error).message}`,
       );

@@ -61,7 +61,6 @@ abstract class PatchWebviewHost {
     on?: boolean;
     key?: string;
   }): Promise<void> {
-    console.log("[SmartsClaudeManager DIAG] onMessage received:", JSON.stringify(msg));
     switch (msg.command) {
       case "set":
         if (msg.target !== undefined && msg.value !== undefined)
