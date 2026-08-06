@@ -2673,6 +2673,21 @@ export class Patcher {
       preDisable[ip.key] = cfg.get(ip.key) as number | boolean | string;
     void this.context.globalState.update(PRE_DISABLE_SETTINGS_KEY, preDisable);
 
+    // patchEnabled MUST flip to false FIRST, fully awaited, BEFORE the file
+    // revert and the settings resets below. THE REAL "disable never sticks"
+    // BUG LIVED HERE: setPatchEnabled(false) used to be the LAST element of
+    // the parallel Promise.all below — so every earlier settings-reset write
+    // fired onDidChangeConfiguration -> autoApply(), which read patchEnabled
+    // while it was STILL true and re-applied the patch into the just-reverted
+    // bundle (specifically the ALWAYS_ON_TOGGLES — chatEnhancements/faroCsp —
+    // which readToggles() forces true regardless of any setting). The window
+    // then reloaded with patchEnabled=false, so nothing ever cleaned the
+    // re-injected patch again: settings said "disabled" while the bundle
+    // stayed patched — exactly the on-disk fingerprint observed live (only
+    // the always-on + default-true toggles present, everything else stock).
+    // Flipping patchEnabled first makes every such autoApply() a no-op.
+    await this.setPatchEnabled(false);
+
     try {
       const report = restorePatch(this.ext, this.stockCapture);
       console.log("[SmartsClaudeManager DIAG] restorePatch report:", JSON.stringify(report));
@@ -2685,7 +2700,9 @@ export class Patcher {
       return;
     }
     // Reset all patch settings to their stock values so the panel/settings
-    // reflect the restored native state, not the enlarged values.
+    // reflect the restored native state, not the enlarged values. Each of
+    // these writes still fires onDidChangeConfiguration -> autoApply(), but
+    // patchEnabled is already false (awaited above), so each one no-ops.
     await Promise.all([
       ...PATCH_POINTS.map((p) =>
         cfg.update(p.key, p.originalPx, vscode.ConfigurationTarget.Global),
@@ -2696,7 +2713,6 @@ export class Patcher {
       ...INJECT_POINTS.map((ip) =>
         cfg.update(ip.key, ip.defaultRaw, vscode.ConfigurationTarget.Global),
       ),
-      this.setPatchEnabled(false),
     ]);
     this.refresh();
   }
