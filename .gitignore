@@ -49,3 +49,5 @@ out/
 /.claude/Notifications Not Working/Scripts/
 /.claude/Fix gh release reminder/Scripts/
 /.claude/Patch stays active despite disable toggle/Scripts/
+/.claude/Fix AskUserQuestion Echo Guard False Positives/Scripts/
+/.claude/Fix AskUserQuestion Echo Guard False Positives/Tests/
