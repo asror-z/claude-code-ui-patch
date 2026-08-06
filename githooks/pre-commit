@@ -1,6 +1,6 @@
 #!/bin/sh
 # Deterministic: bumps package.json's patch version and stages it into this commit.
-# Calls the canonical shared script in ~/.agents/hooks/ (reused by every VS Code
-# extension project) — never a per-project copy.
+# Calls the canonical shared script in ~/.agents/skills/smarts-app-vscode/ghooks/
+# (reused by every VS Code extension project) — never a per-project copy.
 ROOT="$(git rev-parse --show-toplevel)"
-node "$HOME/.agents/hooks/Auto Version Build.mjs" pre-commit "$ROOT"
+node "$HOME/.agents/skills/smarts-app-vscode/ghooks/Auto Version Build.mjs" pre-commit "$ROOT"
