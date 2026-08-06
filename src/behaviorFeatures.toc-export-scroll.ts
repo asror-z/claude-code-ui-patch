@@ -1216,6 +1216,10 @@ const SCROLL_JS = `
       W.__ccToolbar.add({ id: "scroll-bottom", icon: "⤓", label: "Jump to the latest message", order: 41, onClick: function () { scrollTo("bottom"); } });
       var b = W.__ccToolbar.get && W.__ccToolbar.get("scroll-top");
       if (b) b.classList.add("cc-scroll-top");
+      // scroll-bottom was missing its class entirely — with the scroll feature
+      // toggled OFF, FOOTPRINT hid ⤒ (classed) but left ⤓ visible (classless).
+      var b2 = W.__ccToolbar.get && W.__ccToolbar.get("scroll-bottom");
+      if (b2) b2.classList.add("cc-scroll-bottom");
     } else if (!D.querySelector(".cc-scroll-top")) {
       fallbackButton("cc-scroll-top", "⤒", "Scroll to the first message", function () { scrollTo("top"); }, "96px");
       fallbackButton("cc-scroll-bottom", "⤓", "Jump to the latest message", function () { scrollTo("bottom"); }, "134px");
