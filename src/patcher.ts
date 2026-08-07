@@ -2153,6 +2153,21 @@ export class Patcher {
   // JSON edit of patchEnabled by calling restore()/enable() in turn) doesn't
   // recurse into a second restore()/enable() for our own write.
   private writingPatchEnabled = false;
+  // Serializes autoApply() calls. Each px-spinner click (or a rapid run of
+  // them) writes its own settings.json value, and EACH write fires its own
+  // onDidChangeConfiguration -> autoApply() independently — with no
+  // serialization, clicking a spinner several times fast used to spawn that
+  // many CONCURRENT autoApply() calls, all doing fs.readFileSync/writeFileAtomic
+  // against the SAME extension.js/index.js/index.css with no lock between
+  // them. One call's refresh() could then read a file mid-write by another
+  // call's still-in-flight applyPatch(), transiently missing the point's
+  // anchor -> status "missing" -> the knob vanished from snap.knobs ->
+  // shapeOf() changed -> a full webview.html re-render rendered that knob's
+  // whole .section-col (e.g. "Chat Panel"/"Plan Preview") without it, i.e. the
+  // section visibly disappeared. Chaining every autoApply() call through this
+  // promise queue makes each one fully finish (write + refresh) before the
+  // next one starts reading, eliminating the race.
+  private autoApplyQueue: Promise<number> = Promise.resolve(0);
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.refresh();
@@ -2376,7 +2391,22 @@ export class Patcher {
   // Returns the number of bundle edits actually written (0 = already in sync,
   // nothing changed), so the ACTIVATION-time caller (the constructor) can decide
   // whether an automatic window reload is warranted — see applyOnActivation().
-  private async autoApply(): Promise<number> {
+  //
+  // Every caller goes through this queued wrapper, never autoApplyNow()
+  // directly, so overlapping calls (e.g. several rapid spinner clicks, each
+  // its own onDidChangeConfiguration event) run one at a time instead of
+  // racing their reads/writes against the same on-disk files — see
+  // autoApplyQueue's own comment above for the failure this prevents.
+  private autoApply(): Promise<number> {
+    const next = this.autoApplyQueue.then(() => this.autoApplyNow());
+    // Swallow a rejection here so one failed run doesn't wedge the queue for
+    // every call still waiting behind it; autoApplyNow() already reports its
+    // own errors via showErrorMessage, so this is purely queue bookkeeping.
+    this.autoApplyQueue = next.catch(() => 0);
+    return next;
+  }
+
+  private async autoApplyNow(): Promise<number> {
     const enabled = vscode.workspace
       .getConfiguration(CONFIG_NS)
       .get<boolean>("patchEnabled", true);
