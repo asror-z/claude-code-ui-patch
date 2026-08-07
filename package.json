@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.124",
+  "version": "2.0.125",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -83,7 +83,7 @@
         },
         "smartsClaudeManager.userMessageFontSize": {
           "type": "number",
-          "default": 15,
+          "default": 14,
           "minimum": 0,
           "maximum": 48,
           "markdownDescription": "Your own prompt bubble text size in px (the user-message body only; the agent response is sized separately by `#smartsClaudeManager.chatHistoryFontSize#`). `0` = native (inherit `#chat.fontSize#`)."
