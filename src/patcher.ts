@@ -1218,6 +1218,25 @@ function chatContentSelector(c: string): string | undefined {
   return md ? `.root_${md}` : undefined;
 }
 
+// userMessageFontSize: size the USER prompt bubble body only (.userMessage_<hash>),
+// the mirror of chatHistoryFontSize (which sizes only the AGENT body, .root_<hash>).
+// The agent knob deliberately leaves user messages on the native chat.fontSize, so
+// this is a SEPARATE, independently-settable knob for the user side. The stock
+// bundle ships .userMessage_<hash> and .userMessageContainer_<hash> under one
+// CSS-module hash; anchor on the .userMessage_<hash> rule to recover the hash,
+// re-read at patch time so it survives a re-minify. 0 = inherit (no rule).
+const USER_SIZE_MARKER = "/*cc-ui-patch:userSize*/";
+const USER_SIZE_PX_RE =
+  /\/\*cc-ui-patch:userSize\*\/\.userMessage_[-\w]+[^{\n]*\{font-size:(\d+(?:\.\d+)?)px/;
+const USER_MSG_HASH_RE = /\.userMessage_([-\w]+)\{/;
+
+// Selector the user-message size scope to: the user prompt body only. undefined
+// if the user-message module is gone (leave native).
+function userMessageSelector(c: string): string | undefined {
+  const h = c.match(USER_MSG_HASH_RE)?.[1];
+  return h ? `.userMessage_${h}` : undefined;
+}
+
 // planPreviewFontFamily: the plan preview is its own webview; swap its <body>
 // font-family (stock is the markdown var). Composes with the planPreviewFontSize
 // point, which anchors on the same rule's font-size independent of the family.
@@ -1298,6 +1317,34 @@ const INJECT_POINTS: InjectPoint[] = [
       );
     },
     remove: (c) => cssRemoveLine(c, CHAT_SIZE_MARKER),
+  },
+  {
+    id: "userMessageSize",
+    section: "Chat Panel",
+    label: "User message",
+    key: "userMessageFontSize",
+    kind: "size",
+    file: "webview/index.css",
+    showInPanel: true,
+    max: 48,
+    defaultRaw: 0,
+    effective: (raw) =>
+      typeof raw === "number" && raw > 0 ? clampSizePx(raw) : undefined,
+    present: (c) => USER_MSG_HASH_RE.test(c),
+    current: (c) => {
+      const m = c.match(USER_SIZE_PX_RE);
+      return m ? Number(m[1]) : undefined;
+    },
+    apply: (c, v) => {
+      const sel = userMessageSelector(c);
+      if (!sel) return c; // user-message anchor gone: leave native
+      return cssApplyLine(
+        c,
+        USER_SIZE_MARKER,
+        `${USER_SIZE_MARKER}${sel}{font-size:${v}px !important}`,
+      );
+    },
+    remove: (c) => cssRemoveLine(c, USER_SIZE_MARKER),
   },
   {
     id: "chatHistoryFamily",
