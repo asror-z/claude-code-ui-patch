@@ -251,7 +251,21 @@ ${sections}
       vscode.postMessage({ command: cmd, key: el.dataset.key });
     });
 
-    function commitPxInput(input) {
+    const commitTimers = {}; // knob id -> pending debounce timer
+    const COMMIT_DEBOUNCE_MS = 250;
+
+    // The native <input type=number> spinner fires its own 'change' event on
+    // EVERY arrow click, so clicking it several times fast used to post one
+    // 'set' message (-> one settings.json write -> one autoApply() bundle
+    // rewrite) per click. Besides the now-serialized autoApply() queue, that
+    // many rapid settings.json writes in a burst is itself what triggered VS
+    // Code's own "Aborted onWillSaveTextDocument-event"/"listener failed"
+    // errors from unrelated save-participant extensions racing to keep up —
+    // debouncing the actual commit (postMessage) coalesces a fast run of
+    // clicks into a single write of the FINAL value, while the input's own
+    // displayed number still updates on every click (already-immediate, native
+    // browser behavior — nothing here delays what the user sees).
+    function commitPxInput(input, immediate) {
       const knob = input.closest('.knob');
       if (!knob) return;
       const id = knob.dataset.id;
@@ -262,12 +276,18 @@ ${sections}
       next = Math.min(max, Math.max(min, Math.round(next * 100) / 100));
       input.value = fmt(next); // normalize (clamped/rounded) the field itself
       pending[id] = fmt(next);
-      vscode.postMessage({ command: knob.dataset.cmd, target: id, value: next });
+      if (commitTimers[id]) { clearTimeout(commitTimers[id]); delete commitTimers[id]; }
+      const send = function () {
+        delete commitTimers[id];
+        vscode.postMessage({ command: knob.dataset.cmd, target: id, value: next });
+      };
+      if (immediate) send();
+      else commitTimers[id] = setTimeout(send, COMMIT_DEBOUNCE_MS);
     }
 
     document.addEventListener('change', function (e) {
       const px = e.target.closest('.px-input');
-      if (px) { commitPxInput(px); return; }
+      if (px) { commitPxInput(px, false); return; }
       const cb = e.target.closest('.feature-cb');
       if (!cb) return;
       const row = cb.closest('.feature-row');

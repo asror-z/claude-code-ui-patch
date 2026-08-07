@@ -15,8 +15,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const statusBar = new StatusBar(patcher);
   const sidebarView = new PatchSidebarView(patcher);
 
+  // Diagnostic-only channel for the "Chat Panel/Plan Preview sections vanish,
+  // a window reload fixes it" report — records the resolved Claude Code
+  // install dir/version on every refresh, flags a mid-session version CHANGE
+  // (the prime suspect: Claude Code auto-updating while this panel is open),
+  // and lists any point that reports "missing" — see Patcher.refresh()'s own
+  // comment. Real evidence next time this recurs, not a live control surface.
+  const diagChannel = vscode.window.createOutputChannel("Smarts Claude Manager");
+  patcher.setLogger((line) => diagChannel.appendLine(`[${new Date().toISOString()}] ${line}`));
+
   context.subscriptions.push(
     statusBar,
+    diagChannel,
     ...patcher.register(),
     vscode.commands.registerCommand("smartsClaudeManager.panel", () =>
       PatchPanel.show(patcher)

@@ -255,7 +255,7 @@ const PATCH_POINTS: PatchPoint[] = [
     section: "Chat Panel",
     label: "Code block",
     key: "chatCodeblockFontSize",
-    defaultPx: 14,
+    defaultPx: 13,
     maxPx: 24,
     file: "webview/index.css",
     originalPx: 11,
@@ -276,7 +276,7 @@ const PATCH_POINTS: PatchPoint[] = [
     section: "Chat Panel",
     label: "Message input box",
     key: "chatComposerFontSize",
-    defaultPx: 14,
+    defaultPx: 15,
     maxPx: 24,
     file: "webview/index.css",
     originalPx: 13,
@@ -294,7 +294,7 @@ const PATCH_POINTS: PatchPoint[] = [
     section: "Chat Panel",
     label: "Diff card",
     key: "chatDiffCardFontSize",
-    defaultPx: 14,
+    defaultPx: 13,
     maxPx: 24,
     file: "webview/index.js",
     originalPx: 12,
@@ -308,7 +308,7 @@ const PATCH_POINTS: PatchPoint[] = [
     section: "Plan Preview",
     label: "Agent response",
     key: "planPreviewFontSize",
-    defaultPx: 14,
+    defaultPx: 15,
     maxPx: 24,
     file: "extension.js",
     originalPx: 14,
@@ -342,7 +342,7 @@ const PATCH_POINTS: PatchPoint[] = [
     section: "Plan Preview",
     label: "Comment quote",
     key: "planPreviewCommentQuoteFontSize",
-    defaultPx: 12,
+    defaultPx: 13,
     maxPx: 24,
     file: "extension.js",
     originalPx: 12,
@@ -356,7 +356,7 @@ const PATCH_POINTS: PatchPoint[] = [
     section: "Plan Preview",
     label: "Comment input box",
     key: "planPreviewCommentInputFontSize",
-    defaultPx: 13,
+    defaultPx: 14,
     maxPx: 24,
     file: "extension.js",
     originalPx: 13,
@@ -370,7 +370,7 @@ const PATCH_POINTS: PatchPoint[] = [
     section: "Plan Preview",
     label: "Comment badge",
     key: "planPreviewCommentBadgeFontSize",
-    defaultPx: 10,
+    defaultPx: 12,
     maxPx: 12,
     file: "extension.js",
     originalPx: 10,
@@ -2153,21 +2153,35 @@ export class Patcher {
   // JSON edit of patchEnabled by calling restore()/enable() in turn) doesn't
   // recurse into a second restore()/enable() for our own write.
   private writingPatchEnabled = false;
-  // Serializes autoApply() calls. Each px-spinner click (or a rapid run of
-  // them) writes its own settings.json value, and EACH write fires its own
-  // onDidChangeConfiguration -> autoApply() independently — with no
-  // serialization, clicking a spinner several times fast used to spawn that
-  // many CONCURRENT autoApply() calls, all doing fs.readFileSync/writeFileAtomic
-  // against the SAME extension.js/index.js/index.css with no lock between
-  // them. One call's refresh() could then read a file mid-write by another
-  // call's still-in-flight applyPatch(), transiently missing the point's
-  // anchor -> status "missing" -> the knob vanished from snap.knobs ->
-  // shapeOf() changed -> a full webview.html re-render rendered that knob's
-  // whole .section-col (e.g. "Chat Panel"/"Plan Preview") without it, i.e. the
-  // section visibly disappeared. Chaining every autoApply() call through this
-  // promise queue makes each one fully finish (write + refresh) before the
-  // next one starts reading, eliminating the race.
+  // Serializes autoApply() calls so overlapping onDidChangeConfiguration
+  // events (e.g. several rapid spinner clicks) each fully finish their own
+  // write+refresh before the next one starts, rather than trusting that a
+  // fire-and-forget async call ordering happens to work out. NOTE: verified
+  // this does NOT close a JS-level concurrency race — autoApplyNow()'s own
+  // body has no internal `await`, so two calls could never actually
+  // interleave their synchronous fs reads/writes within one Node process
+  // regardless of this queue. Kept as cheap, harmless defensive serialization
+  // (and correct protection against a FUTURE await being added inside
+  // autoApplyNow()), but it is NOT the fix for the real "Chat Panel/Plan
+  // Preview sections vanish, a window reload brings them back" report — see
+  // this.log()'s diagnostic points below for the actual investigation, which
+  // points at findLatestClaudeExt() resolving a DIFFERENT Claude Code
+  // extension folder mid-session (Claude Code auto-updates "routinely," per
+  // extension.ts's own deactivate() comment) while this.ext/stockCapture
+  // still reflect the OLD version, until a reload rebuilds Patcher from
+  // scratch via activate().
   private autoApplyQueue: Promise<number> = Promise.resolve(0);
+  // Diagnostic-only output channel (see extension.ts) — logs the exact
+  // resolved extension dir/version on every refresh() and flags a version
+  // CHANGE mid-session, plus any point that comes back "missing", so a real
+  // recurrence of the vanishing-sections report can be captured with actual
+  // evidence instead of guessed at. Never gated behind a setting: cheap,
+  // append-only, and the user has to open "Smarts Claude Manager" in the
+  // Output panel to ever see it.
+  private log: (line: string) => void = () => {};
+  setLogger(fn: (line: string) => void): void {
+    this.log = fn;
+  }
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.refresh();
@@ -2343,14 +2357,43 @@ export class Patcher {
   }
 
   private refresh(): void {
+    const prevExt = this.ext;
     this.ext = findLatestClaudeExt(this.context);
+    if (prevExt && this.ext && prevExt.dir !== this.ext.dir) {
+      // The resolved Claude Code install folder changed WITHOUT this
+      // extension's own window ever reloading — the prime suspect for a
+      // mid-session "sections vanish, reload fixes it" report: Claude Code
+      // auto-updated in place, this.stockCapture/this.pendingReload still
+      // reflect the OLD version's bundle, and the freshly-resolved NEW
+      // bundle's CSS-module hashes (codeBlockWrapper_<hash>, etc.) may not
+      // match anchors computed against the old one until a real reload
+      // rebuilds Patcher from scratch via activate().
+      this.log(
+        `[refresh] Claude Code install CHANGED mid-session: ${prevExt.dir} (v${prevExt.version}) -> ${this.ext.dir} (v${this.ext.version})`,
+      );
+    }
     if (this.ext) {
       this.refreshStockCapture(this.ext);
       this.states = analyze(this.ext, readSizes(), this.stockCapture);
       this.toggleStates = analyzeToggles(this.ext, readToggles());
       this.injectStates = analyzeInjects(this.ext);
       if (this.activationPx.size === 0) this.captureActivationPx();
+      const missing = [
+        ...this.states.filter((s) => s.status === "missing").map((s) => s.id),
+        ...this.toggleStates.filter((s) => s.status === "missing").map((s) => s.id),
+        ...this.injectStates.filter((s) => s.status === "missing").map((s) => s.id),
+      ];
+      if (missing.length) {
+        this.log(
+          `[refresh] ${missing.length} point(s) reported "missing" against ${this.ext.dir} (v${this.ext.version}): ${missing.join(", ")}`,
+        );
+      }
     } else {
+      if (prevExt) {
+        this.log(
+          `[refresh] findLatestClaudeExt() returned undefined (previously ${prevExt.dir}) — no Claude Code install found this pass`,
+        );
+      }
       this.states = [];
       this.toggleStates = [];
       this.injectStates = [];

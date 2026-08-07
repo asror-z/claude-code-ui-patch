@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.120",
+  "version": "2.0.122",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -71,7 +71,7 @@
         },
         "smartsClaudeManager.chatHistoryFontSize": {
           "type": "number",
-          "default": 0,
+          "default": 15,
           "minimum": 0,
           "maximum": 48,
           "markdownDescription": "Chat font size in px, private to Claude Code so other chat panels are unaffected. `0` follows `#chat.fontSize#`."
@@ -83,28 +83,28 @@
         },
         "smartsClaudeManager.chatCodeblockFontSize": {
           "type": "number",
-          "default": 14,
+          "default": 13,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Chat fenced code block size in px."
         },
         "smartsClaudeManager.chatCodeInlineFontSize": {
           "type": "number",
-          "default": 0,
+          "default": 13,
           "minimum": 0,
           "maximum": 24,
           "markdownDescription": "Chat inline code size in px. `0` follows `#smartsClaudeManager.chatCodeblockFontSize#`."
         },
         "smartsClaudeManager.chatComposerFontSize": {
           "type": "number",
-          "default": 14,
+          "default": 15,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Chat message input box (composer) text size in px."
         },
         "smartsClaudeManager.chatDiffCardFontSize": {
           "type": "number",
-          "default": 14,
+          "default": 13,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Diff card code size in px (Edit/MultiEdit cards and the expand modal)."
@@ -121,7 +121,7 @@
         },
         "smartsClaudeManager.chatPermissionCodeMatchChatCodeblock": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Size the permission command block to match the tool input block (`0.85em` instead of `0.9em`)."
         },
         "smartsClaudeManager.chatShowMoreAndLessAlign": {
@@ -141,12 +141,12 @@
         },
         "smartsClaudeManager.effortSyncFix": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "On window reload, push the persisted effort level to the CLI so it does not silently run at the default."
         },
         "smartsClaudeManager.planPreviewFontSize": {
           "type": "number",
-          "default": 14,
+          "default": 15,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Plan preview text size in px (headings scale with it)."
@@ -165,14 +165,14 @@
         },
         "smartsClaudeManager.planPreviewCodeInlineFontSize": {
           "type": "number",
-          "default": 0,
+          "default": 13,
           "minimum": 0,
           "maximum": 24,
           "markdownDescription": "Plan preview inline code size in px. `0` follows `#smartsClaudeManager.planPreviewCodeblockFontSize#`."
         },
         "smartsClaudeManager.planPreviewCommentInputFontSize": {
           "type": "number",
-          "default": 13,
+          "default": 14,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Plan preview comment box text size in px."
@@ -186,14 +186,14 @@
         },
         "smartsClaudeManager.planPreviewCommentQuoteFontSize": {
           "type": "number",
-          "default": 12,
+          "default": 13,
           "minimum": 6,
           "maximum": 24,
           "markdownDescription": "Plan preview selected-quote size in px."
         },
         "smartsClaudeManager.planPreviewCommentBadgeFontSize": {
           "type": "number",
-          "default": 10,
+          "default": 12,
           "minimum": 6,
           "maximum": 12,
           "markdownDescription": "Plan preview comment badge size in px (14px circle, keep <= 12)."
@@ -245,12 +245,12 @@
         },
         "smartsClaudeManager.feature.googlesearch": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Add \"Search on Google\" to the right-click menu for selected chat text."
         },
         "smartsClaudeManager.feature.search": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Chat Search (Ctrl+F): find text within the chat."
         },
         "smartsClaudeManager.feature.datetime": {
@@ -270,7 +270,7 @@
         },
         "smartsClaudeManager.feature.blockquote": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Restyle Markdown blockquote callouts (and tool-interrupt notices)."
         },
         "smartsClaudeManager.feature.copybuttons": {
@@ -280,22 +280,22 @@
         },
         "smartsClaudeManager.feature.multiselect": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "A checkbox on each assistant reply's Copy row plus a toolbar action to batch-copy every checked reply as one Markdown or HTML block (shift-click for HTML). Requires `#smartsClaudeManager.feature.copybuttons#`."
         },
         "smartsClaudeManager.feature.codeblock": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "A Copy button on every fenced code block."
         },
         "smartsClaudeManager.feature.toc": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Outline panel: jump to any earlier prompt."
         },
         "smartsClaudeManager.feature.export": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Export the whole chat to Markdown, HTML, or the clipboard."
         },
         "smartsClaudeManager.feature.scroll": {
@@ -305,12 +305,12 @@
         },
         "smartsClaudeManager.feature.askcollapse": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Collapse/expand the AskUserQuestion dialog."
         },
         "smartsClaudeManager.feature.usercollapse": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Add an \"Expand message\"/\"Collapse message\" item to the native \"Message actions\" popup on long user messages."
         },
         "smartsClaudeManager.feature.autocontinue": {
@@ -325,27 +325,27 @@
         },
         "smartsClaudeManager.feature.usernav": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Toolbar buttons to jump between your own messages."
         },
         "smartsClaudeManager.feature.forkconv": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "A \"Fork conversation\" icon button to the left of each of your own messages, forking the chat from that message."
         },
         "smartsClaudeManager.feature.forkincopy": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Also add a \"Fork conversation\" icon button to the Copy row on each assistant reply, forking from that reply's preceding message. Requires `#smartsClaudeManager.feature.copybuttons#`."
         },
         "smartsClaudeManager.feature.faro": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Ship chat-enhancement feature diagnostics to Grafana Cloud (console + Loki via Faro). Unchecking silences logging everywhere immediately, with no reload. Only a feature that is itself checked ON logs anything, even while this is checked ON."
         },
         "smartsClaudeManager.feature.filelinks": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Make a file path shown as inline code (relative or absolute) clickable — opens it in a real editor tab."
         }
       }

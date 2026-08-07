@@ -224,3 +224,67 @@ suppresses it for good.
 - **The patch reverts when Claude Code updates.** Your settings re-apply on the next window reload (reload once more to see them). VS Code may show a one-time "corrupt installation" warning, which is safe to dismiss.
 - **`chatHistoryFontSize` / `chatHistoryFontFamily` restyle the agent transcript only** (deliberate design, not a bug). Your own messages, the input box, the interface, and other extensions' chats (Codex, Copilot, etc.) stay native, and can be configured with `chat.fontSize` and `chat.fontFamily`.
 - **The floating panel tab and the Activity Bar sidebar are the same controls, just docked differently** — both stay in sync with the same underlying settings, so a change made in one is reflected in the other after a reload.
+
+# Smarts App Vscode
+
+Diagnostic/build record for `smarts-app-vscode` runs against this project.
+
+## 2026-08-07 — "Patch not supported on Claude Code v2.1.224" banner
+
+**Root cause:** not a code defect. `Patcher.snapshot()`'s `supported` flag is
+purely anchor-presence-derived (never a hardcoded version floor) — running
+`analyze()`/`analyzeToggles()`/`analyzeInjects()` from both the current
+compiled source and the actually-installed `asrorz.smarts-claude-manager-2.0.119`
+build directly against the real installed
+`anthropic.claude-code-2.1.224-win32-x64` bundle both returned
+`anyPresent: true` (supported). The banner traced to the user running an
+**installed `.vsix` under plain VS Code, one version behind current source**
+(`asrorz.smarts-claude-manager-2.0.119` vs. current `2.0.120`/`2.0.121`) —
+confirmed via `AskUserQuestion`.
+
+While investigating, found and fixed a real, separate defect: `out/` had
+accumulated **orphaned compiled `.js` files** from `.ts` sources deleted
+earlier this project's history (`behaviorFeatures.notify.ts`,
+`behaviorFeatures.featuretoggle.ts`, `behaviorFeatures.autoscroll.ts` —
+all three removed per this project's CLAUDE.md history) — `tsc`'s
+incremental compile never deletes orphaned output, so every `.vsix` packaged
+since those removals silently kept shipping the dead code. Fixed by deleting
+`out/` and recompiling clean before packaging.
+
+| Check / Step | Target | Result | Evidence | Notes |
+|---|---|---|---|---|
+| `supported` gate logic review | `src/patcher.ts` `snapshot()` | No hardcoded version floor — `anyPresent` = any `PATCH_POINTS`/`TOGGLE_POINTS`/`INJECT_POINTS` anchor present | `patcher.ts:2317-2331` | — |
+| Anchor match vs real v2.1.224 bundle (current source) | `~/.vscode/extensions/anthropic.claude-code-2.1.224-win32-x64` | `anyPresent: true` (supported) | Standalone `analyze()`/`analyzeToggles()`/`analyzeInjects()` run via a `vscode`-stubbed require of `out/patcher.js` — 22/23 anchors matched, only `hideUsageWarning` missing | Scratch script: `.claude/Patch not supported v2.1.224/Tests/diagnose-anchors.mjs` |
+| Anchor match vs real v2.1.224 bundle (installed 2.0.119 build) | `~/.vscode/extensions/asrorz.smarts-claude-manager-2.0.119/out/patcher.js` | `anyPresent: true` (supported) | Same method, against the installed build's own compiled patcher | Rules out a stale-anchor theory for both builds |
+| Which host is actually running | User | Plain VS Code, installed `.vsix` (not F5, not Antigravity IDE) | `AskUserQuestion` answer | Antigravity IDE has its own separate Claude Code copy at v2.1.220 — not the one in the banner |
+| Orphaned `out/` files found | `out/behaviorFeatures.{notify,featuretoggle,autoscroll}.js` | Present despite matching `.ts` sources deleted | `ls src/*.ts` vs `ls out/*.js` diff | `tsc` incremental compile does not prune orphaned output |
+| Clean rebuild | `out/` | Fixed — 29 files, no orphans | `rm -rf out && npm run compile` then `ls out` | — |
+| Version bump (avoid overwriting existing `build/*-2.0.120.vsix`) | `package.json` `version` | `2.0.120` → `2.0.121` | Manual edit (not committed — pre-existing uncommitted changes to `src/extension.ts`/`panel.ts`/`patcher.ts` were already in the working tree from before this session; not committing without being asked) | Per packaging module rule 5 |
+
+## Packaged artifact — `build/smarts-claude-manager-2.0.121.vsix`
+
+| File / Artifact | Included? | Size | Reason |
+|---|---|---|---|
+| `build/smarts-claude-manager-2.0.121.vsix` (whole package) | Shipped | 641.18 KB, 46 files | Sane size for this extension; no bloat |
+| `out/` (29 files) | Shipped | 508.27 KB | Compiled extension code — confirmed no orphaned/dead feature files (notify/featuretoggle/autoscroll absent) |
+| `package.json` | Shipped | 14.25 KB | Extension manifest |
+| `readme.md` / `changelog.md` / `LICENSE.txt` | Shipped | 13.76 / 11.95 / 1.04 KB | User-facing docs |
+| `icon.png` | Shipped | 86.97 KB | Extension icon |
+| `docs/` (2 files) | Shipped | 362.49 KB | Screenshots referenced by README |
+| `githooks/` (2 files) | Shipped | 0.77 KB | Pre-existing packaging behavior, not excluded by `.vscodeignore` — out of scope for this fix, small, not flagged as an issue |
+| `tests/` (5 files) | Shipped | 41.91 KB | Same as above — pre-existing, small, out of scope |
+
+## Verdict
+
+Fixed and verified. The user's "not supported" banner was caused by running a
+stale installed build (v2.0.119) rather than a real code defect — confirmed
+by testing both the old and current patcher logic directly against their real
+v2.1.224 bundle, both reporting `supported: true`. A fresh, clean `.vsix`
+(`build/smarts-claude-manager-2.0.121.vsix`) has been built and verified —
+confirmed free of the previously-shipped dead code from removed features. The
+user needs to uninstall the old copy and install this new one.
+
+Run metadata: `action=vsix-package`, `path=<project root>`,
+`smarts-app-vscode` skill.
+
+Timestamp: 2026-08-07 (session-local; exact wall-clock not queried).
