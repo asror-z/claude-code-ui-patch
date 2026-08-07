@@ -162,6 +162,37 @@ work correctly — see also
 ["Shipped Default vs Native Restore Value"](#shipped-default-vs-native-restore-value--owned-by-smarts-app-vscode)
 further down.
 
+**EVERY new `PATCH_POINT`/`TOGGLE_POINT`/`INJECT_POINT` id MUST ALSO be added to the `KNOB_ORDER` array in
+`patcher.ts` (near the top), in its intended panel position — this is a THIRD required wiring step, not optional.**
+`snapshot()` sorts every knob by `knobOrder(id)`, and `knobOrder()` returns `KNOB_ORDER.length` (i.e. sorts to
+the VERY END) for any id NOT in the list. So a new point that is declared in `package.json` and wired into its
+`patcher.ts` table but forgotten in `KNOB_ORDER` still *works* and still *renders* — it just silently appears at
+the bottom of its section instead of where intended, with no error anywhere. **Real incident (this chat):** the
+new `userMessageSize` INJECT_POINT was fully wired and functional but omitted from `KNOB_ORDER`, so it landed at
+the very end of the Chat Panel instead of after `diffCard`; fixed by inserting `"userMessageSize"` after
+`"diffCard"` in `KNOB_ORDER`. **Self-check when adding any point:** did I touch `KNOB_ORDER` too? If not, the knob
+is mis-ordered. The section a knob shows under is its `section:` field (`"Chat Panel"`/`"Plan Preview"`); its
+position WITHIN that section is its index in `KNOB_ORDER` — the two are independent.
+
+**A newly-added knob does NOT appear (or its ordering/reload-button change does not take effect) until the panel
+is running the freshly-COMPILED build — the running Extension Development Host (F5) or installed copy keeps its
+old `out/` until reloaded.** This is the same "a disk change never live-updates an already-open webview" fact
+`smarts-app-vscode` → `module/host-lifecycle.md` owns, applied to the panel itself: after `npm run compile`,
+reload the F5 host (or reinstall the `.vsix`) before concluding a new knob "isn't showing" or its
+"Save-and-reload button doesn't appear." **Real incident (this chat):** the new `userMessageSize` knob's
+reload-pending path was verified correct by a real test (changing the knob flips `needsReload` so the
+Save-and-reload button shows), yet it looked broken live — solely because the open panel was still the
+pre-compile build; it was never a code bug.
+
+**Every INJECT_POINT that scopes a font-size/family to ONE side of the chat re-reads its own CSS-module hash at
+patch time from a stock anchor rule, exactly like the agent-body `chatHistorySize` point.** The user prompt
+bubble is `.userMessage_<hash>` / `.userMessageContainer_<hash>` (one shared hash); `userMessageSize`
+(`smartsClaudeManager.userMessageFontSize`) sizes the user body only, the deliberate mirror of `chatHistorySize`
+which sizes only the agent body (`.root_<hash>`) and intentionally leaves user messages native. The two knobs
+are independent by design — "Agent response" and "User message" in the Chat Panel. Anchor via `USER_MSG_HASH_RE`
+/ `userMessageSelector()`; if the anchor is gone the point leaves the file native (`if (!sel) return c`), so a
+Claude Code re-minify that renames the hash degrades to native rather than corrupting the bundle.
+
 ## This Is a VS Code Extension — `smarts-app-vscode` Governs It, ALWAYS Invoke It
 
 **This project is a VS Code extension, so `smarts-app-vscode` owns EVERY generic VS Code-extension concern — always invoke it for these, in this project or any other; the mechanics live in the skill, not here.** In particular:
