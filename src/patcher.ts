@@ -91,6 +91,7 @@ const KNOB_ORDER: string[] = [
   "chatCode", // code block
   "chatComposer", // message input box
   "diffCard",
+  "userMessageSize", // user message (own prompt bubble)
   "diffLineNumbers",
   "diffThemeSync",
   "permCode",
