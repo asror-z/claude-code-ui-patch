@@ -262,7 +262,7 @@ export const BOOTSTRAP_SOURCE = `
 
   var FOOTPRINT = {
     reply:        { hide: [".cc-reply-button"] },
-    search:       { hide: [".cc-search-bar"] },
+    search:       { hide: ["#cc-search-bar"] },
     datetime:     { hide: [".cc-dt-date-sep"], neutralize: "span.cc-dt-time{display:none !important;} [data-cc-dt-time]::after{content:none !important;}" },
     askquestion:  { neutralize: "[data-cc-md='1']{white-space:normal !important;}" },
     userstyle:    { neutralize: "[data-cc-user='1']{background:none !important;border:none !important;border-radius:0 !important;padding:0 !important;margin:0 !important;width:auto !important;max-width:none !important;font-weight:normal !important;} [data-cc-user='1'] p,[data-cc-user='1'] span,[data-cc-user='1'] li,[data-cc-user='1'] div{font-weight:normal !important;}" },
