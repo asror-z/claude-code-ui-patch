@@ -6,8 +6,8 @@ import { registerFeature } from "./behaviorFeatures";
 // data-cc-effortinfo attribute + a higher-priority :empty:before CSS rule, so
 // it appears/disappears automatically with the composer's own empty state,
 // no JS-driven show/hide needed. When BOTH modelinfo and effortinfo are on,
-// they compose into one combined placeholder line (see combinedText() below)
-// rather than one silently overwriting the other's attribute.
+// they compose into one combined placeholder line (see the CSS's combined
+// selector below) rather than one silently overwriting the other's attribute.
 //
 // Requires the modelInfoBridge TogglePoint (always on, see patcher.ts /
 // modelInfoBridge.ts), which mirrors window.__ccModelInfo = {effort, thinking}
@@ -77,7 +77,10 @@ const JS = `
       if (input.hasAttribute(ATTR)) input.removeAttribute(ATTR);
       return;
     }
-    var text = parts.join(" \\u00b7 ");
+    // Two spaces, a bullet (U+2022), two spaces -- the one universal
+    // separator used everywhere two placeholder fragments are joined (here,
+    // and again in the combined-selector CSS content below).
+    var text = parts.join("  \\u2022  ");
     if (input.getAttribute(ATTR) !== text) input.setAttribute(ATTR, text);
   }
 
@@ -118,7 +121,7 @@ const CSS = `
   content: attr(data-cc-effortinfo) !important;
 }
 [data-cc-modelinfo][data-cc-effortinfo]:empty:before {
-  content: attr(data-cc-modelinfo) " \\2014 " attr(data-cc-effortinfo) !important;
+  content: attr(data-cc-modelinfo) "  \\2022  " attr(data-cc-effortinfo) !important;
 }
 `.trim();
 

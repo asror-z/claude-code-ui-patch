@@ -3,12 +3,12 @@
 // chat-enhancement scripts (behaviorFeatures.modelinfo.ts /
 // behaviorFeatures.effortinfo.ts), which cannot reach it any other way.
 //
-// The values live as Preact signals on the webview's session-state class
-// instance (this.currentMainLoopModel / this.modelSelection / this.effortLevel
-// / the this.thinkingLevel getter, plus the model label list on
-// this.claudeConfig.value?.models) -- module-scoped to that class, not
-// reachable from a separately-injected <script> in the same document (no
-// shared JS realm/closure). So, exactly like openExternalBridge.ts's
+// The values live as Preact signals/computeds on the webview's session-state
+// class instance (this.currentModelInfo / this.currentMainLoopModel /
+// this.modelSelection / this.effortLevel / the this.thinkingLevel getter) --
+// module-scoped to that class, not reachable from a separately-injected
+// <script> in the same document (no shared JS realm/closure). So, exactly
+// like openExternalBridge.ts's
 // acquireVsCodeApi() piggyback, we ADD a new autorun effect right after the
 // existing effortSync one (see EFFORT_SYNC_*_RE in patcher.ts, which already
 // anchors this exact spot) that mirrors the current values onto
@@ -75,12 +75,24 @@ export function modelInfoBridgeCurrentOn(webviewJs: string): boolean | undefined
   return undefined; // anchor gone
 }
 
-// The injected effect body. Reads the human-readable model label from
-// claudeConfig.value.models (falls back to the raw internal id if the label
-// list isn't available), the effort level's raw id (low/medium/high/xhigh --
-// behaviorFeatures.effortinfo.ts humanizes it), and the resolved thinking
-// level ("off" | a truthy level string). Writes only on an actual change (a
-// plain object-equality guard) so the dispatched event never fires on every
+// The injected effect body. Reads the human-readable model label off
+// this.currentModelInfo.value -- a computed already defined on the SAME
+// session class (this.currentModelInfo=kn(()=>{let e=Q_(...claudeConfig),
+// t=!this.modelSelection.value||this.modelSelection.value==="default"?
+// "default":this.modelSelection.value,...;return e.find(n=>n.value===t)??
+// ...??e.find(n=>n.resolvedModel===t...)})) that ALREADY resolves the
+// "default" selection down to the real underlying model entry the same way
+// the stock composer/model-popup UI does -- reusing it here means we never
+// need to re-derive that resolution ourselves (an earlier version looked up
+// currentMainLoopModel.value directly against claudeConfig.value.models,
+// which shows the literal string "default" whenever the user is on the
+// default model and no message has set currentMainLoopModel yet, since
+// "default" never appears as a real value in that models list -- fixed by
+// reading the already-correctly-resolved computed instead). Also reads the
+// effort level's raw id (low/medium/high/xhigh -- behaviorFeatures.
+// effortinfo.ts humanizes it) and the resolved thinking level ("off" | a
+// truthy level string). Writes only on an actual change (a plain
+// object-equality guard) so the dispatched event never fires on every
 // unrelated signal read inside the same effect pass. Ends on a distinct
 // marker comment (not just the effect's own natural "})", which recurs
 // inside the body's own try/catch and CustomEvent dispatch) purely as a
@@ -91,10 +103,9 @@ export function modelInfoBridgeCurrentOn(webviewJs: string): boolean | undefined
 function bridgeEffectSource(): string {
   return (
     `,Wn(()=>{${MODELINFO_MARKER}try{` +
-    `var mid=this.currentMainLoopModel.value||(typeof this.modelSelection!=="undefined"?this.modelSelection.value:void 0);` +
-    `var models=(this.claudeConfig&&this.claudeConfig.value&&this.claudeConfig.value.models)||[];` +
-    `var found=null;for(var i=0;i<models.length;i++){if(models[i]&&models[i].value===mid){found=models[i];break;}}` +
-    `var label=found&&found.label?found.label:(mid||"");` +
+    `var info=this.currentModelInfo&&this.currentModelInfo.value;` +
+    `var mid=(info&&info.value)||this.currentMainLoopModel.value||(typeof this.modelSelection!=="undefined"?this.modelSelection.value:void 0);` +
+    `var label=(info&&info.label)?info.label:(mid||"");` +
     `var effort=this.effortLevel.value||"";` +
     `var thinking=this.thinkingLevel||"off";` +
     `var next={model:label,modelId:mid||"",effort:effort,thinking:thinking};` +

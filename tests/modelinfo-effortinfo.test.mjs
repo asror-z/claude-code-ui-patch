@@ -44,6 +44,23 @@ function extractInjectedScript(source) {
   return body;
 }
 
+// Extract the `const CSS = \`...\`;` template-literal body straight out of a
+// .ts source, mirroring extractInjectedScript()'s own \\\\->\\ unescape (the
+// TS source's double backslash before a CSS escape like \\2022 is TS's own
+// string-escaping of the SINGLE backslash the real, runtime CSS text needs --
+// same unescape as the JS extraction, just applied to CSS text instead of JS).
+function extractCss(source) {
+  const marker = "const CSS = `";
+  const start = source.indexOf(marker);
+  assert.ok(start !== -1, "could not find `const CSS = \\`` in source");
+  const bodyStart = start + marker.length;
+  const end = source.indexOf("`.trim();", bodyStart);
+  assert.ok(end !== -1, "could not find closing `.trim();` for the CSS template literal");
+  let body = source.slice(bodyStart, end);
+  body = body.replace(/\\\\/g, "\\");
+  return body;
+}
+
 function extractExportedSource(source, exportName) {
   const marker = `export const ${exportName} = \``;
   const start = source.indexOf(marker);
@@ -177,8 +194,8 @@ async function run() {
       "expected EffortInfo to queue exactly one init() via window.__ccPending");
     window.__ccPending.shift()(doc, window);
 
-    assert.strictEqual(composer.getAttribute("data-cc-effortinfo"), "Effort: Extra high · Thinking: off",
-      "expected the humanized effort label (xhigh -> \"Extra high\") plus the thinking status, joined by a middle-dot");
+    assert.strictEqual(composer.getAttribute("data-cc-effortinfo"), "Effort: Extra high  •  Thinking: off",
+      "expected the humanized effort label (xhigh -> \"Extra high\") plus the thinking status, joined by the bullet separator");
 
     console.log("PASS: EffortInfo sets data-cc-effortinfo with the humanized effort label and thinking status.");
   });
@@ -192,7 +209,7 @@ async function run() {
     window.eval(script);
     window.__ccPending.shift()(doc, window);
 
-    assert.strictEqual(composer.getAttribute("data-cc-effortinfo"), "Effort: Medium · Thinking: high",
+    assert.strictEqual(composer.getAttribute("data-cc-effortinfo"), "Effort: Medium  •  Thinking: high",
       "expected the raw thinking level shown when it is not \"off\"");
 
     console.log("PASS: EffortInfo shows the raw thinking level when extended thinking is enabled.");
@@ -209,9 +226,33 @@ async function run() {
     window.__ccPending.shift()(doc, window);
 
     assert.strictEqual(composer.getAttribute("data-cc-modelinfo"), "Model: Sonnet 5");
-    assert.strictEqual(composer.getAttribute("data-cc-effortinfo"), "Effort: Low · Thinking: off");
+    assert.strictEqual(composer.getAttribute("data-cc-effortinfo"), "Effort: Low  •  Thinking: off");
 
     console.log("PASS: both ModelInfo and EffortInfo can be active at once, each owning its own attribute (CSS composes them).");
+  });
+
+  // --- the combined-selector CSS uses the "  •  " (2 spaces + bullet + 2
+  // spaces) separator, and is genuinely valid, parseable CSS -----------------
+  withDom((window, doc) => {
+    const css = extractCss(readFileSync(EFFORTINFO_SRC, "utf8"));
+    assert.ok(
+      css.includes('content: attr(data-cc-modelinfo) "  \\2022  " attr(data-cc-effortinfo) !important;'),
+      "expected the combined selector's CSS content to join Model/Effort with two spaces + a bullet (U+2022) + two spaces",
+    );
+
+    // Real-parse proof, not just a string match: attach the raw CSS text to a
+    // real jsdom <style> element and confirm the browser's own CSS parser
+    // accepts the escaped bullet without dropping or mangling the rule (a
+    // wrong escape sequence, e.g. an unterminated string, would make the
+    // whole rule vanish from cssRules rather than throw).
+    const styleEl = doc.createElement("style");
+    styleEl.textContent = css;
+    doc.head.appendChild(styleEl);
+    const rules = Array.from(styleEl.sheet.cssRules);
+    const combinedRule = rules.find((r) => r.selectorText === "[data-cc-modelinfo][data-cc-effortinfo]:empty:before");
+    assert.ok(combinedRule, "the combined selector must parse as a real CSS rule (jsdom's own CSSOM), not be dropped/mangled");
+
+    console.log("PASS: the combined-selector CSS uses the 2-space-bullet-2-space separator and parses as valid CSS.");
   });
 
   // --- feature OFF: FOOTPRINT's neutralize rule reverts the placeholder ----
@@ -259,7 +300,7 @@ async function run() {
     window.eval(extractExportedSource(readFileSync(BOOTSTRAP_SRC, "utf8"), "BOOTSTRAP_SOURCE"));
     window.eval(extractInjectedScript(readFileSync(EFFORTINFO_SRC, "utf8")));
 
-    assert.strictEqual(composer.getAttribute("data-cc-effortinfo"), "Effort: Extra high · Thinking: off",
+    assert.strictEqual(composer.getAttribute("data-cc-effortinfo"), "Effort: Extra high  •  Thinking: off",
       "sanity: apply() must have really run and set the attribute before this test checks the OFF-state neutralize rule");
 
     window.__ccSetFeature("effortinfo", false);
