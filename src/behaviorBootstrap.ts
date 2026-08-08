@@ -277,9 +277,11 @@ export const BOOTSTRAP_SOURCE = `
     autocontinue: {},
     draftsave:    {},
     usernav:      { hide: [".cc-usernav-up", ".cc-usernav-down"] },
+    forkconv:     { hide: [".cc-forkconv-btn"] },
     forkincopy:   { hide: ["[data-cc-forkincopy-btn]"] },
     modelinfo:    { neutralize: "[data-cc-modelinfo]:empty:before{content:attr(data-placeholder) !important;}" },
     effortinfo:   { neutralize: "[data-cc-effortinfo]:empty:before,[data-cc-modelinfo][data-cc-effortinfo]:empty:before{content:attr(data-placeholder) !important;}" },
+    filelinks:    { neutralize: "code.cc-filelink{cursor:inherit !important;text-decoration:none !important;color:inherit !important;}" },
   };
 
   window.__ccApplyToggles = function (doc) {

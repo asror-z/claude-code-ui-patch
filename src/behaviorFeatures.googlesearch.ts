@@ -182,7 +182,12 @@ const JS = `
       menu.style.top = Math.max(6, Math.round(top)) + "px";
     }
 
+    function enabled() {
+      try { return W.__ccFeature ? W.__ccFeature("googlesearch") !== false : true; } catch (e) { return true; }
+    }
+
     D.addEventListener("contextmenu", function (e) {
+      if (!enabled()) { hideMenu(); return; }
       var sel = W.getSelection();
       var text = sel ? String(sel).trim() : "";
       if (!text || !selectionIsInChat(sel)) {

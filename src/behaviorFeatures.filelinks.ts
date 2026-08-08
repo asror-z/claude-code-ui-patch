@@ -81,9 +81,14 @@ const JS = `
     return true;
   }
 
+  function enabled() {
+    try { return window.__ccFeature ? window.__ccFeature("filelinks") !== false : true; } catch (e) { return true; }
+  }
+
   function process(el) {
     if (el.getAttribute(PROCESSED_ATTR) === "1") return;
     el.setAttribute(PROCESSED_ATTR, "1");
+    if (!enabled()) return;
     var text = cleanPath(el.textContent || "");
     if (!looksLikeFilePath(text)) return;
     el.classList.add(LINK_CLASS);
@@ -91,6 +96,7 @@ const JS = `
     el.setAttribute("tabindex", "0");
     el.setAttribute("title", "Open " + text);
     el.addEventListener("click", function (ev) {
+      if (!enabled()) return;
       // Don't hijack a text-selection drag-then-release as a click-to-open.
       var sel = W.getSelection ? W.getSelection() : null;
       if (sel && String(sel).length > 0) return;
@@ -98,6 +104,7 @@ const JS = `
       openViaBridge(text);
     });
     el.addEventListener("keydown", function (ev) {
+      if (!enabled()) return;
       if (ev.key !== "Enter" && ev.key !== " ") return;
       try { ev.preventDefault(); } catch (e) {}
       openViaBridge(text);

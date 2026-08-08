@@ -173,9 +173,18 @@ const JS = `
   // not hover), so it is a far rarer, more deliberate re-render trigger —
   // and menu items are a well-understood, already-idiomatic place users look
   // for "more actions on this message" in this exact UI.
+  function enabled() {
+    try { return window.__ccFeature ? window.__ccFeature("usercollapse") !== false : true; } catch (e) { return true; }
+  }
+
   function ensurePopupItem(msgEl) {
     var popupEl = msgEl.querySelector ? msgEl.querySelector(POPUP_SEL) : null;
     if (!popupEl) return;
+    if (!enabled()) {
+      var off = popupEl.querySelector ? popupEl.querySelector("[" + BTN_ATTR + "]") : null;
+      if (off && off.parentElement) off.parentElement.removeChild(off);
+      return;
+    }
     var ctl = nativeControl(msgEl);
     if (!ctl) {
       // No overflow on this message right now — nothing to toggle, so no
