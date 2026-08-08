@@ -127,10 +127,10 @@ abstract class PatchWebviewHost {
   }
 
   private featureHtml(f: FeatureState): string {
-    return `      <label class="feature-row" data-feature-id="${f.id}">
-        <input type="checkbox" class="feature-cb"${f.on ? " checked" : ""}>
+    return `      <div class="feature-row" data-feature-id="${f.id}">
         <span class="feature-label">${f.label}</span>
-      </label>`;
+        <button class="switch ${f.on ? "on" : "off"}" data-cmd="featureToggle" role="switch" aria-checked="${f.on}"><span class="switch-track"><span class="switch-thumb"></span></span></button>
+      </div>`;
   }
 
   private html(webview: vscode.Webview, snap: Snapshot | undefined): string {
@@ -239,6 +239,16 @@ ${sections}
         vscode.postMessage({ command: 'toggleSet', target: id, on: next });
         return;
       }
+      if (cmd === 'featureToggle') {
+        const row = el.closest('.feature-row');
+        if (!row) return;
+        const id = row.dataset.featureId;
+        const next = !el.classList.contains('on');
+        setToggleBtn(el, next); // optimistic: flip instantly
+        pendingFeature[id] = next;
+        vscode.postMessage({ command: 'featureSet', target: id, on: next });
+        return;
+      }
       if (cmd === 'patchToggle') {
         // Enable/disable the whole patch. Do NOT flip optimistically: the action
         // runs a native confirm the user can cancel, and either way reloads the
@@ -288,13 +298,6 @@ ${sections}
     document.addEventListener('change', function (e) {
       const px = e.target.closest('.px-input');
       if (px) { commitPxInput(px, false); return; }
-      const cb = e.target.closest('.feature-cb');
-      if (!cb) return;
-      const row = cb.closest('.feature-row');
-      if (!row) return;
-      const id = row.dataset.featureId;
-      pendingFeature[id] = cb.checked; // optimistic: the checkbox already shows the new state
-      vscode.postMessage({ command: 'featureSet', target: id, on: cb.checked });
     });
 
     // Commit on Enter too (change already fires on blur/native spinner clicks).
@@ -324,10 +327,10 @@ ${sections}
       (m.features || []).forEach(function (f) {
         const row = document.querySelector('.feature-row[data-feature-id="' + f.id + '"]');
         if (!row) return;
-        const cb = row.querySelector('.feature-cb');
-        if (!cb) return;
-        if (pendingFeature[f.id] === undefined) { cb.checked = f.on; }
-        else if (pendingFeature[f.id] === f.on) { cb.checked = f.on; delete pendingFeature[f.id]; }
+        const sw = row.querySelector('.switch');
+        if (!sw) return;
+        if (pendingFeature[f.id] === undefined) { setToggleBtn(sw, f.on); }
+        else if (pendingFeature[f.id] === f.on) { setToggleBtn(sw, f.on); delete pendingFeature[f.id]; }
       });
       if (typeof m.status === 'string') {
         const st = document.querySelector('.header-status');
@@ -549,10 +552,10 @@ const baseCss = `
   .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 28px; row-gap: 18px; align-items: start; }
   .section-col { min-width: 0; }
   .section-col + .section-col { border-left: 1px solid var(--vscode-panel-border); padding-left: 28px; }
-  .feature-row { display: flex; align-items: center; padding: 3px 4px; line-height: 1.32; cursor: pointer; border-radius: var(--ccp-radius-sm); transition: background-color .12s ease; }
+  .feature-row { display: flex; align-items: center; padding: 3px 4px; line-height: 1.32; border-radius: var(--ccp-radius-sm); transition: background-color .12s ease; }
   .feature-row:hover { background: var(--vscode-list-hoverBackground); }
-  .feature-cb { margin: 0 10px 0 0; cursor: pointer; flex-shrink: 0; accent-color: var(--ccp-accent); width: 14px; height: 14px; }
   .feature-label { flex: 1 1 auto; }
+  .feature-row .switch { width: 34px; flex-shrink: 0; margin-left: 16px; }
   .knob .controls { display: flex; align-items: center; justify-content: flex-end; width: 60px; flex-shrink: 0; margin-left: 16px; }
   .knob .px-input {
     width: 60px; text-align: right; font-family: var(--vscode-editor-font-family);
