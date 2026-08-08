@@ -599,8 +599,16 @@ const baseCss = `
   }
   .btn-outline.btn-reload-pending:hover { filter: brightness(1.08); }
 
-  /* --- Toggle switch (pill + sliding thumb) replacing the plain On/Off button --- */
-  .knob .switch { display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; background: none; border: none; padding: 0; cursor: pointer; font-size: inherit; font-weight: 600; }
+  /* --- Toggle switch (pill + sliding thumb) replacing the plain On/Off button ---
+     Base rule applies to EVERY .switch regardless of parent (a .knob row, a
+     .feature-row, or the top-of-panel .patch-enabled-row) — without this, a
+     bare button.switch falls back to native browser button chrome
+     (padding/border/background), which is what broke the Chat Features switches
+     when they only inherited width from a .feature-row .switch override with
+     no base display/reset rule underneath it. .knob .switch / .feature-row
+     .switch below only ever adjust width/alignment, never re-declare the reset. */
+  .switch { display: flex; align-items: center; justify-content: flex-end; gap: 8px; background: none; border: none; padding: 0; cursor: pointer; font-size: inherit; font-weight: 600; }
+  .knob .switch { width: 100%; }
   .switch-track {
     position: relative; width: 34px; height: 18px; border-radius: 999px; flex-shrink: 0;
     background: var(--vscode-button-secondaryBackground); transition: background-color .15s ease;
