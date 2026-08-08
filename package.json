@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.133",
+  "version": "2.0.134",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -118,7 +118,7 @@
         },
         "smartsClaudeManager.chatDiffCardLineNumbers": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs."
         },
         "smartsClaudeManager.chatDiffCardThemeSync": {
@@ -247,12 +247,12 @@
         },
         "smartsClaudeManager.feature.reply": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "Reply on selection: quote selected chat text into the prompt input."
         },
         "smartsClaudeManager.feature.googlesearch": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Add \"Search on Google\" to the right-click menu for selected chat text."
         },
         "smartsClaudeManager.feature.search": {
@@ -312,7 +312,7 @@
         },
         "smartsClaudeManager.feature.askcollapse": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Collapse/expand the AskUserQuestion dialog."
         },
         "smartsClaudeManager.feature.usercollapse": {
@@ -357,12 +357,12 @@
         },
         "smartsClaudeManager.feature.modelinfo": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Show the running model's name/version as the composer's placeholder text before you type (disappears automatically once you start typing)."
         },
         "smartsClaudeManager.feature.effortinfo": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Show the running effort level and thinking status as the composer's placeholder text before you type (disappears automatically once you start typing)."
         }
       }
