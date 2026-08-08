@@ -363,6 +363,38 @@ outer `body` padding was also tightened (`18px 24px 24px` → `14px 14px 18px`, 
 left/right padding was wasting horizontal room specifically in the Activity Bar sidebar's narrow real
 width (~250–350px), where every pixel matters.
 
+## Chat Features Checkboxes Reuse the SAME `.switch` Pill-Toggle Component as Chat Panel/Plan Preview Knobs
+
+The Chat Features grid (`featureHtml()` in `panel.ts`) renders each feature row as `<button class="switch">`
+— the identical track+thumb pill component the Chat Panel/Plan Preview knob toggles and the top-of-panel
+Enable/Disable-patch switch already use — not a plain `<input type="checkbox">`. Per explicit user request
+(a screenshot comparing the two: knob switches styled correctly, Chat Features still plain checkboxes), the
+component was unified so every on/off control in the panel looks identical. Client-side wiring mirrors the
+knob-toggle pattern exactly: a `featureToggle` click command (optimistic flip via `setToggleBtn()`,
+`pendingFeature` tracking the last-sent value until the `sync` echo confirms it), replacing the old
+`change`-event checkbox handler.
+
+**A real bug shipped in the first cut and was caught live by the user: the switches rendered as bare,
+unstyled buttons — a floating thumb with no visible green track — because the switch's reset/layout CSS
+was scoped ONLY to `.knob .switch`, never to a parent-agnostic `.switch` selector.** `.feature-row` is not
+`.knob`, so a `<button class="switch">` inside a feature row inherited none of `display:flex;
+background:none; border:none; padding:0` and fell back to native browser button chrome (its own padding/
+border/background), which is exactly what broke the layout. **The fix, and the general lesson for any
+future reuse of the `.switch` component under a new parent selector: give the shared component ONE
+parent-agnostic base rule (`.switch { display:flex; background:none; border:none; padding:0; ... }`) that
+applies regardless of ancestor, and let each parent context (`.knob .switch { width:100% }`, `.feature-row
+.switch { width:34px; margin-left:16px }`) ONLY ever adjust width/spacing on top of that base — never
+re-scope the base reset itself to one specific parent.** A component's reset/layout rule scoped to only its
+first-known usage silently breaks the moment the same class is reused under a different container; always
+check the CSS for a component being reused before assuming its existing rule is parent-agnostic.
+
+A second, unrelated mistake was caught in the same fix: an inline code comment describing this bug used a
+backtick around a CSS selector (`` `.feature-row .switch` ``) inside `baseCss`'s own JS template literal —
+tripping the exact backtick-inside-a-template-literal hazard `smarts-app-vscode`'s own invariant warns
+about (a stray backtick silently terminates the string early). `tsc` caught it immediately as a syntax
+error at compile time rather than a silent runtime break, but the lesson holds: never put a raw backtick in
+a comment inside `baseCss`, even to reference a CSS selector — write the selector without backticks instead.
+
 ## Two Host Surfaces, One Shared Control-Surface Renderer
 
 The control panel (font-size knobs, toggles, the Chat Features grid) is hosted on TWO separate VS Code surfaces that share one rendering/message-handling implementation:
