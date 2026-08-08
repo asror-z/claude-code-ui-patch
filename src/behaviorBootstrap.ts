@@ -278,6 +278,8 @@ export const BOOTSTRAP_SOURCE = `
     draftsave:    {},
     usernav:      { hide: [".cc-usernav-up", ".cc-usernav-down"] },
     forkincopy:   { hide: ["[data-cc-forkincopy-btn]"] },
+    modelinfo:    { neutralize: "[data-cc-modelinfo]:empty:before{content:attr(data-placeholder) !important;}" },
+    effortinfo:   { neutralize: "[data-cc-effortinfo]:empty:before,[data-cc-modelinfo][data-cc-effortinfo]:empty:before{content:attr(data-placeholder) !important;}" },
   };
 
   window.__ccApplyToggles = function (doc) {

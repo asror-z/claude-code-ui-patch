@@ -21,6 +21,12 @@ import {
   applyWebviewBridge,
   removeWebviewBridge,
 } from "./openExternalBridge";
+import {
+  modelInfoBridgePresent,
+  modelInfoBridgeCurrentOn,
+  applyModelInfoBridge,
+  removeModelInfoBridge,
+} from "./modelInfoBridge";
 // faro is FIRST: it exposes window.__ccFaroLog, which every other feature below
 // may call from its own init() — later features assume the sink already exists.
 import "./behaviorFeatures.faro";
@@ -43,6 +49,8 @@ import "./behaviorFeatures.forkconv";
 import "./behaviorFeatures.forkincopy";
 import "./behaviorFeatures.toc-export-scroll";
 import "./behaviorFeatures.filelinks";
+import "./behaviorFeatures.modelinfo";
+import "./behaviorFeatures.effortinfo";
 
 // The installed Claude Code extension is laid down as one directory per
 // version/platform, e.g. anthropic.claude-code-2.1.200-darwin-arm64. We patch
@@ -648,6 +656,15 @@ function openExternalWebviewSet(c: string, on: boolean): string {
   return on ? applyWebviewBridge(c).out : removeWebviewBridge(c);
 }
 
+// Model/effort/thinking info bridge (see modelInfoBridge.ts for the full
+// rationale): mirrors the webview's own currentMainLoopModel/effortLevel/
+// thinkingLevel signals onto window.__ccModelInfo so the modelinfo/effortinfo
+// chat features can read them. No user-facing setting -- rides with
+// chatEnhancements the same way openExternalHost/Webview do.
+function modelInfoSet(c: string, on: boolean): string {
+  return on ? applyModelInfoBridge(c).out : removeModelInfoBridge(c);
+}
+
 // The chat message "Show more" (.expandButton_<hash>) and "Show less"
 // (.collapseButton_<hash>) buttons live in the expandable-content module. "Show
 // more" is position:absolute (bottom:0;right:0) anchored to the fit-content
@@ -908,6 +925,21 @@ const TOGGLE_POINTS: TogglePoint[] = [
     fnCurrentOn: openExternalWebviewCurrentOn,
     fnSet: openExternalWebviewSet,
   },
+  {
+    // Model/effort/thinking info bridge -- see modelInfoBridge.ts. ALWAYS ON,
+    // same rationale as openExternalHost/Webview above: the modelinfo and
+    // effortinfo chat features depend on it to read the running model/effort/
+    // thinking state at all.
+    id: "modelInfoBridge",
+    section: "Chat Panel",
+    label: "Model/effort info bridge",
+    key: "modelInfoBridge",
+    defaultOn: false,
+    file: "webview/index.js",
+    fnPresent: modelInfoBridgePresent,
+    fnCurrentOn: modelInfoBridgeCurrentOn,
+    fnSet: modelInfoSet,
+  },
 ];
 
 export type ToggleMap = Record<string, boolean>;
@@ -921,6 +953,7 @@ const ALWAYS_ON_TOGGLES = new Set([
   "faroCsp",
   "openExternalHost",
   "openExternalWebview",
+  "modelInfoBridge",
 ]);
 
 export function readToggles(): ToggleMap {
