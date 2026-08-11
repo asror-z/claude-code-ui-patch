@@ -17,18 +17,28 @@
 // Claude Code's own effortSync logic (untouched) still runs first in the same
 // comma-expression chain; our effect is a pure ADDITIVE read, no interference.
 //
-// Finding "the end of the enclosing Wn(...) call" can NOT be done with a
+// Finding "the end of the enclosing <fn>(...) call" can NOT be done with a
 // simple regex up to the first "})" -- the real bundle's effort-sync arrow
 // body has MORE statements after the effort-sync if(...) (an ultracode-seed
-// block), so the true close is wherever the OPENING Wn('s own parenthesis
+// block), so the true close is wherever the OPENING call's own parenthesis
 // balances out, not the first "})" textually following the if(...) (which
 // would land INSIDE that later statement). We therefore locate the anchor's
-// START (the literal Wn(()=>{let n=...,o=...,r=... prefix that is unique to
-// this specific effect, shared by both the native/OFF and effortSync-ON
-// forms) and then do a manual balanced-parenthesis scan forward from its
-// opening "(" to find the true matching close -- the only correct way to
-// handle arbitrary/unknown-length content in between across Claude Code
-// versions.
+// START (the literal (()=>{let n=...,o=...,r=... arrow-body prefix that is
+// unique to this specific effect, shared by both the native/OFF and
+// effortSync-ON forms) and then do a manual balanced-parenthesis scan forward
+// from its own opening "(" to find the true matching close -- the only
+// correct way to handle arbitrary/unknown-length content in between across
+// Claude Code versions.
+//
+// The one-or-two-letter minifier-assigned wrapper function name that
+// immediately precedes this arrow (Wn/Un/... -- effectively arbitrary, and
+// confirmed to change build-to-build: Wn in one build, Un in Claude Code
+// 2.1.227) is deliberately captured as a wildcard, NEVER hardcoded -- an
+// earlier version hardcoded "Wn(" and silently stopped matching the moment a
+// build renamed it to "Un(", permanently breaking window.__ccModelInfo (and
+// therefore the whole Model/Effort composer-placeholder feature) with no
+// error, degrading only to "leave native" per applyModelInfoBridge()'s own
+// anchor-gone contract.
 
 export const MODELINFO_MARKER = "/*ccup-modelinfo*/";
 
@@ -37,21 +47,28 @@ export const MODELINFO_MARKER = "/*ccup-modelinfo*/";
 // live from the real bundle. Anything after "effortLevel;" differs between
 // the two forms and beyond (an unrelated ultracode-seed block may follow in
 // the SAME arrow body), which is exactly why a fixed-length/first-"})" regex
-// can't be used to find the true end.
+// can't be used to find the true end. The leading wrapper-call name is a
+// wildcard ([a-zA-Z_$][\w$]*) capture (group 1), never a literal -- see note
+// above; groups 2-4 are the arrow body's own local var names.
 const EFFORT_SYNC_WN_START_RE =
-  /Wn\(\(\)=>\{let ([a-zA-Z_$][\w$]*)=this\.connection\.value\?\.config\.value,([a-zA-Z_$][\w$]*)=\1\?\.claudeSettings\?\.applied,([a-zA-Z_$][\w$]*)=\2!==void 0\?\2\.effort\?\?void 0:\1\?\.settings\?\.effortLevel;/;
+  /([a-zA-Z_$][\w$]*)\(\(\)=>\{let ([a-zA-Z_$][\w$]*)=this\.connection\.value\?\.config\.value,([a-zA-Z_$][\w$]*)=\2\?\.claudeSettings\?\.applied,([a-zA-Z_$][\w$]*)=\3!==void 0\?\3\.effort\?\?void 0:\2\?\.settings\?\.effortLevel;/;
 
 // True when the effort-sync anchor's characteristic PREFIX is present (native
 // or already-patched form -- both share it) -- this is what gates whether
-// applyModelInfoBridge() can find an insertion point at all.
-function findAnchorEnd(webviewJs: string): number | undefined {
+// applyModelInfoBridge() can find an insertion point at all. Returns the
+// matched wrapper-call NAME alongside the insertion offset (just past that
+// call's own matching close-paren) -- callers reuse the same wrapper name to
+// build their own new call (bridgeEffectSource()) rather than guessing one.
+function findAnchor(webviewJs: string): { insertAt: number; wrapperFn: string } | undefined {
   const m = webviewJs.match(EFFORT_SYNC_WN_START_RE);
   if (!m || m.index === undefined) return undefined;
-  // m.index points at "Wn(" -- walk to that call's own opening "(" and scan
+  const wrapperFn = m[1];
+  // m.index points at the wrapper call's own name -- walk to that call's
+  // opening "(" (right after the matched name, whatever it is) and scan
   // forward, tracking parenthesis depth, until it balances back to 0. This is
   // the ONLY correct way to find "the end of this specific call" when the
   // content between the open and close parens is of unknown/variable shape.
-  const openParenIdx = webviewJs.indexOf("(", m.index + "Wn".length);
+  const openParenIdx = webviewJs.indexOf("(", m.index + wrapperFn.length);
   if (openParenIdx === -1) return undefined;
   let depth = 0;
   for (let i = openParenIdx; i < webviewJs.length; i++) {
@@ -59,7 +76,7 @@ function findAnchorEnd(webviewJs: string): number | undefined {
     if (ch === "(") depth++;
     else if (ch === ")") {
       depth--;
-      if (depth === 0) return i + 1; // just past the matching close paren
+      if (depth === 0) return { insertAt: i + 1, wrapperFn }; // just past the matching close paren
     }
   }
   return undefined; // unbalanced (shouldn't happen on valid JS): anchor unusable
@@ -100,9 +117,14 @@ export function modelInfoBridgeCurrentOn(webviewJs: string): boolean | undefined
 // removal boundary is ALSO found via balanced-paren scanning, matching how
 // insertion finds its own boundary, so this stays correct regardless of what
 // this body's own content looks like.
-function bridgeEffectSource(): string {
+// wrapperFn is the SAME minifier-assigned effect-wrapper name the anchor scan
+// just matched (m[1] in findAnchorEnd/applyModelInfoBridge) -- never a
+// hardcoded literal. Reusing the exact function this build's own effort-sync
+// effect is wrapped in (rather than a guessed/fixed name) is what keeps this
+// injected call working across a rename (Wn in one build, Un in another).
+function bridgeEffectSource(wrapperFn: string): string {
   return (
-    `,Wn(()=>{${MODELINFO_MARKER}try{` +
+    `,${wrapperFn}(()=>{${MODELINFO_MARKER}try{` +
     `var info=this.currentModelInfo&&this.currentModelInfo.value;` +
     `var mid=(info&&info.value)||this.currentMainLoopModel.value||(typeof this.modelSelection!=="undefined"?this.modelSelection.value:void 0);` +
     `var label=(info&&info.label)?info.label:(mid||"");` +
@@ -120,28 +142,37 @@ function bridgeEffectSource(): string {
 
 export function applyModelInfoBridge(webviewJs: string): { out: string; changed: boolean } {
   const stripped = removeModelInfoBridge(webviewJs);
-  const insertAt = findAnchorEnd(stripped);
-  if (insertAt === undefined) return { out: webviewJs, changed: false }; // anchor gone: leave native
-  const out = stripped.slice(0, insertAt) + bridgeEffectSource() + stripped.slice(insertAt);
+  const anchor = findAnchor(stripped);
+  if (!anchor) return { out: webviewJs, changed: false }; // anchor gone: leave native
+  const { insertAt, wrapperFn } = anchor;
+  const out = stripped.slice(0, insertAt) + bridgeEffectSource(wrapperFn) + stripped.slice(insertAt);
   return { out, changed: out !== webviewJs };
 }
 
-// Removes our own injected ",Wn(()=>{/*ccup-modelinfo*/...})" block, found by
-// locating the marker and then doing the SAME balanced-parenthesis scan
-// (starting from the "Wn(" immediately preceding the marker) to find its true
-// close -- never a regex up to the first "})", for the same reason
-// applyModelInfoBridge()'s insertion point can't be found that way.
+// Removes our own injected ",<wrapperFn>(()=>{/*ccup-modelinfo*/...})" block,
+// found by locating the marker and then doing the SAME balanced-parenthesis
+// scan (starting from the wrapper call's own "(" immediately preceding the
+// marker) to find its true close -- never a regex up to the first "})", for
+// the same reason applyModelInfoBridge()'s insertion point can't be found
+// that way. The wrapper name is read back from whatever identifier actually
+// precedes "(()=>{" + MODELINFO_MARKER in THIS file (never assumed to be
+// "Wn") -- our own injected block always has this exact shape (see
+// bridgeEffectSource() above), so scanning backward from the marker for the
+// nearest "<ident>(()=>{" is enough to recover it without hardcoding.
 export function removeModelInfoBridge(webviewJs: string): string {
   const markerIdx = webviewJs.indexOf(MODELINFO_MARKER);
   if (markerIdx === -1) return webviewJs;
-  // Our own block always starts with the literal ",Wn(()=>{" immediately
-  // before the marker (see bridgeEffectSource() above) -- locate that exact
-  // prefix's leading comma so the whole ",Wn(...)" is removed, not just the
-  // marker's own text.
-  const prefix = ",Wn(()=>{" + MODELINFO_MARKER;
-  const blockStart = webviewJs.lastIndexOf(prefix, markerIdx);
-  if (blockStart === -1) return webviewJs; // marker present but shape unrecognized: leave alone
-  const openParenIdx = webviewJs.indexOf("(", blockStart + 1); // the "(" of "Wn("
+  const bodyPrefix = "(()=>{" + MODELINFO_MARKER;
+  const bodyStart = webviewJs.lastIndexOf(bodyPrefix, markerIdx);
+  if (bodyStart === -1) return webviewJs; // marker present but shape unrecognized: leave alone
+  // Walk backward from bodyStart over the wrapper function's own identifier
+  // chars, then confirm a leading "," immediately precedes it (our own
+  // injected call is always a comma-expression continuation).
+  let nameStart = bodyStart;
+  while (nameStart > 0 && /[\w$]/.test(webviewJs[nameStart - 1])) nameStart--;
+  const blockStart = nameStart - 1;
+  if (blockStart < 0 || webviewJs[blockStart] !== ",") return webviewJs; // shape unrecognized: leave alone
+  const openParenIdx = webviewJs.indexOf("(", nameStart); // the "(" of "<wrapperFn>("
   if (openParenIdx === -1) return webviewJs;
   let depth = 0;
   for (let i = openParenIdx; i < webviewJs.length; i++) {
