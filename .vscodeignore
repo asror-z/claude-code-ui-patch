@@ -20,6 +20,13 @@ domain/**
 memory/**
 MEMORY.md
 
+# claude-memory plugin's own runtime scratch state (session-slug, save
+# locks, capture-alive markers) — churns constantly mid-session, and its
+# transient lock files (.remember/tmp/save.lock/pid) can vanish between
+# vsce's file enumeration and its secretlint scan pass, crashing the whole
+# `vsce package` step with an ENOENT. Never a real extension asset either way.
+.remember/**
+
 # Any root-level Markdown other than the user-facing docs — catches stray
 # session artifacts (e.g. a skill-generated "*Roadmap N.md") that sit
 # untracked at the project root and would otherwise leak into the .vsix.
