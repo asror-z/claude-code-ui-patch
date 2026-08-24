@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.137",
+  "version": "2.0.138",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -329,6 +329,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Autosave and restore the composer's draft text per chat."
+        },
+        "smartsClaudeManager.feature.noarrowuphistory": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Disable pressing ArrowUp in an empty composer to recall your last sent message (Claude Code's own native behavior)."
         },
         "smartsClaudeManager.feature.usernav": {
           "type": "boolean",

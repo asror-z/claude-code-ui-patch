@@ -3,4 +3,4 @@
 # Calls the canonical shared script in ~/.agents/skills/smarts-app-vscode/ghooks/
 # (reused by every VS Code extension project) — never a per-project copy.
 ROOT="$(git rev-parse --show-toplevel)"
-node "$HOME/.agents/skills/smarts-app-vscode/ghooks/Auto Version Build.mjs" pre-commit "$ROOT"
+node "$HOME/.agents/skills/smarts-app-vscode/ghooks/auto-version-build.mjs" pre-commit "$ROOT"

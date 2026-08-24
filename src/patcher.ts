@@ -44,6 +44,7 @@ import "./behaviorFeatures.askcollapse";
 import "./behaviorFeatures.usercollapse";
 import "./behaviorFeatures.autocontinue";
 import "./behaviorFeatures.draftsave";
+import "./behaviorFeatures.noarrowuphistory";
 import "./behaviorFeatures.usernav";
 import "./behaviorFeatures.forkconv";
 import "./behaviorFeatures.forkincopy";

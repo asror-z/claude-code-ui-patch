@@ -276,6 +276,7 @@ export const BOOTSTRAP_SOURCE = `
     askcollapse:  { hide: [".cc-askcol-btn"] },
     autocontinue: {},
     draftsave:    {},
+    noarrowuphistory: {},
     usernav:      { hide: [".cc-usernav-up", ".cc-usernav-down"] },
     forkconv:     { hide: [".cc-forkconv-btn"] },
     forkincopy:   { hide: ["[data-cc-forkincopy-btn]"] },
