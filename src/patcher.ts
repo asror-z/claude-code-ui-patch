@@ -322,10 +322,10 @@ const PATCH_POINTS: PatchPoint[] = [
     originalPx: 14,
     style: "value",
     originalValue: "var(--vscode-markdown-font-size, 14px)",
-    // Anchor on the plan-preview `body` rule's font-size, tolerating any
-    // font-family value before it, so this composes with the planPreviewFontFamily
-    // injection (which rewrites that same rule's font-family). extension.js has a
-    // single `body {` rule, so this stays unambiguous.
+    /*
+     * Anchor on the plan-preview `body` rule's font-size, tolerating any font-family value before it, so this composes with the planPreviewFontFamily injection (which rewrites that same rule's font-family).
+     * extension.js has a single `body {` rule, so this stays unambiguous.
+     */
     res: [
       /(body \{\s*font-family:[^;]+;\s*font-size:\s*)(var\(--vscode-markdown-font-size, \d+(?:\.\d+)?px\)|\d+(?:\.\d+)?px)(;)/,
     ],
@@ -388,52 +388,37 @@ const PATCH_POINTS: PatchPoint[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Toggle points: boolean on/off patches (as opposed to px sizes). They ride the
-// same atomic-write / stock-drift / pending-reload machinery, but the value is
-// a switch, so they get a small model of their own and a switch control in the
-// panel. Both live in the Edit-diff card's createDiffEditor options; each anchor
-// is global (patches the inline card and the expand modal) and keys off a stable
-// neighbor so it composes with the font knob and the other toggle.
+/*
+ * Toggle points: boolean on/off patches (as opposed to px sizes).
+ * They ride the same atomic-write / stock-drift / pending-reload machinery, but the value is a switch, so they get a small model of their own and a switch control in the panel.
+ * Both live in the Edit-diff card's createDiffEditor options; each anchor is global (patches the inline card and the expand modal) and keys off a stable neighbor so it composes with the font knob and the other toggle.
+ */
 // ---------------------------------------------------------------------------
 
-// Theme sync (ON): replace the hardcoded theme:"vs-dark" with an IIFE that (1)
-// returns the Monaco theme matching the webview's current VS Code theme kind, and
-// (2) once per window installs a MutationObserver on <body>'s class so a later
-// light/dark switch live-updates every diff editor via monaco's global setTheme
-// (Cd is monaco.editor at the injection site). Everything is wrapped in try/catch
-// so a failure can never break card creation; the /*ccup-theme*/ marker makes the
-// ON state detectable and survives minification.
+/*
+ * Theme sync (ON): replace the hardcoded theme:"vs-dark" with an IIFE that (1) returns the Monaco theme matching the webview's current VS Code theme kind, and (2) once per window installs a MutationObserver on <body>'s class so a later light/dark switch live-updates every diff editor via monaco's global setTheme (Cd is monaco.editor at the injection site).
+ * Everything is wrapped in try/catch so a failure can never break card creation; the ccup-theme marker makes the ON state detectable and survives minification.
+ */
 const THEME_SYNC_ON =
   '/*ccup-theme*/(function(){function p(){var l=document.body.classList;return l.contains("vscode-high-contrast")?(l.contains("vscode-high-contrast-light")?"hc-light":"hc-black"):(l.contains("vscode-light")?"vs":"vs-dark")}try{if(!window.__ccupThemeObs){window.__ccupThemeObs=1;new MutationObserver(function(){try{Cd.setTheme(p())}catch(e){}}).observe(document.body,{attributes:true,attributeFilter:["class"]})}}catch(e){}return p()}())';
 
-// Gutter cleanup appended to webview/index.css when line numbers are ON. The diff
-// card marks changed lines with codicon glyphs (codicon-diff-insert = the "+"
-// icon, codicon-diff-remove = the "-" icon), but this bundle's codicon subset
-// can't draw them, so they fall back to empty notdef boxes next to each line. We
-// re-point those glyphs at a text font and render literal "+"/"-", turning the
-// boxes into the real diff signs; and we flatten line 1's always-bright active
-// line number to the normal color. Scoped to every diff container found in the
-// stylesheet (the inline card and the expand modal use different CSS-module
-// hashes, e.g. _s6OFow and _oXZawA), so both render the signs.
+/*
+ * Gutter cleanup appended to webview/index.css when line numbers are ON.
+ * The diff card marks changed lines with codicon glyphs (codicon-diff-insert = the "+" icon, codicon-diff-remove = the "-" icon), but this bundle's codicon subset can't draw them, so they fall back to empty notdef boxes next to each line.
+ * We re-point those glyphs at a text font and render literal "+"/"-", turning the boxes into the real diff signs; and we flatten line 1's always-bright active line number to the normal color.
+ * Scoped to every diff container found in the stylesheet (the inline card and the expand modal use different CSS-module hashes, e.g. _s6OFow and _oXZawA), so both render the signs.
+ */
 const DIFF_LINES_CSS_MARKER = "/*ccup:diffLines*/";
 const DIFF_CONTAINER_HASH_RE = /\.diffEditorContainer_([-\w]+)\{/g;
 
-// Effort reload-sync (ON): close the settings.json -> actual-call gap. Claude
-// Code persists `effortLevel` to ~/.claude/settings.json and the chat UI seeds
-// its effort button from that raw value, but a freshly spawned CLI session does
-// NOT re-read `effortLevel` from settings — effort is driven live only via the
-// apply_settings / applyFlagSettings RPC, which fires when the button is
-// toggled. So after a window reload the button shows "max" while the next
-// message silently runs at the CLI default ("high") until you flip the button.
-// The patch mirrors the toggle's proven path: in the webview init effect that
-// seeds `effortLevel` from settings, also push that value to the running CLI
-// via applySettings({effortLevel:r},{flagsOnly:!0}) (flagsOnly = push only, no
-// settings.json rewrite, since the value already came from there). The
-// /*ccup-effortSync*/ marker makes the ON state detectable; the local seed
-// variable is captured so the patch survives re-minification across versions.
-// The seed branch's own `!this.effortLevel.value` guard makes the push fire
-// once per webview load, and .catch swallows any rejection (e.g. an effort
-// level the current model doesn't support) so it can never break the effect.
+/*
+ * Effort reload-sync (ON): close the settings.json -> actual-call gap.
+ * Claude Code persists `effortLevel` to ~/.claude/settings.json and the chat UI seeds its effort button from that raw value, but a freshly spawned CLI session does NOT re-read `effortLevel` from settings — effort is driven live only via the apply_settings / applyFlagSettings RPC, which fires when the button is toggled.
+ * So after a window reload the button shows "max" while the next message silently runs at the CLI default ("high") until you flip the button.
+ * The patch mirrors the toggle's proven path: in the webview init effect that seeds `effortLevel` from settings, also push that value to the running CLI via applySettings({effortLevel:r},{flagsOnly:!0}) (flagsOnly = push only, no settings.json rewrite, since the value already came from there).
+ * The ccup-effortSync marker makes the ON state detectable; the local seed variable is captured so the patch survives re-minification across versions.
+ * The seed branch's own `!this.effortLevel.value` guard makes the push fire once per webview load, and .catch swallows any rejection (e.g. an effort level the current model doesn't support) so it can never break the effect.
+ */
 const EFFORT_SYNC_MARKER = "/*ccup-effortSync*/";
 // Native (OFF) form: if(VAR&&!this.effortLevel.value)this.effortLevel.value=VAR;
 const EFFORT_SYNC_OFF_RE =
@@ -445,7 +430,11 @@ const EFFORT_SYNC_ON_RE =
 function effortSyncPresent(c: string): boolean {
   return EFFORT_SYNC_OFF_RE.test(c) || EFFORT_SYNC_ON_RE.test(c);
 }
-// true = ON (patched), false = OFF (native), undefined = anchor gone.
+/**
+ * Detect the effort-sync toggle's current on/off state.
+ * @param {string} c - the file content to inspect
+ * @returns {boolean | undefined} true = ON (patched), false = OFF (native), undefined = anchor gone
+ */
 function effortSyncCurrentOn(c: string): boolean | undefined {
   if (EFFORT_SYNC_ON_RE.test(c)) return true;
   if (EFFORT_SYNC_OFF_RE.test(c)) return false;
@@ -466,21 +455,11 @@ function effortSyncSet(c: string, on: boolean): string {
   );
 }
 
-// Hide usage-limit warning (ON): the composer footer shows a dismissable "You've
-// used X% of your weekly limit" banner (color:"warning", the same RC notice
-// component used for the settings-error banner elsewhere, so this anchor is scoped
-// tightly to the ONE instance whose onClose calls dismissRateLimitWarning() — a
-// string unique in the bundle). Its own X only clears rateLimitWarning.value for the
-// current rate-limit key (dismissRateLimitWarning() in the webview's session-state
-// class), so it reappears on the next usage update; ON here instead short-circuits
-// the whole render condition permanently by swapping its leading
-// `t.rateLimitWarning.value` for `false`, so the banner (and its "View usage" link)
-// never renders regardless of usage state. The middle guard clauses
-// (!h&&!fe&&un===void 0&&!ie&&!R&&!n.showReviewUpsellBanner.value) are matched
-// tolerantly (a bounded &&-separated run) since their exact count/order is
-// build-specific and not the actual anchor — the unique tail
-// (color:"warning",onClose:()=>{t.dismissRateLimitWarning()},closeTooltip:"Dismiss
-// warning") is what pins this to the correct banner instance.
+/*
+ * Hide usage-limit warning (ON): the composer footer shows a dismissable "You've used X% of your weekly limit" banner (color:"warning", the same RC notice component used for the settings-error banner elsewhere, so this anchor is scoped tightly to the ONE instance whose onClose calls dismissRateLimitWarning() — a string unique in the bundle).
+ * Its own X only clears rateLimitWarning.value for the current rate-limit key (dismissRateLimitWarning() in the webview's session-state class), so it reappears on the next usage update; ON here instead short-circuits the whole render condition permanently by swapping its leading `t.rateLimitWarning.value` for `false`, so the banner (and its "View usage" link) never renders regardless of usage state.
+ * The middle guard clauses (!h&&!fe&&un===void 0&&!ie&&!R&&!n.showReviewUpsellBanner.value) are matched tolerantly (a bounded &&-separated run) since their exact count/order is build-specific and not the actual anchor — the unique tail (color:"warning",onClose:()=>{t.dismissRateLimitWarning()},closeTooltip:"Dismiss warning") is what pins this to the correct banner instance.
+ */
 const USAGE_WARNING_RE =
   /(t\.rateLimitWarning\.value|false)((?:&&[^&{}]*)*?&&(?:E|b)\(RC,\{color:"warning",onClose:\(\)=>\{t\.dismissRateLimitWarning\(\)\},closeTooltip:"Dismiss warning")/;
 
@@ -499,15 +478,13 @@ function usageWarningSet(c: string, on: boolean): string {
   );
 }
 
-// Permission-code size match (ON): the permission "Allow this command?" dialog
-// renders the command in .bashCommand_<hash> at 0.9em, larger than the tool
-// input (IN) block (0.85em). When ON we append a scoped rule pinning the
-// permission block to 0.85em so it matches the IN block (both remain em-relative
-// to the chat font size). The hash is read from the stylesheet; if the anchor is
-// gone we skip (native). The /*cc-ui-patch:permCode*/ marker makes it detectable.
-// This is a pure-CSS toggle (no JS anchor): its "file" is the stylesheet and the
-// fn* transforms append/remove the marked line, so it rides the toggle machinery
-// without a JS side.
+/*
+ * Permission-code size match (ON): the permission "Allow this command?" dialog renders the command in .bashCommand_<hash> at 0.9em, larger than the tool input (IN) block (0.85em).
+ * When ON we append a scoped rule pinning the permission block to 0.85em so it matches the IN block (both remain em-relative to the chat font size).
+ * The hash is read from the stylesheet; if the anchor is gone we skip (native).
+ * The cc-ui-patch:permCode marker makes it detectable.
+ * This is a pure-CSS toggle (no JS anchor): its "file" is the stylesheet and the fn* transforms append/remove the marked line, so it rides the toggle machinery without a JS side.
+ */
 const PERM_CODE_MARKER = "/*cc-ui-patch:permCode*/";
 const BASH_CMD_HASH_RE = /\.bashCommand_([-\w]+)\{/;
 
@@ -530,48 +507,30 @@ function permCodeSet(c: string, on: boolean): string {
   );
 }
 
-// Faro logging CSP allowance (ON): the chat webview's stock CSP is
-// `default-src 'none'; ${p}; ${f}; ${m}; script-src 'nonce-${u}'; ${v};`
-// (style/font/img/worker via cspSource, script nonce-only). It permits NEITHER
-// the unpkg CDN (to load the Faro Web SDK) NOR the Faro collector origin (to
-// POST telemetry) — so the chatEnhancements Faro feature can never reach
-// Grafana Loki with the stock CSP (verified live: the SDK <script> is
-// CSP-blocked, and even nonce'd, the collector POST would be blocked by the
-// absent connect-src). This toggle rewrites that one CSP <meta> so Faro works:
-// it injects `https://unpkg.com` into the existing script-src and appends a
-// `connect-src` for the Faro collector origin, right before the closing `;">`.
-// Scoped tightly to the chat webview CSP (anchored on the `script-src
-// 'nonce-${u}'` template literal, which is unique to that one template — the
-// plan-preview webview uses a literal `nonce-{{NONCE}}` instead, so it is never
-// touched). The /*ccup-csp*/ marker (kept OUTSIDE the meta content, in a
-// trailing HTML comment) makes the ON state detectable and reversible.
-//
-// The two allowed origins are derived from the Faro feature's own stamped
-// collector URL; keep them in sync if smarts-logging-grafana ever restamps a
-// different collector region.
-// Mirrors the proven-working CSP patch from the sibling smarts-claude-patch
-// project (scripts/Apply Patch.mjs step 3d): two idempotent edits to the ONE
-// chat-webview CSP meta —
-//   (1) connect-src <collector> inserted right after `default-src 'none';`
-//       (or an existing connect-src replaced) so Faro's push fetch is allowed,
-//   (2) unpkg.com added to the existing `script-src 'nonce-${n}';` so the SDK
-//       <script> can load.
-// The nonce var name (${u} here, but captured fresh so it survives re-minify)
-// is never hardcoded. Detection: the presence of `unpkg.com` in the script-src
-// is the ON marker (no separate comment marker needed — the CSP change IS the
-// state). Scoped to the chat webview CSP alone: it anchors on the nonce
-// TEMPLATE-LITERAL form `nonce-${u}`, which is unique to that template — the
-// plan-preview webview uses a literal `nonce-{{NONCE}}` and is never matched.
+/*
+ * Faro logging CSP allowance (ON): the chat webview's stock CSP is `default-src 'none'; ${p}; ${f}; ${m}; script-src 'nonce-${u}'; ${v};` (style/font/img/worker via cspSource, script nonce-only).
+ * It permits NEITHER the unpkg CDN (to load the Faro Web SDK) NOR the Faro collector origin (to POST telemetry) — so the chatEnhancements Faro feature can never reach Grafana Loki with the stock CSP (verified live: the SDK <script> is CSP-blocked, and even nonce'd, the collector POST would be blocked by the absent connect-src).
+ * This toggle rewrites that one CSP <meta> so Faro works: it injects `https://unpkg.com` into the existing script-src and appends a `connect-src` for the Faro collector origin, right before the closing `;">`.
+ * Scoped tightly to the chat webview CSP (anchored on the `script-src 'nonce-${u}'` template literal, which is unique to that one template — the plan-preview webview uses a literal `nonce-{{NONCE}}` instead, so it is never touched).
+ * The ccup-csp marker (kept OUTSIDE the meta content, in a trailing HTML comment) makes the ON state detectable and reversible.
+ *
+ * The two allowed origins are derived from the Faro feature's own stamped collector URL; keep them in sync if smarts-logging-grafana ever restamps a different collector region.
+ * Mirrors the proven-working CSP patch from the sibling smarts-claude-patch project (scripts/Apply Patch.mjs step 3d): two idempotent edits to the ONE chat-webview CSP meta —
+ *   (1) connect-src <collector> inserted right after `default-src 'none';`
+ *       (or an existing connect-src replaced) so Faro's push fetch is allowed,
+ *   (2) unpkg.com added to the existing `script-src 'nonce-${n}';` so the SDK
+ *       <script> can load.
+ * The nonce var name (${u} here, but captured fresh so it survives re-minify) is never hardcoded.
+ * Detection: the presence of `unpkg.com` in the script-src is the ON marker (no separate comment marker needed — the CSP change IS the state).
+ * Scoped to the chat webview CSP alone: it anchors on the nonce TEMPLATE-LITERAL form `nonce-${u}`, which is unique to that template — the plan-preview webview uses a literal `nonce-{{NONCE}}` and is never matched.
+ */
 const FARO_CDN_ORIGIN = "https://unpkg.com";
 const FARO_COLLECTOR_ORIGIN = "https://faro-collector-prod-ap-south-1.grafana.net";
-// The ONE chat-webview CSP <meta> — matched as a whole so both edits stay scoped
-// to it and never touch the SEPARATE plan-preview CSP, which shares the same
-// `default-src 'none';` prefix but uses a literal `nonce-{{NONCE}}` (not the
-// template-literal `nonce-${u}`) and img-src data:. Anchoring the whole tag on
-// the template-literal nonce form is what keeps the plan-preview meta untouched
-// (a naive split on `default-src 'none';` would hit BOTH — a real bug caught in
-// testing). The nonce var name (${u}) is captured, never hardcoded, so this
-// survives a re-minify that renames it.
+/*
+ * The ONE chat-webview CSP <meta> — matched as a whole so both edits stay scoped to it and never touch the SEPARATE plan-preview CSP, which shares the same `default-src 'none';` prefix but uses a literal `nonce-{{NONCE}}` (not the template-literal `nonce-${u}`) and img-src data:.
+ * Anchoring the whole tag on the template-literal nonce form is what keeps the plan-preview meta untouched (a naive split on `default-src 'none';` would hit BOTH — a real bug caught in testing).
+ * The nonce var name (${u}) is captured, never hardcoded, so this survives a re-minify that renames it.
+ */
 const CSP_CHAT_META_RE =
   /<meta http-equiv="Content-Security-Policy" content="(default-src 'none';[^"]*?script-src 'nonce-\$\{\w+\}'[^"]*?)">/;
 const CSP_SCRIPT_SRC_RE = /script-src\s+'nonce-\$\{(\w+)\}'\s*;/;
@@ -582,7 +541,11 @@ function cspChatMetaPresent(c: string): boolean {
 function cspPresent(c: string): boolean {
   return cspChatMetaPresent(c);
 }
-// true = ON (unpkg in the chat script-src), false = OFF (stock), undefined = anchor gone.
+/**
+ * Detect the Faro CSP allowance's current on/off state.
+ * @param {string} c - the file content to inspect
+ * @returns {boolean | undefined} true = ON (unpkg in the chat script-src), false = OFF (stock), undefined = anchor gone
+ */
 function cspCurrentOn(c: string): boolean | undefined {
   const m = c.match(CSP_CHAT_META_RE);
   if (!m) return undefined;
@@ -590,8 +553,12 @@ function cspCurrentOn(c: string): boolean | undefined {
     ? true
     : false;
 }
-// Transform ONLY the chat CSP meta's content, splicing the result back so the
-// plan-preview meta (and everything else) is byte-for-byte untouched.
+/**
+ * Transform ONLY the chat CSP meta's content, splicing the result back so the plan-preview meta (and everything else) is byte-for-byte untouched.
+ * @param {string} c - the file content to transform
+ * @param {boolean} on - whether the CSP allowance should be ON
+ * @returns {string} the transformed file content
+ */
 function cspSet(c: string, on: boolean): string {
   const m = c.match(CSP_CHAT_META_RE);
   if (!m) return c; // anchor gone: leave native
@@ -600,8 +567,12 @@ function cspSet(c: string, on: boolean): string {
   if (next === content) return c; // no-op
   return c.replace(m[0], `<meta http-equiv="Content-Security-Policy" content="${next}">`);
 }
-// ON: add connect-src <collector> right after default-src 'none'; (or replace an
-// existing connect-src), and add unpkg.com to the nonce script-src. Idempotent.
+/**
+ * ON: add connect-src <collector> right after default-src 'none'; (or replace an existing connect-src), and add unpkg.com to the nonce script-src.
+ * Idempotent.
+ * @param {string} content - the CSP meta content to transform
+ * @returns {string} the transformed CSP meta content
+ */
 function cspContentOn(content: string): string {
   let out = content;
   const connectDirective = `connect-src ${FARO_COLLECTOR_ORIGIN}`;
@@ -618,7 +589,11 @@ function cspContentOn(content: string): string {
   }
   return out;
 }
-// OFF: exact inverse of cspContentOn — strip our connect-src and the unpkg token.
+/**
+ * OFF: exact inverse of cspContentOn — strip our connect-src and the unpkg token.
+ * @param {string} content - the CSP meta content to transform
+ * @returns {string} the transformed CSP meta content
+ */
 function cspContentOff(content: string): string {
   let out = content;
   out = out.replace(
@@ -631,11 +606,10 @@ function cspContentOff(content: string): string {
   return out;
 }
 
-// Open-external bridge (see openExternalBridge.ts for the full rationale):
-// two ALWAYS-ON TogglePoints, one per file, that together let the injected
-// chat-enhancement scripts open a URL in the user's real browser despite the
-// chat webview's no-"allow-popups" sandbox. Neither has a user-facing
-// setting -- both ride with chatEnhancements the same way faroCsp does.
+/*
+ * Open-external bridge (see openExternalBridge.ts for the full rationale): two ALWAYS-ON TogglePoints, one per file, that together let the injected chat-enhancement scripts open a URL in the user's real browser despite the chat webview's no-"allow-popups" sandbox.
+ * Neither has a user-facing setting -- both ride with chatEnhancements the same way faroCsp does.
+ */
 function openExternalHostPresent(c: string): boolean {
   return hostBridgePresent(c);
 }
@@ -655,28 +629,23 @@ function openExternalWebviewSet(c: string, on: boolean): string {
   return on ? applyWebviewBridge(c).out : removeWebviewBridge(c);
 }
 
-// Model/effort/thinking info bridge (see modelInfoBridge.ts for the full
-// rationale): mirrors the webview's own currentMainLoopModel/effortLevel/
-// thinkingLevel signals onto window.__ccModelInfo so the modelinfo/effortinfo
-// chat features can read them. No user-facing setting -- rides with
-// chatEnhancements the same way openExternalHost/Webview do.
+/*
+ * Model/effort/thinking info bridge (see modelInfoBridge.ts for the full rationale): mirrors the webview's own currentMainLoopModel/effortLevel/thinkingLevel signals onto window.__ccModelInfo so the modelinfo/effortinfo chat features can read them.
+ * No user-facing setting -- rides with chatEnhancements the same way openExternalHost/Webview do.
+ */
 function modelInfoSet(c: string, on: boolean): string {
   return on ? applyModelInfoBridge(c).out : removeModelInfoBridge(c);
 }
 
-// The chat message "Show more" (.expandButton_<hash>) and "Show less"
-// (.collapseButton_<hash>) buttons live in the expandable-content module. "Show
-// more" is position:absolute (bottom:0;right:0) anchored to the fit-content
-// .expandableContainer and only renders on hover, so it overlays the content
-// instead of taking a flow slot; its horizontal spot tracks the content width
-// and drifts between messages. "Show less" is an in-flow flex item defaulting
-// to the container's right edge. The chatShowMoreAndLessAlign inject point
-// (below) pins each to the chosen side: "Show more" stays absolute (still
-// overlaid, so it never adds height) with only its left/right anchor flipped;
-// "Show less" keeps its flow slot, pushed with an auto margin. An earlier build
-// forced "Show more" into normal flow (position:static), which grew the box
-// taller whenever it appeared on hover, a vertical jitter. "" = leave native.
-// Anchor on the buttonContainer rule to recover the hash.
+/*
+ * The chat message "Show more" (.expandButton_<hash>) and "Show less" (.collapseButton_<hash>) buttons live in the expandable-content module.
+ * "Show more" is position:absolute (bottom:0;right:0) anchored to the fit-content .expandableContainer and only renders on hover, so it overlays the content instead of taking a flow slot; its horizontal spot tracks the content width and drifts between messages.
+ * "Show less" is an in-flow flex item defaulting to the container's right edge.
+ * The chatShowMoreAndLessAlign inject point (below) pins each to the chosen side: "Show more" stays absolute (still overlaid, so it never adds height) with only its left/right anchor flipped; "Show less" keeps its flow slot, pushed with an auto margin.
+ * An earlier build forced "Show more" into normal flow (position:static), which grew the box taller whenever it appeared on hover, a vertical jitter.
+ * "" = leave native.
+ * Anchor on the buttonContainer rule to recover the hash.
+ */
 const SHOW_MORE_MARKER = "/*cc-ui-patch:showMoreRight*/";
 const SHOW_MORE_HASH_RE =
   /\.buttonContainer_([-\w]+)\{display:flex;opacity:\.9;justify-content:flex-end/;
@@ -688,29 +657,30 @@ interface TogglePoint {
   key: string; // settings sub-key under the smartsClaudeManager namespace (boolean)
   defaultOn: boolean; // native default (the "off"/stock state)
   file: string; // path relative to the install dir
-  // Value-swap model (re captures (prefix)(value)(suffix); onValue/offValue
-  // replace the captured value). Used by the diff-card toggles.
+  /*
+   * Value-swap model (re captures (prefix)(value)(suffix); onValue/offValue replace the captured value).
+   * Used by the diff-card toggles.
+   */
   re?: RegExp; // global; captures (prefix)(value)(suffix)
   onValue?: string; // literal written for ON
   offValue?: string; // literal written for OFF (native)
   isOn?: (value: string) => boolean; // detect ON from the captured value (default: === onValue)
-  // Custom transform for an on/off change the value-swap model can't express
-  // (e.g. injecting a statement). When present, these override re/onValue/offValue/isOn.
+  /*
+   * Custom transform for an on/off change the value-swap model can't express (e.g. injecting a statement).
+   * When present, these override re/onValue/offValue/isOn.
+   */
   fnPresent?: (c: string) => boolean;
   fnCurrentOn?: (c: string) => boolean | undefined; // undefined => anchor gone
   fnSet?: (c: string, on: boolean) => string;
-  // Optional content digest beyond a plain on/off boolean — for a toggle whose ON
-  // state can itself carry different CONTENT (e.g. chatEnhancements: the injected
-  // script's per-feature seed values), so toggleStateStr()'s equality check (used by
-  // both analyzeToggles' status and reconcilePendingReload's "needs reload" flag)
-  // notices a content-only change, not just an on/off flip. Returns a short string
-  // that changes whenever the meaningful content differs; undefined defers to the
-  // plain jsOn boolean (the default for every other toggle).
+  /*
+   * Optional content digest beyond a plain on/off boolean — for a toggle whose ON state can itself carry different CONTENT (e.g. chatEnhancements: the injected script's per-feature seed values), so toggleStateStr()'s equality check (used by both analyzeToggles' status and reconcilePendingReload's "needs reload" flag) notices a content-only change, not just an on/off flip.
+   * Returns a short string that changes whenever the meaningful content differs; undefined defers to the plain jsOn boolean (the default for every other toggle).
+   */
   fnContentDigest?: (c: string) => string | undefined;
-  // The digest toggleWantStr() should compare against when ON — computed from
-  // CURRENT settings alone (no file content available yet), so it must mirror
-  // fnContentDigest's derivation exactly. Only meaningful when fnContentDigest is
-  // also set.
+  /*
+   * The digest toggleWantStr() should compare against when ON — computed from CURRENT settings alone (no file content available yet), so it must mirror fnContentDigest's derivation exactly.
+   * Only meaningful when fnContentDigest is also set.
+   */
   fnWantDigest?: () => string;
   // Optional secondary CSS side-effect (a different file) applied when ON.
   cssFile?: string;
@@ -718,19 +688,13 @@ interface TogglePoint {
   cssBuild?: (css: string) => string | undefined; // full marked rule, or undefined if anchor gone
 }
 
-// Chat enhancements (ON): injects the shared bootstrap + toolbar + every
-// registered behavior feature (Reply, Search, DateTime, ... — see
-// behaviorFeatures.ts) as one marker-tagged nonce'd <script> in extension.js, plus
-// their combined CSS as one marker-tagged block in webview/index.css. Both files
-// ride the toggle machinery via a custom fn* transform (extension.js) + a cssFile
-// side-effect (webview/index.css), exactly like diffLineNumbers' gutter CSS above,
-// because this is a whole-block inject/remove rather than a single value swap.
-// smartsClaudeManager.feature.<id> (one boolean per feature — see package.json, and the
-// panel's Chat Features checkboxes) is written into the runtime toggle's
-// localStorage map on EVERY webview load — the panel is the one control surface for
-// per-feature on/off (a checkbox flip takes effect on the next window reload, exactly
-// like every other patch setting). Read fresh on every apply so a settings change is
-// picked up by the next re-patch.
+/**
+ * Chat enhancements (ON): injects the shared bootstrap + toolbar + every registered behavior feature (Reply, Search, DateTime, ... — see behaviorFeatures.ts) as one marker-tagged nonce'd <script> in extension.js, plus their combined CSS as one marker-tagged block in webview/index.css.
+ * Both files ride the toggle machinery via a custom fn* transform (extension.js) + a cssFile side-effect (webview/index.css), exactly like diffLineNumbers' gutter CSS above, because this is a whole-block inject/remove rather than a single value swap.
+ * smartsClaudeManager.feature.<id> (one boolean per feature — see package.json, and the panel's Chat Features checkboxes) is written into the runtime toggle's localStorage map on EVERY webview load — the panel is the one control surface for per-feature on/off (a checkbox flip takes effect on the next window reload, exactly like every other patch setting).
+ * Read fresh on every apply so a settings change is picked up by the next re-patch.
+ * @returns {Record<string, boolean>} the current smartsClaudeManager.feature.<id> setting values, keyed by feature id
+ */
 export function readFeatureDefaults(): Record<string, boolean> {
   const c = vscode.workspace.getConfiguration(CONFIG_NS);
   const m: Record<string, boolean> = {};
@@ -738,10 +702,10 @@ export function readFeatureDefaults(): Record<string, boolean> {
   return m;
 }
 
-// Numeric per-feature tunables (AutoContinue's timing/cap values, DraftSave's
-// staleness/debounce delays) — same "read fresh on every apply" contract as
-// readFeatureDefaults() above, so a settings.json edit is picked up by the next
-// re-patch without waiting on anything else to change.
+/**
+ * Numeric per-feature tunables (AutoContinue's timing/cap values, DraftSave's staleness/debounce delays) — same "read fresh on every apply" contract as readFeatureDefaults() above, so a settings.json edit is picked up by the next re-patch without waiting on anything else to change.
+ * @returns {NumericConfig} the current numeric per-feature tunable values
+ */
 export function readNumericConfig(): NumericConfig {
   const c = vscode.workspace.getConfiguration(CONFIG_NS);
   return {
@@ -763,14 +727,12 @@ function chatEnhancementsCurrentOn(c: string): boolean | undefined {
   if (cur === undefined) return false; // anchor present, no block: OFF
   return true; // block present (content drift, if any, is reconciled by re-apply)
 }
-// A plain on/off boolean can't tell "the injected script is present" apart from
-// "the injected script is present WITH THE CURRENTLY-WANTED per-feature seed
-// values" — a smartsClaudeManager.feature.<id> flip changes only the latter. These
-// two functions give toggleStateStr()/toggleWantStr() a real content comparison
-// (a fast, cheap length+char-sum digest — the actual scripts run tens of KB, so
-// hashing the full string on every analyze/reconcile pass is unnecessary), so a
-// feature-only change is correctly flagged as "needs reload" instead of silently
-// looking identical to the already-applied state.
+/**
+ * A plain on/off boolean can't tell "the injected script is present" apart from "the injected script is present WITH THE CURRENTLY-WANTED per-feature seed values" — a smartsClaudeManager.feature.<id> flip changes only the latter.
+ * This (and chatEnhancementsContentDigest/chatEnhancementsWantDigest below, which call it) give toggleStateStr()/toggleWantStr() a real content comparison — a fast, cheap length+char-sum digest, since the actual scripts run tens of KB and hashing the full string on every analyze/reconcile pass is unnecessary — so a feature-only change is correctly flagged as "needs reload" instead of silently looking identical to the already-applied state.
+ * @param {string} s - the string to digest
+ * @returns {string} a cheap length+char-sum digest string
+ */
 function cheapDigest(s: string): string {
   let sum = 0;
   for (let i = 0; i < s.length; i += 7) sum = (sum + s.charCodeAt(i) * (i + 1)) % 0xfffffff;
@@ -792,9 +754,11 @@ function chatEnhancementsSet(c: string, on: boolean): string {
   if (cur === want) return c; // already in sync: no-op write
   return applyBehaviorScript(c, defaults, numeric).out;
 }
-// The full marker-tagged line to write when ON — always re-derived from the
-// CURRENT feature registry (mirrors diffLinesCssBuild's shape above), so an
-// extension update that adds/changes a feature is picked up on the next apply.
+/**
+ * The full marker-tagged line to write when ON — always re-derived from the CURRENT feature registry (mirrors diffLinesCssBuild's shape above), so an extension update that adds/changes a feature is picked up on the next apply.
+ * @param {string} _css - unused; kept for signature parity with the other cssBuild functions
+ * @returns {string | undefined} the marker-tagged line to write
+ */
 function chatEnhancementsCssBuild(_css: string): string | undefined {
   return behaviorCssMarkedLine();
 }
@@ -834,10 +798,10 @@ const TOGGLE_POINTS: TogglePoint[] = [
     key: "chatDiffCardLineNumbers",
     defaultOn: true,
     file: "webview/index.js",
-    // Swap the whole lineNumbers value; ON also sets lineNumbersMinChars:2 to keep
-    // the gutter narrow (Monaco's default minimum is 5 chars, which widens the
-    // margin noticeably). The optional min-chars group in the match also accepts a
-    // prior build's bare lineNumbers:"on", so re-applying upgrades it in place.
+    /*
+     * Swap the whole lineNumbers value; ON also sets lineNumbersMinChars:2 to keep the gutter narrow (Monaco's default minimum is 5 chars, which widens the margin noticeably).
+     * The optional min-chars group in the match also accepts a prior build's bare lineNumbers:"on", so re-applying upgrades it in place.
+     */
     re: /(fontSize:\d+(?:\.\d+)?,)(lineNumbers:"(?:off|on)"(?:,lineNumbersMinChars:\d+)?)(,)/g,
     onValue: 'lineNumbers:"on",lineNumbersMinChars:2',
     offValue: 'lineNumbers:"off"',
@@ -881,13 +845,10 @@ const TOGGLE_POINTS: TogglePoint[] = [
     fnSet: permCodeSet,
   },
   {
-    // Faro logging CSP allowance — extends the chat webview's CSP so the Faro
-    // Web SDK (unpkg script-src) and its collector fetch (connect-src) are
-    // permitted; without it the chatEnhancements Faro feature is CSP-blocked and
-    // Grafana Loki gets nothing (verified live). ALWAYS ON (see ALWAYS_ON_TOGGLES):
-    // it has no user-facing setting — it exists solely to make the always-on
-    // chat-enhancements pack's own Faro logging able to reach Grafana, so it
-    // rides with chatEnhancements rather than being independently toggleable.
+    /*
+     * Faro logging CSP allowance — extends the chat webview's CSP so the Faro Web SDK (unpkg script-src) and its collector fetch (connect-src) are permitted; without it the chatEnhancements Faro feature is CSP-blocked and Grafana Loki gets nothing (verified live).
+     * ALWAYS ON (see ALWAYS_ON_TOGGLES): it has no user-facing setting — it exists solely to make the always-on chat-enhancements pack's own Faro logging able to reach Grafana, so it rides with chatEnhancements rather than being independently toggleable.
+     */
     id: "faroCsp",
     section: "Chat Panel",
     label: "Faro logging CSP allowance",
@@ -899,10 +860,10 @@ const TOGGLE_POINTS: TogglePoint[] = [
     fnSet: cspSet,
   },
   {
-    // Extension-host half of the open-external bridge — see
-    // openExternalBridge.ts. ALWAYS ON: no user-facing setting, rides with
-    // chatEnhancements (googlesearch depends on it to open a real browser
-    // window despite the chat webview's sandbox).
+    /*
+     * Extension-host half of the open-external bridge — see openExternalBridge.ts.
+     * ALWAYS ON: no user-facing setting, rides with chatEnhancements (googlesearch depends on it to open a real browser window despite the chat webview's sandbox).
+     */
     id: "openExternalHost",
     section: "Chat Panel",
     label: "Open-external bridge (host)",
@@ -914,8 +875,10 @@ const TOGGLE_POINTS: TogglePoint[] = [
     fnSet: openExternalHostSet,
   },
   {
-    // Webview half of the open-external bridge — see openExternalBridge.ts.
-    // ALWAYS ON, same rationale as openExternalHost above.
+    /*
+     * Webview half of the open-external bridge — see openExternalBridge.ts.
+     * ALWAYS ON, same rationale as openExternalHost above.
+     */
     id: "openExternalWebview",
     section: "Chat Panel",
     label: "Open-external bridge (webview)",
@@ -927,10 +890,10 @@ const TOGGLE_POINTS: TogglePoint[] = [
     fnSet: openExternalWebviewSet,
   },
   {
-    // Model/effort/thinking info bridge -- see modelInfoBridge.ts. ALWAYS ON,
-    // same rationale as openExternalHost/Webview above: the modelinfo and
-    // effortinfo chat features depend on it to read the running model/effort/
-    // thinking state at all.
+    /*
+     * Model/effort/thinking info bridge -- see modelInfoBridge.ts.
+     * ALWAYS ON, same rationale as openExternalHost/Webview above: the modelinfo and effortinfo chat features depend on it to read the running model/effort/thinking state at all.
+     */
     id: "modelInfoBridge",
     section: "Chat Panel",
     label: "Model/effort info bridge",
@@ -945,10 +908,10 @@ const TOGGLE_POINTS: TogglePoint[] = [
 
 export type ToggleMap = Record<string, boolean>;
 
-// Toggle ids with no user-facing setting: always forced to this value regardless of
-// smartsClaudeManager.* config. chatEnhancements is one of these — the individual
-// smartsClaudeManager.feature.<id> checkboxes are the only per-feature control; there
-// is no separate master on/off (removed per user feedback: "doim on bo'ladi").
+/*
+ * Toggle ids with no user-facing setting: always forced to this value regardless of smartsClaudeManager.* config.
+ * chatEnhancements is one of these — the individual smartsClaudeManager.feature.<id> checkboxes are the only per-feature control; there is no separate master on/off (removed per user feedback: "doim on bo'ladi").
+ */
 const ALWAYS_ON_TOGGLES = new Set([
   "chatEnhancements",
   "faroCsp",
@@ -957,6 +920,10 @@ const ALWAYS_ON_TOGGLES = new Set([
   "modelInfoBridge",
 ]);
 
+/**
+ * Read every toggle point's current on/off setting, forcing every ALWAYS_ON_TOGGLES id to true regardless of smartsClaudeManager.* config.
+ * @returns {ToggleMap} the current toggle setting values, keyed by toggle id
+ */
 export function readToggles(): ToggleMap {
   const c = vscode.workspace.getConfiguration(CONFIG_NS);
   const m: ToggleMap = {};
@@ -966,10 +933,11 @@ export function readToggles(): ToggleMap {
   return m;
 }
 
-// One-time migration: the diff-card settings were renamed chatDiff* → chatDiffCard*.
-// Copy any user-set legacy value to the new key (when the new key is unset) and
-// clear the legacy key. Safe to run every activation: a no-op once nothing legacy
-// remains, and it must run before the Patcher reads settings so nothing reverts.
+/*
+ * One-time migration: the diff-card settings were renamed chatDiff* → chatDiffCard*.
+ * Copy any user-set legacy value to the new key (when the new key is unset) and clear the legacy key.
+ * Safe to run every activation: a no-op once nothing legacy remains, and it must run before the Patcher reads settings so nothing reverts.
+ */
 const LEGACY_KEY_RENAMES: [string, string][] = [
   ["chatDiffFontSize", "chatDiffCardFontSize"],
   ["chatDiffLineNumbers", "chatDiffCardLineNumbers"],
@@ -988,22 +956,20 @@ export async function migrateLegacyKeys(): Promise<void> {
       }
       await cfg.update(oldKey, undefined, vscode.ConfigurationTarget.Global);
     } catch {
-      // best effort: the value is copied; clearing an unregistered legacy key can
-      // throw on some VS Code versions, which is harmless (it just lingers).
+      /*
+       * Best effort: the value is copied.
+       * Clearing an unregistered legacy key can throw on some VS Code versions, which is harmless (it just lingers).
+       */
     }
   }
 }
 
-// The whole extension was renamed claudeCodeUiPatch -> smartsClaudeManager (v2.0.0),
-// which moves EVERY setting to a new namespace, not just a handful of keys. Every
-// sub-key that has ever existed under the old namespace is copied over verbatim
-// (both Global and Workspace scope — a workspace-level override must migrate too,
-// not just a user-level one) the first time this runs after the upgrade, then the
-// old key is cleared so a stale claudeCodeUiPatch.* value never lingers or masks a
-// future old-namespace read (there is none, but this mirrors migrateLegacyKeys's own
-// discipline). Safe to run every activation: a no-op once nothing under the old
-// namespace remains. Must run before the Patcher reads settings, same as
-// migrateLegacyKeys, so a migrated value takes effect immediately.
+/*
+ * The whole extension was renamed claudeCodeUiPatch -> smartsClaudeManager (v2.0.0), which moves EVERY setting to a new namespace, not just a handful of keys.
+ * Every sub-key that has ever existed under the old namespace is copied over verbatim (both Global and Workspace scope — a workspace-level override must migrate too, not just a user-level one) the first time this runs after the upgrade, then the old key is cleared so a stale claudeCodeUiPatch.* value never lingers or masks a future old-namespace read (there is none, but this mirrors migrateLegacyKeys's own discipline).
+ * Safe to run every activation: a no-op once nothing under the old namespace remains.
+ * Must run before the Patcher reads settings, same as migrateLegacyKeys, so a migrated value takes effect immediately.
+ */
 const OLD_CONFIG_NS = "claudeCodeUiPatch";
 const NAMESPACE_MIGRATION_KEYS: string[] = [
   "chatHistoryFontSize",
@@ -1040,9 +1006,7 @@ const NAMESPACE_MIGRATION_KEYS: string[] = [
   "feature.autocontinue",
   "feature.draftsave",
   "feature.usernav",
-  // Pre-2.0.0 legacy keys, in case a user upgrades straight from a version that
-  // predates the chatDiff*->chatDiffCard*/chatCodeFontSize->chatCodeblockFontSize
-  // rename without ever having run migrateLegacyKeys() under the old namespace.
+  // Pre-2.0.0 legacy keys, in case a user upgrades straight from a version that predates the chatDiff*->chatDiffCard*/chatCodeFontSize->chatCodeblockFontSize rename without ever having run migrateLegacyKeys() under the old namespace.
   "chatDiffFontSize",
   "chatDiffLineNumbers",
   "chatDiffThemeSync",
@@ -1082,8 +1046,12 @@ function togglePresent(content: string, t: TogglePoint): boolean {
   t.re!.lastIndex = 0;
   return t.re!.test(content);
 }
-// on/off in the bundle (reads the first match; all sites are kept in sync), or
-// undefined when the anchor is absent.
+/**
+ * Detect a toggle's current on/off state in the bundle (reads the first match; all sites are kept in sync).
+ * @param {string} content - the file content to inspect
+ * @param {TogglePoint} t - the toggle point to check
+ * @returns {boolean | undefined} the current on/off state, or undefined when the anchor is absent
+ */
 function toggleCurrentOn(content: string, t: TogglePoint): boolean | undefined {
   if (t.fnCurrentOn) return t.fnCurrentOn(content);
   t.re!.lastIndex = 0;
@@ -1091,11 +1059,14 @@ function toggleCurrentOn(content: string, t: TogglePoint): boolean | undefined {
   if (!m) return undefined;
   return t.isOn ? t.isOn(m[2]) : m[2] === t.onValue;
 }
-// Canonical string of a toggle's FULL on-disk state: the JS anchor plus any CSS
-// side-effect. Used for status, drift detection, and pending-reload. undefined if
-// the JS anchor is gone. A mixed state (e.g. JS "on" from a prior build but the
-// CSS rule not yet appended) yields its own string, so it never looks "current"
-// and therefore gets reconciled — the fix for the CSS half being skipped.
+/**
+ * Canonical string of a toggle's FULL on-disk state: the JS anchor plus any CSS side-effect.
+ * Used for status, drift detection, and pending-reload.
+ * A mixed state (e.g. JS "on" from a prior build but the CSS rule not yet appended) yields its own string, so it never looks "current" and therefore gets reconciled — the fix for the CSS half being skipped.
+ * @param {(rel: string) => string | undefined} read - reads a relative file's content, or undefined if unreadable
+ * @param {TogglePoint} t - the toggle point to compute state for
+ * @returns {string | undefined} the canonical state string, or undefined if the JS anchor is gone
+ */
 function toggleStateStr(
   read: (rel: string) => string | undefined,
   t: TogglePoint,
@@ -1106,9 +1077,10 @@ function toggleStateStr(
   const jsOn = digest !== undefined ? `on:${digest}` : toggleCurrentOn(js, t) ? "on" : "off";
   if (!t.cssFile || !t.cssMarker) return jsOn;
   const css = read(t.cssFile);
-  // "css" only when the EXACT current rule matches what we'd build now. A missing
-  // rule is "nocss"; a rule that differs from the current build (e.g. a newer
-  // patch version) is "stale" — both differ from "css" so they get re-applied.
+  /*
+   * "css" only when the EXACT current rule matches what we'd build now.
+   * A missing rule is "nocss"; a rule that differs from the current build (e.g. a newer patch version) is "stale" — both differ from "css" so they get re-applied.
+   */
   let cssState = "nocss";
   if (css !== undefined && css.includes(t.cssMarker)) {
     const want = t.cssBuild ? t.cssBuild(css) : undefined;
@@ -1120,7 +1092,12 @@ function toggleStateStr(
   return `${jsOn}+${cssState}`;
 }
 
-// The full-state string a toggle should have for a given on/off setting.
+/**
+ * The full-state string a toggle should have for a given on/off setting.
+ * @param {TogglePoint} t - the toggle point to compute the wanted state for
+ * @param {boolean} on - the wanted on/off setting
+ * @returns {string} the wanted full-state string
+ */
 function toggleWantStr(t: TogglePoint, on: boolean): string {
   const js = on ? (t.fnWantDigest ? `on:${t.fnWantDigest()}` : "on") : "off";
   if (!t.cssFile || !t.cssMarker) return js;
@@ -1140,9 +1117,11 @@ function toggleByFile(): Map<string, TogglePoint[]> {
   return m;
 }
 
-// Build the diff-card gutter-cleanup rule, scoped to the diff container whose
-// CSS-module hash is read from the stylesheet (undefined if the anchor is gone,
-// so a future build fails gracefully: line numbers still show, just not cleaned).
+/**
+ * Build the diff-card gutter-cleanup rule, scoped to the diff container whose CSS-module hash is read from the stylesheet (undefined if the anchor is gone, so a future build fails gracefully: line numbers still show, just not cleaned).
+ * @param {string} css - the stylesheet content to read the diff container hash from
+ * @returns {string | undefined} the full gutter-cleanup rule, or undefined if the anchor is gone
+ */
 function diffLinesCssBuild(css: string): string | undefined {
   DIFF_CONTAINER_HASH_RE.lastIndex = 0;
   const hashes = [
@@ -1156,8 +1135,7 @@ function diffLinesCssBuild(css: string): string | undefined {
     const ins = `${c} .codicon-diff-insert`;
     const rem = `${c} .codicon-diff-remove`;
     return (
-      // undo the codicon shrink so the sign fills the gutter, and force a text
-      // font on both the element and the ::before (the box is a notdef glyph).
+      // Undo the codicon shrink so the sign fills the gutter, and force a text font on both the element and the ::before (the box is a notdef glyph).
       `${ins},${rem}{${asText};transform:none !important;font-size:12px !important;line-height:1 !important}` +
       `${ins}::before{content:"+" !important;${asText}}` +
       `${rem}::before{content:"-" !important;${asText}}` +
@@ -1167,12 +1145,24 @@ function diffLinesCssBuild(css: string): string | undefined {
   return DIFF_LINES_CSS_MARKER + hashes.map(perContainer).join("");
 }
 
-// Append (or replace) a single marker-tagged line in a CSS file, and its inverse.
-// String-based (not regex) so a marker containing /* */ needs no escaping.
+/**
+ * Append (or replace) a single marker-tagged line in a CSS file.
+ * String-based (not regex) so a marker containing a comment delimiter needs no escaping.
+ * @param {string} css - the stylesheet content to modify
+ * @param {string} marker - the marker string tagging the line
+ * @param {string} line - the full marker-tagged line to write
+ * @returns {string} the modified stylesheet content
+ */
 function cssApplyLine(css: string, marker: string, line: string): string {
   const stripped = cssRemoveLine(css, marker);
   return `${stripped}\n${line}`;
 }
+/**
+ * Remove a single marker-tagged line from a CSS file — the inverse of cssApplyLine.
+ * @param {string} css - the stylesheet content to modify
+ * @param {string} marker - the marker string tagging the line to remove
+ * @returns {string} the modified stylesheet content
+ */
 function cssRemoveLine(css: string, marker: string): string {
   const i = css.indexOf(marker);
   if (i < 0) return css;
@@ -1180,8 +1170,12 @@ function cssRemoveLine(css: string, marker: string): string {
   const end = css.indexOf("\n", i);
   return css.slice(0, start) + (end < 0 ? "" : css.slice(end));
 }
-// The marker-tagged line's current contents (marker through end of line), for
-// comparing the on-disk rule against the freshly built one.
+/**
+ * The marker-tagged line's current contents (marker through end of line), for comparing the on-disk rule against the freshly built one.
+ * @param {string} css - the stylesheet content to read
+ * @param {string} marker - the marker string tagging the line
+ * @returns {string | undefined} the marker-tagged line's contents, or undefined if not present
+ */
 function cssMarkedLine(css: string, marker: string): string | undefined {
   const i = css.indexOf(marker);
   if (i < 0) return undefined;
@@ -1190,17 +1184,16 @@ function cssMarkedLine(css: string, marker: string): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Injection points: settings that are neither a px slot nor a boolean toggle
-// (a font-family string, a decoupled chat size, a textarea row count). Each maps
-// its setting to a self-contained CSS/JS injection with an "off" state
-// (undefined) meaning "leave the bundle native". They ride the same file-write /
-// drift / pending-reload machinery, but carry their own value type and
-// transforms so the px and toggle models are untouched.
-//
-//   read()    -> the EFFECTIVE value, or undefined for "off" (size 0 = inherit
-//                chat.fontSize; family "" = native; rows 0 = native).
-//   current() -> the value currently written into the bundle, or undefined when
-//                native. So (current === read) means in sync.
+/*
+ * Injection points: settings that are neither a px slot nor a boolean toggle (a font-family string, a decoupled chat size, a textarea row count).
+ * Each maps its setting to a self-contained CSS/JS injection with an "off" state (undefined) meaning "leave the bundle native".
+ * They ride the same file-write / drift / pending-reload machinery, but carry their own value type and transforms so the px and toggle models are untouched.
+ *
+ *   read()    -> the EFFECTIVE value, or undefined for "off" (size 0 = inherit
+ *                chat.fontSize; family "" = native; rows 0 = native).
+ *   current() -> the value currently written into the bundle, or undefined when
+ *                native. So (current === read) means in sync.
+ */
 // ---------------------------------------------------------------------------
 type InjectValue = string | number;
 
@@ -1222,66 +1215,67 @@ interface InjectPoint {
   remove: (c: string) => string;
 }
 
-// chatHistoryFontSize: size the agent message body only (.root_<hash>), NOT the
-// whole webview. Everything else (user messages, input box, interface
-// chrome, other extensions' chats) stays on the shared native chat.fontSize, so
-// the agent transcript can be enlarged (e.g. to compensate for a proportional
-// reading font) without inflating the textarea or Codex. 0 = inherit (no rule).
+/*
+ * chatHistoryFontSize: size the agent message body only (.root_<hash>), NOT the whole webview.
+ * Everything else (user messages, input box, interface chrome, other extensions' chats) stays on the shared native chat.fontSize, so the agent transcript can be enlarged (e.g. to compensate for a proportional reading font) without inflating the textarea or Codex.
+ * 0 = inherit (no rule).
+ */
 const CHAT_SIZE_MARKER = "/*cc-ui-patch:chatSize*/";
 const CHAT_SIZE_PX_RE =
   /\/\*cc-ui-patch:chatSize\*\/\.root_[-\w]+[^{\n]*\{font-size:(\d+(?:\.\d+)?)px/;
 
-// chatHistoryFontFamily: apply a font to the agent message body only
-// (.root_<hash>). Reset the whole webview's chat family to the native UI font
-// (so the interface, input box, user messages, attachments, and diff-card chrome
-// stay native, which also fixes caret drift under a proportional font), then
-// apply the chosen family to the agent markdown, re-asserting a monospace family
-// so code blocks and inline code stay monospace. User messages are left native
-// on purpose: the file-name attachment chip renders INSIDE .userMessage_, so
-// scoping there would drag the reading font onto that chrome.
+/*
+ * chatHistoryFontFamily: apply a font to the agent message body only (.root_<hash>).
+ * Reset the whole webview's chat family to the native UI font (so the interface, input box, user messages, attachments, and diff-card chrome stay native, which also fixes caret drift under a proportional font), then apply the chosen family to the agent markdown, re-asserting a monospace family so code blocks and inline code stay monospace.
+ * User messages are left native on purpose: the file-name attachment chip renders INSIDE .userMessage_, so scoping there would drag the reading font onto that chrome.
+ */
 const CHAT_FAMILY_MARKER = "/*cc-ui-patch:chatFamily*/";
 const CHAT_FAMILY_VAL_RE =
   /\/\*cc-ui-patch:chatFamily\*\/[^\n]*?\.root_[-\w]+[^{\n]*\{font-family:(.+?) !important\}/;
-// The agent message body is the rich markdown module: the only .root_ with
-// element rules, anchored via its inline-code rule.
+// The agent message body is the rich markdown module: the only .root_ with element rules, anchored via its inline-code rule.
 const CHAT_MD_HASH_RE = /\.root_([-\w]+) code\{font-family/;
 
-// Selector the family/size scope to: the agent markdown body only. undefined if
-// the markdown module is gone (leave native).
+/**
+ * Selector the family/size scope to: the agent markdown body only.
+ * @param {string} c - the stylesheet content to read the markdown module hash from
+ * @returns {string | undefined} the agent markdown body selector, or undefined if the markdown module is gone (leave native)
+ */
 function chatContentSelector(c: string): string | undefined {
   const md = c.match(CHAT_MD_HASH_RE)?.[1];
   return md ? `.root_${md}` : undefined;
 }
 
-// userMessageFontSize: size the USER prompt bubble body only (.userMessage_<hash>),
-// the mirror of chatHistoryFontSize (which sizes only the AGENT body, .root_<hash>).
-// The agent knob deliberately leaves user messages on the native chat.fontSize, so
-// this is a SEPARATE, independently-settable knob for the user side. The stock
-// bundle ships .userMessage_<hash> and .userMessageContainer_<hash> under one
-// CSS-module hash; anchor on the .userMessage_<hash> rule to recover the hash,
-// re-read at patch time so it survives a re-minify. 0 = inherit (no rule).
+/*
+ * userMessageFontSize: size the USER prompt bubble body only (.userMessage_<hash>), the mirror of chatHistoryFontSize (which sizes only the AGENT body, .root_<hash>).
+ * The agent knob deliberately leaves user messages on the native chat.fontSize, so this is a SEPARATE, independently-settable knob for the user side.
+ * The stock bundle ships .userMessage_<hash> and .userMessageContainer_<hash> under one CSS-module hash; anchor on the .userMessage_<hash> rule to recover the hash, re-read at patch time so it survives a re-minify.
+ * 0 = inherit (no rule).
+ */
 const USER_SIZE_MARKER = "/*cc-ui-patch:userSize*/";
 const USER_SIZE_PX_RE =
   /\/\*cc-ui-patch:userSize\*\/\.userMessage_[-\w]+[^{\n]*\{font-size:(\d+(?:\.\d+)?)px/;
 const USER_MSG_HASH_RE = /\.userMessage_([-\w]+)\{/;
 
-// Selector the user-message size scope to: the user prompt body only. undefined
-// if the user-message module is gone (leave native).
+/**
+ * Selector the user-message size scope to: the user prompt body only.
+ * @param {string} c - the stylesheet content to read the user-message module hash from
+ * @returns {string | undefined} the user prompt body selector, or undefined if the user-message module is gone (leave native)
+ */
 function userMessageSelector(c: string): string | undefined {
   const h = c.match(USER_MSG_HASH_RE)?.[1];
   return h ? `.userMessage_${h}` : undefined;
 }
 
-// planPreviewFontFamily: the plan preview is its own webview; swap its <body>
-// font-family (stock is the markdown var). Composes with the planPreviewFontSize
-// point, which anchors on the same rule's font-size independent of the family.
+/*
+ * planPreviewFontFamily: the plan preview is its own webview; swap its <body> font-family (stock is the markdown var).
+ * Composes with the planPreviewFontSize point, which anchors on the same rule's font-size independent of the family.
+ */
 const PLAN_FAMILY_STOCK =
   "var(--vscode-markdown-font-family, var(--vscode-font-family))";
 const PLAN_FAMILY_RE =
   /(body \{\s*font-family:\s*)(var\(--vscode-markdown-font-family, var\(--vscode-font-family\)\)|[^;]+?)(;\s*font-size:)/;
 
-// planPreviewCommentInputRows: the select-and-comment textarea has no rows
-// attribute (defaults to ~3 lines via min-height); inject one so it opens taller.
+// planPreviewCommentInputRows: the select-and-comment textarea has no rows attribute (defaults to ~3 lines via min-height); inject one so it opens taller.
 const PLAN_ROWS_RE =
   /(<textarea id="comment-textarea")(?: rows="\d+")?( placeholder=)/;
 const PLAN_ROWS_READ_RE = /<textarea id="comment-textarea" rows="(\d+)"/;
@@ -1290,18 +1284,16 @@ function clampSizePx(n: number): number {
   return Math.min(MAX_PX, Math.max(MIN_PX, Math.round(n * 100) / 100));
 }
 
-// chatCodeInlineFontSize / planPreviewCodeInlineFontSize: add-on overrides that
-// size ONLY inline code (a <code> whose parent is not <pre>), so blocks and
-// inline can be tuned separately. 0 = off, inline then follows the block/code
-// knob (chatCodeblockFontSize / planPreviewCodeblockFontSize), which is left
-// unchanged. `:not(pre) > code` wins over the base code rule by specificity and
-// never matches block code (parent <pre>), so block sizing is untouched.
+/*
+ * chatCodeInlineFontSize / planPreviewCodeInlineFontSize: add-on overrides that size ONLY inline code (a <code> whose parent is not <pre>), so blocks and inline can be tuned separately.
+ * 0 = off, inline then follows the block/code knob (chatCodeblockFontSize / planPreviewCodeblockFontSize), which is left unchanged.
+ * `:not(pre) > code` wins over the base code rule by specificity and never matches block code (parent <pre>), so block sizing is untouched.
+ */
 const CHAT_CODE_INLINE_MARKER = "/*cc-ui-patch:chatCodeInline*/";
 const CHAT_CODE_INLINE_PX_RE =
   /\/\*cc-ui-patch:chatCodeInline\*\/[^\n]*?font-size:(\d+(?:\.\d+)?)px/;
 
-// Plan preview: the inline override is spliced in right after the general
-// `code {}` rule (anchored on its editor-font-family declaration).
+// Plan preview: the inline override is spliced in right after the general `code {}` rule (anchored on its editor-font-family declaration).
 const PLAN_CODE_INLINE_MARKER = "/*cc-ui-patch:planCodeInline*/";
 const PLAN_CODE_INLINE_PX_RE =
   /\/\*cc-ui-patch:planCodeInline\*\/:not\(pre\) > code\{font-size:(\d+(?:\.\d+)?)px/;
@@ -1531,10 +1523,10 @@ const INJECT_POINTS: InjectPoint[] = [
     apply: (c, v) => {
       const hash = c.match(SHOW_MORE_HASH_RE)?.[1];
       if (!hash) return c; // anchor gone: leave native
-      // "Show more" stays position:absolute so it keeps overlaying the content
-      // and never adds height (the source of the old hover jitter); only its
-      // horizontal anchor flips. "Show less" is already in flow, so an auto
-      // margin on the opposite side pins it without changing its slot.
+      /*
+       * "Show more" stays position:absolute so it keeps overlaying the content and never adds height (the source of the old hover jitter); only its horizontal anchor flips.
+       * "Show less" is already in flow, so an auto margin on the opposite side pins it without changing its slot.
+       */
       const expand =
         v === "right"
           ? "position:absolute !important;left:auto !important;right:0 !important"
@@ -1576,8 +1568,12 @@ function injectEq(
   return String(a) === String(b);
 }
 
-// The value a point currently has on disk ("off" when native), for pending-reload
-// and activation-floor tracking. undefined when the anchor is absent.
+/**
+ * The value a point currently has on disk ("off" when native), for pending-reload and activation-floor tracking.
+ * @param {string | undefined} content - the file content to inspect, or undefined if unreadable
+ * @param {InjectPoint} ip - the injection point to check
+ * @returns {string | undefined} the current on-disk value, or undefined when the anchor is absent
+ */
 function injectStateStr(
   content: string | undefined,
   ip: InjectPoint,
@@ -1587,7 +1583,12 @@ function injectStateStr(
   return cur === undefined ? "off" : String(cur);
 }
 
-// Map an activation-floor string (from injectStateStr) back to a config value.
+/**
+ * Map an activation-floor string (from injectStateStr) back to a config value.
+ * @param {InjectPoint} ip - the injection point to map the floor for
+ * @param {string | undefined} floor - the activation-floor string
+ * @returns {InjectValue} the corresponding config value
+ */
 function injectFloorToRaw(
   ip: InjectPoint,
   floor: string | undefined,
@@ -1614,8 +1615,12 @@ export function formatPx(n: number): string {
   return String(Math.round(clamped * 100) / 100);
 }
 
-// Native (chat.fontSize) is the user's own VS Code setting, so it is not bound
-// by the patch clamp (MAX_PX). Round to 2dp and clamp to [MIN_PX, 100].
+/**
+ * Native (chat.fontSize) is the user's own VS Code setting, so it is not bound by the patch clamp (MAX_PX).
+ * Round to 2dp and clamp to [MIN_PX, 100].
+ * @param {number} n - the raw font size to format
+ * @returns {string} the clamped, formatted font size
+ */
 export function formatNativePx(n: number): string {
   const clamped = Math.min(100, Math.max(MIN_PX, Number.isFinite(n) ? n : 13));
   return String(Math.round(clamped * 100) / 100);
@@ -1629,7 +1634,12 @@ function pointPresent(content: string, p: PatchPoint): boolean {
     : p.res!.some((re) => re.test(content));
 }
 
-// px string if a fixed size is in place, or undefined for the stock/native form.
+/**
+ * The current px string if a fixed size is in place, or undefined for the stock/native form.
+ * @param {string} content - the file content to inspect
+ * @param {PatchPoint} p - the patch point to check
+ * @returns {string | undefined} the px string, or undefined for the stock/native form
+ */
 function pointCurrentPx(content: string, p: PatchPoint): string | undefined {
   if (p.fnCurrentPx) return p.fnCurrentPx(content);
   for (const re of p.res!) {
@@ -1669,8 +1679,12 @@ function pointRestore(
 
 // --- stock-capture helpers ---
 
-// The effective stock px for a point: parsed from the captured value if
-// available, else the hardcoded originalPx fallback.
+/**
+ * The effective stock px for a point: parsed from the captured value if available, else the hardcoded originalPx fallback.
+ * @param {PatchPoint} p - the patch point to compute the stock px for
+ * @param {StockCapture} capture - the captured stock values
+ * @returns {number} the effective stock px
+ */
 function stockNumberFor(p: PatchPoint, capture: StockCapture): number {
   const c = capture[p.id];
   if (!c) return p.originalPx;
@@ -1679,19 +1693,26 @@ function stockNumberFor(p: PatchPoint, capture: StockCapture): number {
   return m ? parseFloat(m[1]) : p.originalPx;
 }
 
-// The effective stock value string for restore: the captured value if
-// available, else the hardcoded fallback (bare number or originalValue var).
+/**
+ * The effective stock value string for restore: the captured value if available, else the hardcoded fallback (bare number or originalValue var).
+ * @param {PatchPoint} p - the patch point to compute the stock value for
+ * @param {StockCapture} capture - the captured stock values
+ * @returns {string} the effective stock value string
+ */
 function stockValueFor(p: PatchPoint, capture: StockCapture): string {
   const c = capture[p.id];
   if (c) return c;
   return p.style === "number" ? `${p.originalPx}` : p.originalValue!;
 }
 
-// Read the real native stock values from the bundle. Value-style points are
-// captured whenever they are at stock (var() present — reliably detected).
-// Number-style points are captured only when force=true (fresh bundle after a
-// version change), because a bare number can't be distinguished from a
-// previously patched value.
+/**
+ * Read the real native stock values from the bundle.
+ * Value-style points are captured whenever they are at stock (var() present — reliably detected).
+ * Number-style points are captured only when force=true (fresh bundle after a version change), because a bare number can't be distinguished from a previously patched value.
+ * @param {ClaudeExt} ext - the resolved Claude Code extension install
+ * @param {boolean} force - whether to force-capture number-style points too
+ * @returns {StockCapture} the captured stock values, keyed by patch point id
+ */
 function captureStockValues(ext: ClaudeExt, force: boolean): StockCapture {
   const captured: StockCapture = {};
   const cache = new Map<string, string | undefined>();
@@ -1736,27 +1757,15 @@ function filePath(ext: ClaudeExt, rel: string): string {
   return path.join(ext.dir, rel);
 }
 
-// Universal across every VS Code-based IDE host: this extension's OWN install
-// directory (context.extensionUri) is ALWAYS inside that host's real, currently
-// active extensions folder — whichever IDE is running it (VS Code, Antigravity
-// IDE, Cursor, Windsurf, Trae, VSCodium, ...) — so its parent directory is
-// always the correct, live extensions root for THIS session, with zero
-// hardcoding. This is listed first and is the one that matters in practice.
-//
-// A real incident proved why the hardcoded fallback list alone is NOT
-// sufficient on its own, and why it must stay in sync with what host is
-// actually running: diagnosing a "patch not applying" report kept checking
-// plain VS Code's `~/.vscode/extensions` (and `%APPDATA%/Code/User/
-// settings.json`) while the user was running Antigravity IDE the whole time —
-// a completely different, unrelated install whose real extensions folder is
-// `~/.antigravity-ide/extensions` (Windows) and whose settings live under
-// `%APPDATA%/Antigravity IDE/User/`. `context.extensionUri` alone already
-// resolves correctly regardless of host; the fallbacks below exist ONLY for a
-// defensive secondary scan (e.g. Claude Code installed under a DIFFERENT
-// IDE-family folder than the one this extension itself is running under) and
-// are kept as a best-effort list of every known VS Code-family fork's
-// extensions folder name — never assume the list is exhaustive; a genuinely
-// new fork adds its own folder name here when discovered.
+/**
+ * Universal across every VS Code-based IDE host: this extension's OWN install directory (context.extensionUri) is ALWAYS inside that host's real, currently active extensions folder — whichever IDE is running it (VS Code, Antigravity IDE, Cursor, Windsurf, Trae, VSCodium, ...) — so its parent directory is always the correct, live extensions root for THIS session, with zero hardcoding.
+ * This is listed first and is the one that matters in practice.
+ *
+ * A real incident proved why the hardcoded fallback list alone is NOT sufficient on its own, and why it must stay in sync with what host is actually running: diagnosing a "patch not applying" report kept checking plain VS Code's `~/.vscode/extensions` (and `%APPDATA%/Code/User/settings.json`) while the user was running Antigravity IDE the whole time — a completely different, unrelated install whose real extensions folder is `~/.antigravity-ide/extensions` (Windows) and whose settings live under `%APPDATA%/Antigravity IDE/User/`.
+ * `context.extensionUri` alone already resolves correctly regardless of host; the fallbacks below exist ONLY for a defensive secondary scan (e.g. Claude Code installed under a DIFFERENT IDE-family folder than the one this extension itself is running under) and are kept as a best-effort list of every known VS Code-family fork's extensions folder name — never assume the list is exhaustive; a genuinely new fork adds its own folder name here when discovered.
+ * @param {vscode.ExtensionContext} context - this extension's own activation context
+ * @returns {string[]} every existing candidate extensions folder on this host
+ */
 function extensionsDirs(context: vscode.ExtensionContext): string[] {
   const dirs = new Set<string>();
   dirs.add(path.dirname(context.extensionUri.fsPath));
@@ -1881,9 +1890,12 @@ export interface ToggleState {
   wantOn: boolean; // the setting value (what the panel shows and apply targets)
 }
 
-// Same shape as analyze() but for on/off points: "stock" = bundle at native and
-// the setting wants it flipped; "custom" = bundle flipped the other way from the
-// setting (e.g. a leftover patch the setting no longer wants).
+/**
+ * Same shape as analyze() but for on/off points: "stock" = bundle at native and the setting wants it flipped; "custom" = bundle flipped the other way from the setting (e.g. a leftover patch the setting no longer wants).
+ * @param {ClaudeExt} ext - the resolved Claude Code extension install
+ * @param {ToggleMap} toggles - the wanted toggle setting values
+ * @returns {ToggleState[]} the current state of every toggle point
+ */
 export function analyzeToggles(
   ext: ClaudeExt,
   toggles: ToggleMap,
@@ -1915,9 +1927,11 @@ export interface InjectState {
   value: InjectValue | undefined; // the setting value (undefined = off)
 }
 
-// Same shape as analyze()/analyzeToggles() for the string/size/rows injections:
-// "stock" = bundle native and the setting wants an injection; "custom" = the
-// bundle carries an injection differing from the setting (leftover or drifted).
+/**
+ * Same shape as analyze()/analyzeToggles() for the string/size/rows injections: "stock" = bundle native and the setting wants an injection; "custom" = the bundle carries an injection differing from the setting (leftover or drifted).
+ * @param {ClaudeExt} ext - the resolved Claude Code extension install
+ * @returns {InjectState[]} the current state of every injection point
+ */
 export function analyzeInjects(ext: ClaudeExt): InjectState[] {
   const cache = new Map<string, string | undefined>();
   const read = (rel: string) => {
@@ -1941,11 +1955,10 @@ export function analyzeInjects(ext: ClaudeExt): InjectState[] {
 export interface PatchReport {
   version: string;
   changed: string[]; // human-readable summaries of the edits actually written
-  // Files whose computed changes could NOT be written (e.g. writeFileAtomic
-  // exhausted its retries on a persistent lock) — every OTHER file in this
-  // same applyPatch() call still gets its own write attempt regardless (see
-  // the per-file try/catch in the main loop below), so a lock on one file
-  // never blocks the rest of the batch. Empty on a fully successful apply.
+  /*
+   * Files whose computed changes could NOT be written (e.g. writeFileAtomic exhausted its retries on a persistent lock) — every OTHER file in this same applyPatch() call still gets its own write attempt regardless (see the per-file try/catch in the main loop below), so a lock on one file never blocks the rest of the batch.
+   * Empty on a fully successful apply.
+   */
   failed: { file: string; error: string }[];
 }
 
@@ -1957,24 +1970,15 @@ function byFile(): Map<string, PatchPoint[]> {
   return m;
 }
 
-// Write atomically: stage to a unique temp file in the same directory, then
-// rename over the target. rename(2) is atomic on POSIX, and on Windows Node
-// maps it to MoveFileEx with replace, so a concurrent reader (another window's
-// apply, or Claude Code loading the bundle) never observes a half-written file.
-// The temp name is per-process + counter so parallel writers never collide.
-//
-// RETRY ON TRANSIENT WINDOWS LOCK ERRORS: a real incident — `rename()` failed
-// with `EPERM: operation not permitted` right after Claude Code updated to a
-// fresh version, because something briefly held extension.js open (Windows
-// Defender scanning a newly-extracted extension, VS Code's own extension host
-// still finishing its read, an indexer, etc.). This is almost always transient
-// (gone within milliseconds), so a bare single-attempt throw turned a
-// millisecond-scale lock into a hard failure that aborted the WHOLE applyPatch
-// loop (see below) — a genuinely PARTIAL apply where files processed before the
-// failing one stayed patched but everything after it silently never was.
-// EPERM/EBUSY/EACCES on the rename step are retried with a short backoff before
-// giving up; any other error (e.g. a genuine permissions problem, disk full)
-// still throws immediately, unretried.
+/*
+ * Write atomically: stage to a unique temp file in the same directory, then rename over the target.
+ * rename(2) is atomic on POSIX, and on Windows Node maps it to MoveFileEx with replace, so a concurrent reader (another window's apply, or Claude Code loading the bundle) never observes a half-written file.
+ * The temp name is per-process + counter so parallel writers never collide.
+ *
+ * RETRY ON TRANSIENT WINDOWS LOCK ERRORS: a real incident — `rename()` failed with `EPERM: operation not permitted` right after Claude Code updated to a fresh version, because something briefly held extension.js open (Windows Defender scanning a newly-extracted extension, VS Code's own extension host still finishing its read, an indexer, etc.).
+ * This is almost always transient (gone within milliseconds), so a bare single-attempt throw turned a millisecond-scale lock into a hard failure that aborted the WHOLE applyPatch loop (see below) — a genuinely PARTIAL apply where files processed before the failing one stayed patched but everything after it silently never was.
+ * EPERM/EBUSY/EACCES on the rename step are retried with a short backoff before giving up; any other error (e.g. a genuine permissions problem, disk full) still throws immediately, unretried.
+ */
 const RETRYABLE_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
 function sleepSync(ms: number): void {
   const buf = new Int32Array(new SharedArrayBuffer(4));
@@ -2011,11 +2015,15 @@ function writeFileAtomic(abs: string, data: string): void {
 }
 let atomicWriteCounter = 0;
 
-// Reconcile each patch point to its wanted size: a non-stock want is written as
-// a fixed px; a stock want restores the point to its native form. A point is
-// only reported (and its file only rewritten) when the transform actually
-// changes the content, so a no-op (already at target, or an anchor whose form
-// changed so the transform can't apply) never produces a spurious "changed".
+/**
+ * Reconcile each patch point to its wanted size: a non-stock want is written as a fixed px; a stock want restores the point to its native form.
+ * A point is only reported (and its file only rewritten) when the transform actually changes the content, so a no-op (already at target, or an anchor whose form changed so the transform can't apply) never produces a spurious "changed".
+ * @param {ClaudeExt} ext - the resolved Claude Code extension install
+ * @param {SizeMap} sizes - the wanted patch-point sizes
+ * @param {ToggleMap} toggles - the wanted toggle setting values
+ * @param {StockCapture} capture - the captured stock values
+ * @returns {PatchReport} the applied changes and any files that failed to write
+ */
 export function applyPatch(
   ext: ClaudeExt,
   sizes: SizeMap,
@@ -2093,13 +2101,10 @@ export function applyPatch(
       }
     }
     if (out !== content) {
-      // A per-file try/catch so a write failure on ONE file (e.g. a persistent
-      // Windows lock that outlasts writeFileAtomic's own retries) never aborts
-      // the loop and skips every OTHER file's already-computed changes — the
-      // exact mechanism behind a real "chala apply" (partial-apply) incident,
-      // where extension.js's EPERM aborted the whole batch and left
-      // webview/index.css and webview/index.js unpatched even though their
-      // content changes had already been computed and were ready to write.
+      /*
+       * A per-file try/catch so a write failure on ONE file (e.g. a persistent Windows lock that outlasts writeFileAtomic's own retries) never aborts the loop and skips every OTHER file's already-computed changes.
+       * This is the exact mechanism behind a real "chala apply" (partial-apply) incident, where extension.js's EPERM aborted the whole batch and left webview/index.css and webview/index.js unpatched even though their content changes had already been computed and were ready to write.
+       */
       try {
         writeFileAtomic(abs, out);
       } catch (err) {
@@ -2110,8 +2115,10 @@ export function applyPatch(
   return { version: ext.version, changed, failed };
 }
 
-// Every file any point, toggle (including a toggle's CSS side-effect), or
-// injection touches.
+/**
+ * Every file any point, toggle (including a toggle's CSS side-effect), or injection touches.
+ * @returns {Set<string>} every relative file path this patcher may write to
+ */
 function allPatchedFiles(): Set<string> {
   const files = new Set<string>();
   for (const p of PATCH_POINTS) files.add(p.file);
@@ -2230,36 +2237,20 @@ export class Patcher {
   private stockCapture: StockCapture = {};
   private pendingReload = new Set<string>(); // point IDs written but not reloaded
   private activationPx = new Map<string, string | undefined>(); // on-disk px at activation
-  // Set while restore()/enable() itself is writing patchEnabled, so the
-  // onDidChangeConfiguration listener (which mirrors an EXTERNAL Settings UI/
-  // JSON edit of patchEnabled by calling restore()/enable() in turn) doesn't
-  // recurse into a second restore()/enable() for our own write.
+  /*
+   * Set while restore()/enable() itself is writing patchEnabled, so the onDidChangeConfiguration listener (which mirrors an EXTERNAL Settings UI/JSON edit of patchEnabled by calling restore()/enable() in turn) doesn't recurse into a second restore()/enable() for our own write.
+   */
   private writingPatchEnabled = false;
-  // Serializes autoApply() calls so overlapping onDidChangeConfiguration
-  // events (e.g. several rapid spinner clicks) each fully finish their own
-  // write+refresh before the next one starts, rather than trusting that a
-  // fire-and-forget async call ordering happens to work out. NOTE: verified
-  // this does NOT close a JS-level concurrency race — autoApplyNow()'s own
-  // body has no internal `await`, so two calls could never actually
-  // interleave their synchronous fs reads/writes within one Node process
-  // regardless of this queue. Kept as cheap, harmless defensive serialization
-  // (and correct protection against a FUTURE await being added inside
-  // autoApplyNow()), but it is NOT the fix for the real "Chat Panel/Plan
-  // Preview sections vanish, a window reload brings them back" report — see
-  // this.log()'s diagnostic points below for the actual investigation, which
-  // points at findLatestClaudeExt() resolving a DIFFERENT Claude Code
-  // extension folder mid-session (Claude Code auto-updates "routinely," per
-  // extension.ts's own deactivate() comment) while this.ext/stockCapture
-  // still reflect the OLD version, until a reload rebuilds Patcher from
-  // scratch via activate().
+  /*
+   * Serializes autoApply() calls so overlapping onDidChangeConfiguration events (e.g. several rapid spinner clicks) each fully finish their own write+refresh before the next one starts, rather than trusting that a fire-and-forget async call ordering happens to work out.
+   * NOTE: verified this does NOT close a JS-level concurrency race — autoApplyNow()'s own body has no internal `await`, so two calls could never actually interleave their synchronous fs reads/writes within one Node process regardless of this queue.
+   * Kept as cheap, harmless defensive serialization (and correct protection against a FUTURE await being added inside autoApplyNow()), but it is NOT the fix for the real "Chat Panel/Plan Preview sections vanish, a window reload brings them back" report — see this.log()'s diagnostic points below for the actual investigation, which points at findLatestClaudeExt() resolving a DIFFERENT Claude Code extension folder mid-session (Claude Code auto-updates "routinely," per extension.ts's own deactivate() comment) while this.ext/stockCapture still reflect the OLD version, until a reload rebuilds Patcher from scratch via activate().
+   */
   private autoApplyQueue: Promise<number> = Promise.resolve(0);
-  // Diagnostic-only output channel (see extension.ts) — logs the exact
-  // resolved extension dir/version on every refresh() and flags a version
-  // CHANGE mid-session, plus any point that comes back "missing", so a real
-  // recurrence of the vanishing-sections report can be captured with actual
-  // evidence instead of guessed at. Never gated behind a setting: cheap,
-  // append-only, and the user has to open "Smarts Claude Manager" in the
-  // Output panel to ever see it.
+  /*
+   * Diagnostic-only output channel (see extension.ts) — logs the exact resolved extension dir/version on every refresh() and flags a version CHANGE mid-session, plus any point that comes back "missing", so a real recurrence of the vanishing-sections report can be captured with actual evidence instead of guessed at.
+   * Never gated behind a setting: cheap, append-only, and the user has to open "Smarts Claude Manager" in the Output panel to ever see it.
+   */
   private log: (line: string) => void = () => {};
   setLogger(fn: (line: string) => void): void {
     this.log = fn;
@@ -2267,20 +2258,12 @@ export class Patcher {
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.refresh();
-    // Re-apply the saved sizes when the on-disk bundle has drifted from the
-    // settings (e.g. a fresh install of this extension whose settings.json
-    // already carries non-default smartsClaudeManager.* values — synced from
-    // another machine, restored from a profile, or hand-edited before the
-    // extension ever ran — or a Claude Code update reverting a previously
-    // applied patch). This is a no-op on a genuinely fresh install: every
-    // setting defaults to Claude Code's native value, so nothing is "drifted"
-    // and the bundle is left untouched. Gated on patchEnabled so a bundle the
-    // user explicitly reverted via the panel's Enable/Disable toggle (which
-    // flips patchEnabled to false) is never silently re-patched on the next
-    // activation. deactivate() is a pure no-op (see extension.ts) — it never
-    // reverts the patch itself, so this constructor's own drift-check is the
-    // ONLY place a patch is ever (re-)applied, keeping activation the single
-    // source of truth for "is the bundle currently correct."
+    /*
+     * Re-apply the saved sizes when the on-disk bundle has drifted from the settings (e.g. a fresh install of this extension whose settings.json already carries non-default smartsClaudeManager.* values — synced from another machine, restored from a profile, or hand-edited before the extension ever ran — or a Claude Code update reverting a previously applied patch).
+     * This is a no-op on a genuinely fresh install: every setting defaults to Claude Code's native value, so nothing is "drifted" and the bundle is left untouched.
+     * Gated on patchEnabled so a bundle the user explicitly reverted via the panel's Enable/Disable toggle (which flips patchEnabled to false) is never silently re-patched on the next activation.
+     * deactivate() is a pure no-op (see extension.ts) — it never reverts the patch itself, so this constructor's own drift-check is the ONLY place a patch is ever (re-)applied, keeping activation the single source of truth for "is the bundle currently correct."
+     */
     const enabled = vscode.workspace
       .getConfiguration(CONFIG_NS)
       .get<boolean>("patchEnabled", true);
@@ -2344,9 +2327,7 @@ export class Patcher {
     const injectStatusById = new Map(
       this.injectStates.map((s) => [s.id, s.status]),
     );
-    // The chat text size knob (formerly the native chat.fontSize knob) is now the
-    // chatHistoryFontSize injection: it shows the effective size (its own value, or
-    // the inherited chat.fontSize when unset) and adjusting it takes control.
+    // The chat text size knob (formerly the native chat.fontSize knob) is now the chatHistoryFontSize injection: it shows the effective size (its own value, or the inherited chat.fontSize when unset) and adjusting it takes control.
     const chat: Knob[] = INJECT_POINTS.filter(
       (ip) => ip.showInPanel && injectStatusById.get(ip.id) !== "missing",
     ).map((ip) => {
@@ -2442,14 +2423,9 @@ export class Patcher {
     const prevExt = this.ext;
     this.ext = findLatestClaudeExt(this.context);
     if (prevExt && this.ext && prevExt.dir !== this.ext.dir) {
-      // The resolved Claude Code install folder changed WITHOUT this
-      // extension's own window ever reloading — the prime suspect for a
-      // mid-session "sections vanish, reload fixes it" report: Claude Code
-      // auto-updated in place, this.stockCapture/this.pendingReload still
-      // reflect the OLD version's bundle, and the freshly-resolved NEW
-      // bundle's CSS-module hashes (codeBlockWrapper_<hash>, etc.) may not
-      // match anchors computed against the old one until a real reload
-      // rebuilds Patcher from scratch via activate().
+      /*
+       * The resolved Claude Code install folder changed WITHOUT this extension's own window ever reloading — the prime suspect for a mid-session "sections vanish, reload fixes it" report: Claude Code auto-updated in place, this.stockCapture/this.pendingReload still reflect the OLD version's bundle, and the freshly-resolved NEW bundle's CSS-module hashes (codeBlockWrapper_<hash>, etc.) may not match anchors computed against the old one until a real reload rebuilds Patcher from scratch via activate().
+       */
       this.log(
         `[refresh] Claude Code install CHANGED mid-session: ${prevExt.dir} (v${prevExt.version}) -> ${this.ext.dir} (v${this.ext.version})`,
       );
@@ -2505,28 +2481,22 @@ export class Patcher {
     }
   }
 
-  // Auto-apply: any patch setting change writes to the bundle immediately.
-  // After writing, reconcile pendingReload in a single pass, then refresh once.
-  // Skipped entirely while patchEnabled is false (set by "Fully Disable Patch"
-  // or by deactivate()'s uninstall/disable teardown — see writeDisabledFlag()):
-  // without this guard a setting change (or the constructor's own drift-check
-  // on the NEXT activation) would silently re-patch a bundle the user, or the
-  // uninstall path, explicitly reverted and marked disabled.
-  //
-  // Returns the number of bundle edits actually written (0 = already in sync,
-  // nothing changed), so the ACTIVATION-time caller (the constructor) can decide
-  // whether an automatic window reload is warranted — see applyOnActivation().
-  //
-  // Every caller goes through this queued wrapper, never autoApplyNow()
-  // directly, so overlapping calls (e.g. several rapid spinner clicks, each
-  // its own onDidChangeConfiguration event) run one at a time instead of
-  // racing their reads/writes against the same on-disk files — see
-  // autoApplyQueue's own comment above for the failure this prevents.
+  /**
+   * Auto-apply: any patch setting change writes to the bundle immediately.
+   * After writing, reconcile pendingReload in a single pass, then refresh once.
+   * Skipped entirely while patchEnabled is false (set by "Fully Disable Patch" or by deactivate()'s uninstall/disable teardown — see writeDisabledFlag()): without this guard a setting change (or the constructor's own drift-check on the NEXT activation) would silently re-patch a bundle the user, or the uninstall path, explicitly reverted and marked disabled.
+   *
+   * Returns the number of bundle edits actually written (0 = already in sync, nothing changed), so the ACTIVATION-time caller (the constructor) can decide whether an automatic window reload is warranted — see applyOnActivation().
+   *
+   * Every caller goes through this queued wrapper, never autoApplyNow() directly, so overlapping calls (e.g. several rapid spinner clicks, each its own onDidChangeConfiguration event) run one at a time instead of racing their reads/writes against the same on-disk files — see autoApplyQueue's own comment above for the failure this prevents.
+   * @returns {Promise<number>} the number of bundle edits actually written
+   */
   private autoApply(): Promise<number> {
     const next = this.autoApplyQueue.then(() => this.autoApplyNow());
-    // Swallow a rejection here so one failed run doesn't wedge the queue for
-    // every call still waiting behind it; autoApplyNow() already reports its
-    // own errors via showErrorMessage, so this is purely queue bookkeeping.
+    /*
+     * Swallow a rejection here so one failed run doesn't wedge the queue for every call still waiting behind it.
+     * autoApplyNow() already reports its own errors via showErrorMessage, so this is purely queue bookkeeping.
+     */
     this.autoApplyQueue = next.catch(() => 0);
     return next;
   }
@@ -2536,9 +2506,7 @@ export class Patcher {
       .getConfiguration(CONFIG_NS)
       .get<boolean>("patchEnabled", true);
     if (!enabled) return 0;
-    // Re-resolve the install in case Claude Code updated in place since the last
-    // refresh (its versioned directory changes on update, so a cached ext could
-    // point at a directory that no longer exists).
+    // Re-resolve the install in case Claude Code updated in place since the last refresh (its versioned directory changes on update, so a cached ext could point at a directory that no longer exists).
     this.ext = findLatestClaudeExt(this.context);
     if (!this.ext) {
       this.refresh();
@@ -2549,12 +2517,10 @@ export class Patcher {
       const report = applyPatch(this.ext, readSizes(), readToggles(), this.stockCapture);
       changedCount = report.changed.length;
       if (report.failed.length) {
-        // A per-file write failure (e.g. a persistent Windows lock outlasting
-        // writeFileAtomic's own retries) no longer aborts the whole batch —
-        // every OTHER file still got its own write attempt. Surface exactly
-        // which file(s) failed rather than silently leaving a partial apply,
-        // so the user knows to retry (a toggle flip / reload) instead of
-        // wondering why only some of the patch took effect.
+        /*
+         * A per-file write failure (e.g. a persistent Windows lock outlasting writeFileAtomic's own retries) no longer aborts the whole batch — every OTHER file still got its own write attempt.
+         * Surface exactly which file(s) failed rather than silently leaving a partial apply, so the user knows to retry (a toggle flip / reload) instead of wondering why only some of the patch took effect.
+         */
         void vscode.window.showErrorMessage(
           `Smarts Claude Manager: failed to patch ${report.failed.map((f) => f.file).join(", ")}: ${report.failed[0].error}`,
         );
@@ -2569,44 +2535,21 @@ export class Patcher {
     return changedCount;
   }
 
-  // Called ONCE from the constructor when patchEnabled is on and the on-disk
-  // bundle has drifted from the settings (a fresh install, a Claude Code update
-  // that reverted the patch, or a partial/older patch). It applies the patch
-  // and, IF real edits were written (the bundle was NOT already fully applied),
-  // AUTOMATICALLY reloads the window so every already-open chat webview picks up
-  // the freshly-patched bundle — implementing "if patchEnabled is on, the patch
-  // applies the moment the extension loads, including the very first load,
-  // without a manual Disable/Enable or a manual reload".
-  //
-  // NEVER auto-reloads in Development mode (F5 / Extension Development Host) —
-  // context.extensionMode is VS Code's own real signal, not a guess or a timing
-  // delay. Real incident: firing reloadWindow() from inside the constructor
-  // (i.e. within the first tick of activate()) raced the Extension Development
-  // Host's own startup handshake with the renderer, producing "Extension host
-  // did not start in 10 seconds, it might be stopped on the first line and
-  // needs a debugger to continue." A fixed setTimeout delay was considered and
-  // rejected — there is no VS Code API event for "the extension host finished
-  // its own boot handshake," so any delay would be a guess (too short on a slow
-  // machine, wasted time on a fast one) rather than a real signal.
-  // extensionMode is checked instead: in Development mode the patch still
-  // writes to disk (so a manual "Developer: Reload Window" the developer
-  // already does habitually picks it up), it just never forces the reload
-  // itself. Production/installed activation is completely unaffected — this
-  // guard is scoped to F5 dev sessions only.
-  //
-  // No reload loop: applyPatch() is idempotent (writes only on a real change),
-  // so after the reload the bundle is fully applied → the next activation's
-  // drift-check finds nothing drifted → applyOnActivation() is never called
-  // again → no second reload. A per-window-session guard
-  // (context.globalState "activationReloadedFor") is a belt-and-suspenders stop
-  // against an edge case where an anchor reports drifted yet applyPatch can't
-  // reach a stable fixed point (a broken/renamed anchor): it records the exact
-  // (extVersion, claudeVersion, changed-summary hash) it last auto-reloaded for
-  // and refuses to reload again for that identical state, so a genuinely-stuck
-  // point degrades to "applied on disk, panel shows the reload button" instead
-  // of a reload loop. A DIFFERENT state (a Claude Code update reverting the
-  // patch → a new claudeVersion or a new drift) is a new stamp and reloads
-  // correctly.
+  /**
+   * Called ONCE from the constructor when patchEnabled is on and the on-disk bundle has drifted from the settings (a fresh install, a Claude Code update that reverted the patch, or a partial/older patch).
+   * It applies the patch and, IF real edits were written (the bundle was NOT already fully applied), AUTOMATICALLY reloads the window so every already-open chat webview picks up the freshly-patched bundle — implementing "if patchEnabled is on, the patch applies the moment the extension loads, including the very first load, without a manual Disable/Enable or a manual reload".
+   *
+   * NEVER auto-reloads in Development mode (F5 / Extension Development Host) — context.extensionMode is VS Code's own real signal, not a guess or a timing delay.
+   * Real incident: firing reloadWindow() from inside the constructor (i.e. within the first tick of activate()) raced the Extension Development Host's own startup handshake with the renderer, producing "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue."
+   * A fixed setTimeout delay was considered and rejected — there is no VS Code API event for "the extension host finished its own boot handshake," so any delay would be a guess (too short on a slow machine, wasted time on a fast one) rather than a real signal.
+   * extensionMode is checked instead: in Development mode the patch still writes to disk (so a manual "Developer: Reload Window" the developer already does habitually picks it up), it just never forces the reload itself.
+   * Production/installed activation is completely unaffected — this guard is scoped to F5 dev sessions only.
+   *
+   * No reload loop: applyPatch() is idempotent (writes only on a real change), so after the reload the bundle is fully applied → the next activation's drift-check finds nothing drifted → applyOnActivation() is never called again → no second reload.
+   * A per-window-session guard (context.globalState "activationReloadedFor") is a belt-and-suspenders stop against an edge case where an anchor reports drifted yet applyPatch can't reach a stable fixed point (a broken/renamed anchor): it records the exact (extVersion, claudeVersion, changed-summary hash) it last auto-reloaded for and refuses to reload again for that identical state, so a genuinely-stuck point degrades to "applied on disk, panel shows the reload button" instead of a reload loop.
+   * A DIFFERENT state (a Claude Code update reverting the patch → a new claudeVersion or a new drift) is a new stamp and reloads correctly.
+   * @returns {Promise<void>} resolves once the activation-time apply/reload decision is complete
+   */
   private async applyOnActivation(): Promise<void> {
     const changed = await this.autoApply();
     if (changed <= 0 || !this.ext) return; // already in sync: nothing to reload for
@@ -2641,13 +2584,12 @@ export class Patcher {
     }
   }
 
-  // Capture the real native stock values from the bundle. Only force-capture
-  // (including number-style points) when a saved version exists and genuinely
-  // differs — that means a real Claude Code update laid down a fresh unpatched
-  // bundle. When savedVersion is undefined (first install or reinstall after
-  // globalState was cleared), the bundle may already be patched, so we only
-  // capture value-style points (reliably detected as stock via var()) and fall
-  // back to hardcoded originalPx for number-style points.
+  /**
+   * Capture the real native stock values from the bundle.
+   * Only force-capture (including number-style points) when a saved version exists and genuinely differs — that means a real Claude Code update laid down a fresh unpatched bundle.
+   * When savedVersion is undefined (first install or reinstall after globalState was cleared), the bundle may already be patched, so we only capture value-style points (reliably detected as stock via var()) and fall back to hardcoded originalPx for number-style points.
+   * @param {ClaudeExt} ext - the resolved Claude Code extension install
+   */
   private refreshStockCapture(ext: ClaudeExt): void {
     const savedVersion =
       this.context.globalState.get<string>(STOCK_VERSION_KEY);
@@ -2670,15 +2612,16 @@ export class Patcher {
     void this.context.globalState.update(STOCK_VALUES_KEY, capture);
   }
 
-  // Set an absolute size for a patch knob. The panel computes the target value
-  // (accumulating rapid clicks on its own optimistic display) and sends it here,
-  // so quick successive clicks can't lose increments to a read-modify-write
-  // race. The setting update triggers onDidChangeConfiguration → autoApply,
-  // which writes the bundle and refreshes.
+  /**
+   * Set an absolute size for a patch knob.
+   * The panel computes the target value (accumulating rapid clicks on its own optimistic display) and sends it here, so quick successive clicks can't lose increments to a read-modify-write race.
+   * The setting update triggers onDidChangeConfiguration → autoApply, which writes the bundle and refreshes.
+   * @param {string} target - the knob id to set
+   * @param {number} value - the target size
+   * @returns {Promise<void>} resolves once the setting update completes
+   */
   async setSize(target: string, value: number): Promise<void> {
-    // The chat text size knob is an injection (chatHistoryFontSize): adjusting it
-    // from the inherited display writes an absolute px, taking control from the
-    // native chat.fontSize.
+    // The chat text size knob is an injection (chatHistoryFontSize): adjusting it from the inherited display writes an absolute px, taking control from the native chat.fontSize.
     const ip = INJECT_POINTS.find((x) => x.id === target && x.kind === "size");
     if (ip) {
       const next = Math.min(
@@ -2701,8 +2644,13 @@ export class Patcher {
       .update(p.key, next, vscode.ConfigurationTarget.Global);
   }
 
-  // Set an absolute size for the native chat.fontSize knob. The config listener
-  // reacts with a refresh, so no explicit refresh is needed here.
+  /**
+   * Set an absolute size for the native chat.fontSize knob.
+   * The config listener reacts with a refresh, so no explicit refresh is needed here.
+   * @param {string} target - the native knob id to set
+   * @param {number} value - the target size
+   * @returns {Promise<void>} resolves once the setting update completes
+   */
   async setNative(target: string, value: number): Promise<void> {
     const k = NATIVE_KNOBS.find((x) => x.id === target);
     if (!k) return;
@@ -2713,8 +2661,13 @@ export class Patcher {
       .update(k.vscodeKey, next, vscode.ConfigurationTarget.Global);
   }
 
-  // Flip a toggle knob. Writing the boolean setting triggers
-  // onDidChangeConfiguration → autoApply, which rewrites the bundle and refreshes.
+  /**
+   * Flip a toggle knob.
+   * Writing the boolean setting triggers onDidChangeConfiguration → autoApply, which rewrites the bundle and refreshes.
+   * @param {string} target - the toggle id to set
+   * @param {boolean} on - the target on/off state
+   * @returns {Promise<void>} resolves once the setting update completes
+   */
   async setToggle(target: string, on: boolean): Promise<void> {
     const t = TOGGLE_POINTS.find((x) => x.id === target);
     if (!t) return;
@@ -2724,12 +2677,13 @@ export class Patcher {
       .update(t.key, on, vscode.ConfigurationTarget.Global);
   }
 
-  // Flip one chat-enhancement feature's smartsClaudeManager.feature.<id> setting. This
-  // is a SEED value (see readFeatureDefaults()), not a patch point: writing it
-  // reaches onDidChangeConfiguration -> autoApply -> chatEnhancementsSet(), which
-  // re-derives the injected script with the new default map (only takes effect for
-  // a webview that has not loaded yet / has no localStorage override; an
-  // already-open chat's live state is instead changed via its own ⚙ gear).
+  /**
+   * Flip one chat-enhancement feature's smartsClaudeManager.feature.<id> setting.
+   * This is a SEED value (see readFeatureDefaults()), not a patch point: writing it reaches onDidChangeConfiguration -> autoApply -> chatEnhancementsSet(), which re-derives the injected script with the new default map (only takes effect for a webview that has not loaded yet / has no localStorage override; an already-open chat's live state is instead changed via its own ⚙ gear).
+   * @param {string} id - the feature id to flip
+   * @param {boolean} on - the target on/off state
+   * @returns {Promise<void>} resolves once the setting update completes
+   */
   async setFeature(id: string, on: boolean): Promise<void> {
     if (!featureIds().some((f) => f.id === id)) return;
     const key = `feature.${id}`;
@@ -2738,12 +2692,12 @@ export class Patcher {
     await cfg.update(key, on, vscode.ConfigurationTarget.Global);
   }
 
-  // Discard modifications made since the last window reload: reset every knob to
-  // the value that was on disk at activation (the "floor" a reload establishes),
-  // i.e. what the live UI currently shows. Unlike restore (which always goes to
-  // native), this reverts only the not-yet-reloaded changes, so it needs no
-  // reload. The config changes trigger autoApply, which rewrites the bundle to
-  // the floor.
+  /**
+   * Discard modifications made since the last window reload: reset every knob to the value that was on disk at activation (the "floor" a reload establishes), i.e. what the live UI currently shows.
+   * Unlike restore (which always goes to native), this reverts only the not-yet-reloaded changes, so it needs no reload.
+   * The config changes trigger autoApply, which rewrites the bundle to the floor.
+   * @returns {Promise<void>} resolves once every knob has been reset to its activation floor
+   */
   async discard(): Promise<void> {
     const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
     await Promise.all([
@@ -2756,8 +2710,7 @@ export class Patcher {
         return cfg.update(p.key, value, vscode.ConfigurationTarget.Global);
       }),
       ...TOGGLE_POINTS.filter((t) => !ALWAYS_ON_TOGGLES.has(t.id)).map((t) => {
-        // floor is the full state string (e.g. "on+css" / "off+nocss"); its on/off
-        // is the leading token.
+        // floor is the full state string (e.g. "on+css" / "off+nocss"); its on/off is the leading token.
         const floor = this.activationPx.get(t.id);
         const value =
           floor !== undefined ? floor.startsWith("on") : t.defaultOn;
@@ -2774,28 +2727,15 @@ export class Patcher {
     this.refresh();
   }
 
-  // Synchronous, side-effect-free file restore for extension TEARDOWN
-  // (deactivate()/uninstall/disable), where there is no time budget for the
-  // async settings-reset work restore() below also does and no guarantee any
-  // awaited Promise completes before the host tears the extension host down.
-  // Unlike restore(), this never touches vscode.workspace configuration or
-  // globalState — it only reverts the on-disk extension.js/index.css bytes via
-  // the same restorePatch() the panel button calls, so Claude Code loads its
-  // native, unpatched bundle the next time it starts, even if the user simply
-  // uninstalled/disabled this extension instead of clicking "Fully Disable
-  // Patch" first. A missing/undetected Claude Code install is a silent no-op
-  // here (deactivate() has no UI to report an error through).
-  //
-  // Deliberately does NOT also write smartsClaudeManager.patchEnabled: false —
-  // VS Code's deactivate() fires identically for an ordinary "Reload Window"
-  // and for a genuine disable/uninstall, with no API to tell them apart
-  // (confirmed against microsoft/vscode#110034, unresolved as of this writing).
-  // Writing patchEnabled: false unconditionally here would incorrectly disable
-  // the patch on every routine reload too, breaking the normal day-to-day
-  // workflow. The on-disk file revert above is sufficient on its own: an
-  // extension that stays uninstalled never runs autoApply()/the constructor
-  // again, so Claude Code simply stays on its native, unpatched bundle
-  // forever — the original bug (the patch surviving removal) either way.
+  /*
+   * Synchronous, side-effect-free file restore for extension TEARDOWN (deactivate()/uninstall/disable), where there is no time budget for the async settings-reset work restore() below also does and no guarantee any awaited Promise completes before the host tears the extension host down.
+   * Unlike restore(), this never touches vscode.workspace configuration or globalState — it only reverts the on-disk extension.js/index.css bytes via the same restorePatch() the panel button calls, so Claude Code loads its native, unpatched bundle the next time it starts, even if the user simply uninstalled/disabled this extension instead of clicking "Fully Disable Patch" first.
+   * A missing/undetected Claude Code install is a silent no-op here (deactivate() has no UI to report an error through).
+   *
+   * Deliberately does NOT also write smartsClaudeManager.patchEnabled: false — VS Code's deactivate() fires identically for an ordinary "Reload Window" and for a genuine disable/uninstall, with no API to tell them apart (confirmed against microsoft/vscode#110034, unresolved as of this writing).
+   * Writing patchEnabled: false unconditionally here would incorrectly disable the patch on every routine reload too, breaking the normal day-to-day workflow.
+   * The on-disk file revert above is sufficient on its own: an extension that stays uninstalled never runs autoApply()/the constructor again, so Claude Code simply stays on its native, unpatched bundle forever — the original bug (the patch surviving removal) either way.
+   */
   restoreFilesOnly(): void {
     if (!this.ext) return;
     try {
@@ -2805,12 +2745,12 @@ export class Patcher {
     }
   }
 
-  // Factory reset (the panel's red button): revert every knob to Claude Code's
-  // native value. Writes the native bundle and resets the settings; the panel's
-  // "Reload Window" link lights up to apply it, so no separate prompt is needed.
-  // Also snapshots the current settings (so "Enable Patch" can restore them
-  // instead of leaving every knob at stock) and flips patchEnabled to false, so
-  // the panel's button switches to "Enable Patch".
+  /**
+   * Factory reset (the panel's red button): revert every knob to Claude Code's native value.
+   * Writes the native bundle and resets the settings; the panel's "Reload Window" link lights up to apply it, so no separate prompt is needed.
+   * Also snapshots the current settings (so "Enable Patch" can restore them instead of leaving every knob at stock) and flips patchEnabled to false, so the panel's button switches to "Enable Patch".
+   * @returns {Promise<void>} resolves once the bundle is restored and settings reset
+   */
   async restore(): Promise<void> {
     if (!this.ext) {
       void vscode.window.showErrorMessage(
@@ -2827,19 +2767,12 @@ export class Patcher {
       preDisable[ip.key] = cfg.get(ip.key) as number | boolean | string;
     void this.context.globalState.update(PRE_DISABLE_SETTINGS_KEY, preDisable);
 
-    // patchEnabled MUST flip to false FIRST, fully awaited, BEFORE the file
-    // revert and the settings resets below. THE REAL "disable never sticks"
-    // BUG LIVED HERE: setPatchEnabled(false) used to be the LAST element of
-    // the parallel Promise.all below — so every earlier settings-reset write
-    // fired onDidChangeConfiguration -> autoApply(), which read patchEnabled
-    // while it was STILL true and re-applied the patch into the just-reverted
-    // bundle (specifically the ALWAYS_ON_TOGGLES — chatEnhancements/faroCsp —
-    // which readToggles() forces true regardless of any setting). The window
-    // then reloaded with patchEnabled=false, so nothing ever cleaned the
-    // re-injected patch again: settings said "disabled" while the bundle
-    // stayed patched — exactly the on-disk fingerprint observed live (only
-    // the always-on + default-true toggles present, everything else stock).
-    // Flipping patchEnabled first makes every such autoApply() a no-op.
+    /*
+     * patchEnabled MUST flip to false FIRST, fully awaited, BEFORE the file revert and the settings resets below.
+     * THE REAL "disable never sticks" BUG LIVED HERE: setPatchEnabled(false) used to be the LAST element of the parallel Promise.all below — so every earlier settings-reset write fired onDidChangeConfiguration -> autoApply(), which read patchEnabled while it was STILL true and re-applied the patch into the just-reverted bundle (specifically the ALWAYS_ON_TOGGLES — chatEnhancements/faroCsp — which readToggles() forces true regardless of any setting).
+     * The window then reloaded with patchEnabled=false, so nothing ever cleaned the re-injected patch again: settings said "disabled" while the bundle stayed patched — exactly the on-disk fingerprint observed live (only the always-on + default-true toggles present, everything else stock).
+     * Flipping patchEnabled first makes every such autoApply() a no-op.
+     */
     await this.setPatchEnabled(false);
 
     try {
@@ -2851,10 +2784,10 @@ export class Patcher {
       );
       return;
     }
-    // Reset all patch settings to their stock values so the panel/settings
-    // reflect the restored native state, not the enlarged values. Each of
-    // these writes still fires onDidChangeConfiguration -> autoApply(), but
-    // patchEnabled is already false (awaited above), so each one no-ops.
+    /*
+     * Reset all patch settings to their stock values so the panel/settings reflect the restored native state, not the enlarged values.
+     * Each of these writes still fires onDidChangeConfiguration -> autoApply(), but patchEnabled is already false (awaited above), so each one no-ops.
+     */
     await Promise.all([
       ...PATCH_POINTS.map((p) =>
         cfg.update(p.key, p.originalPx, vscode.ConfigurationTarget.Global),
@@ -2869,9 +2802,11 @@ export class Patcher {
     this.refresh();
   }
 
-  // Writes patchEnabled while suppressing the onDidChangeConfiguration mirror
-  // (see writingPatchEnabled) — every internal write goes through here so the
-  // listener never recurses into a second restore()/enable() for our own change.
+  /**
+   * Writes patchEnabled while suppressing the onDidChangeConfiguration mirror (see writingPatchEnabled) — every internal write goes through here so the listener never recurses into a second restore()/enable() for our own change.
+   * @param {boolean} value - the patchEnabled value to write
+   * @returns {Promise<void>} resolves once the setting update completes
+   */
   private async setPatchEnabled(value: boolean): Promise<void> {
     this.writingPatchEnabled = true;
     try {
@@ -2883,13 +2818,11 @@ export class Patcher {
     }
   }
 
-  // The panel's "Enable Patch" button (shown in place of "Fully Disable Patch"
-  // once patchEnabled is false): restores the settings captured right before
-  // the disable, flips patchEnabled back to true, and re-applies the patch —
-  // autoApply() fires from the config-change listener as each restored patch
-  // setting is written, so the explicit autoApply() call below covers the case
-  // where none of the restored values actually differ from current (no
-  // onDidChangeConfiguration event would otherwise fire to trigger a re-apply).
+  /**
+   * The panel's "Enable Patch" button (shown in place of "Fully Disable Patch" once patchEnabled is false): restores the settings captured right before the disable, flips patchEnabled back to true, and re-applies the patch.
+   * autoApply() fires from the config-change listener as each restored patch setting is written, so the explicit autoApply() call below covers the case where none of the restored values actually differ from current (no onDidChangeConfiguration event would otherwise fire to trigger a re-apply).
+   * @returns {Promise<void>} resolves once settings are restored and the patch re-applied
+   */
   async enable(): Promise<void> {
     const cfg = vscode.workspace.getConfiguration(CONFIG_NS);
     const preDisable = this.context.globalState.get<PreDisableSettings>(
@@ -2911,9 +2844,13 @@ function cmdLink(label: string, command: string, args?: unknown[]): string {
   return `[${label}](command:${command}${query})`;
 }
 
-// Read-only font-size summary for the status-bar hover. Requires a trusted,
-// theme-icon MarkdownString. Click the status-bar item to open the webview
-// panel for interactive controls; click the gear to jump to settings.
+/**
+ * Read-only font-size summary for the status-bar hover.
+ * Requires a trusted, theme-icon MarkdownString.
+ * Click the status-bar item to open the webview panel for interactive controls; click the gear to jump to settings.
+ * @param {Snapshot | undefined} snap - the current patcher snapshot, or undefined if unavailable
+ * @returns {string[]} the tooltip's Markdown lines
+ */
 export function tooltipLines(snap: Snapshot | undefined): string[] {
   if (!snap || !snap.available) return [];
 
@@ -2923,11 +2860,11 @@ export function tooltipLines(snap: Snapshot | undefined): string[] {
     `Claude Code v${snap.version}`,
   ];
 
-  // Right-align the px in a monospace column. A status-bar tooltip is a
-  // MarkdownString, whose text size VS Code controls (extensions can't set it);
-  // the only lever is heading level, so section titles are rendered as headings
-  // and the rows as a fenced (monospace) block that keeps the numbers aligned.
-  // `gap` widens the label→value spacing so the popup has more horizontal room.
+  /*
+   * Right-align the px in a monospace column.
+   * A status-bar tooltip is a MarkdownString, whose text size VS Code controls (extensions can't set it); the only lever is heading level, so section titles are rendered as headings and the rows as a fenced (monospace) block that keeps the numbers aligned.
+   * `gap` widens the label→value spacing so the popup has more horizontal room.
+   */
   const valueStr = (k: Knob) =>
     k.kind === "toggle" ? (k.on ? "on" : "off") : `${k.px}px`;
   const rows = snap.knobs;

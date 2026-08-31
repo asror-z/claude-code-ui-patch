@@ -1,22 +1,25 @@
 import { infrastructureSources, allFeatures } from "./behaviorFeatures";
 
-// Chat-enhancement features (Reply, Search, DateTime, ... — see behaviorFeatures.ts)
-// ride as ONE marker-tagged inline <script>/<style> block, distinct from
-// PATCH_POINTS/TOGGLE_POINTS/INJECT_POINTS in patcher.ts: those all swap an EXISTING
-// hardcoded value already present in the bundle, whereas these add NEW behavior that
-// doesn't exist in the stock bundle at all. The chat webview's CSP is
-// script-src 'nonce-${u}' only (no unsafe-inline, no external src without that exact
-// nonce), so the whole feature set is injected as a single nonce'd inline <script> tag
-// (spliced right after the existing index.js <script src> chain, before </body>) rather
-// than as separate asset files with their own <script src> tags.
+/* Chat-enhancement features (Reply, Search, DateTime, ... — see
+   behaviorFeatures.ts) ride as ONE marker-tagged inline <script>/<style>
+   block, distinct from PATCH_POINTS/TOGGLE_POINTS/INJECT_POINTS in
+   patcher.ts: those all swap an EXISTING hardcoded value already present in
+   the bundle, whereas these add NEW behavior that doesn't exist in the stock
+   bundle at all.
+   The chat webview's CSP is script-src 'nonce-${u}' only (no unsafe-inline,
+   no external src without that exact nonce), so the whole feature set is
+   injected as a single nonce'd inline <script> tag (spliced right after the
+   existing index.js <script src> chain, before </body>) rather than as
+   separate asset files with their own <script src> tags. */
 export const BEHAVIOR_MARKER = "/*ccup-behavior*/";
 export const BEHAVIOR_CSS_MARKER = "/*ccup-behavior-css*/";
 
-// Anchor: the chat webview's index.js <script type="module"> tag, optionally
-// followed by any number of already-injected nonce'd <script> tags (tolerating a
-// prior smarts-claude-patch asset-file apply on the same bundle), then </body>. The
-// nonce variable name (captured group 2, e.g. "u") is read live so this survives
-// re-minification renaming it.
+/* Anchor: the chat webview's index.js <script type="module"> tag, optionally
+   followed by any number of already-injected nonce'd <script> tags (tolerating
+   a prior smarts-claude-patch asset-file apply on the same bundle), then
+   </body>.
+   The nonce variable name (captured group 2, e.g. "u") is read live so this
+   survives re-minification renaming it. */
 const BODY_ANCHOR_RE =
   /(<script nonce="\$\{(\w+)\}" src="\$\{(\w+)\}" type="module"><\/script>\n)((?:\s*<script nonce="\$\{\2\}"[^>]*><\/script>\n)*)(\s*<\/body>)/;
 
@@ -27,21 +30,23 @@ function unescapeFromTemplateLiteral(src: string): string {
   return src.replace(/\\\$\{/g, "${").replace(/\\`/g, "`").replace(/\\\\/g, "\\");
 }
 
-// Per-feature enable/disable is a RUNTIME toggle (localStorage 'cc-feature-toggles',
-// read by window.__ccFeature(id) in the injected bootstrap), not a patch-time value —
-// so it is not a TOGGLE_POINTS entry. The panel's Chat Features checkboxes
-// (see panel.ts / Patcher.setFeature) are the ONE control surface for it: each
-// smartsClaudeManager.feature.<id> setting is written into the localStorage map on
-// EVERY webview load, unconditionally, so a checkbox flip takes effect the next
-// window reload (the same "reload to apply" contract as every other patch setting) —
-// there is no separate live in-chat control to defer to.
-//
-// Numeric per-feature tunables (AutoContinue's timing/cap values, DraftSave's
-// staleness/debounce delays) ride the SAME seed mechanism, under their own
-// dedicated localStorage keys — see NUMERIC_KEYS below. This keeps every VS
-// Code-settings-sourced runtime value on one seed script rather than inventing a
-// second injection path per new tunable; adding a future one is a single entry
-// in NUMERIC_KEYS plus the matching field in NumericConfig.
+/* Per-feature enable/disable is a RUNTIME toggle (localStorage
+   'cc-feature-toggles', read by window.__ccFeature(id) in the injected
+   bootstrap), not a patch-time value — so it is not a TOGGLE_POINTS entry.
+   The panel's Chat Features checkboxes (see panel.ts / Patcher.setFeature)
+   are the ONE control surface for it: each smartsClaudeManager.feature.<id>
+   setting is written into the localStorage map on EVERY webview load,
+   unconditionally, so a checkbox flip takes effect the next window reload
+   (the same "reload to apply" contract as every other patch setting) —
+   there is no separate live in-chat control to defer to.
+
+   Numeric per-feature tunables (AutoContinue's timing/cap values, DraftSave's
+   staleness/debounce delays) ride the SAME seed mechanism, under their own
+   dedicated localStorage keys — see NUMERIC_KEYS below.
+   This keeps every VS Code-settings-sourced runtime value on one seed script
+   rather than inventing a second injection path per new tunable; adding a
+   future one is a single entry in NUMERIC_KEYS plus the matching field in
+   NumericConfig. */
 export interface NumericConfig {
   autoContinueQuietMs: number;
   autoContinueCooldownMs: number;
@@ -81,11 +86,16 @@ function seedScript(defaults: Record<string, boolean>, numeric?: NumericConfig):
   return "(function(){try{" + parts.join("") + "}catch(e){}})();";
 }
 
-// The full assembled script: infrastructure (bootstrap, toolbar) first, then the
-// one-time feature-default + numeric-tunable seed (from VS Code settings), then
-// every registered feature, in registration order (a dependent, e.g. CopyButtons
-// on DateTime, must be registered after its dependency in behaviorFeatures.ts
-// imports).
+/**
+ * The full assembled script: infrastructure (bootstrap, toolbar) first, then
+ * the one-time feature-default + numeric-tunable seed (from VS Code
+ * settings), then every registered feature, in registration order (a
+ * dependent, e.g. CopyButtons on DateTime, must be registered after its
+ * dependency in behaviorFeatures.ts imports).
+ * @param {Record<string, boolean>} [featureDefaults] - per-feature on/off seed values
+ * @param {NumericConfig} [numeric] - numeric tunable seed values
+ * @returns {string} the joined script source
+ */
 function assembledScript(
   featureDefaults?: Record<string, boolean>,
   numeric?: NumericConfig,
@@ -108,12 +118,20 @@ export function behaviorPresent(extensionJs: string): boolean {
   return BODY_ANCHOR_RE.test(extensionJs) || extensionJs.includes(BEHAVIOR_MARKER);
 }
 
-// Apply (or refresh) the behavior script block. Idempotent: an existing block is
-// removed first, so re-applying (e.g. after a feature is added/changed) never
-// double-injects and always reflects the CURRENT assembled source. featureDefaults
-// (from the smartsClaudeManager.feature.<id> settings) and numeric (from the
-// smartsClaudeManager.autoContinueQuietMs-style settings) seed their respective
-// runtime values on the webview's first load only — see seedScript() above.
+/**
+ * Apply (or refresh) the behavior script block.
+ * Idempotent: an existing block is removed first, so re-applying (e.g. after
+ * a feature is added/changed) never double-injects and always reflects the
+ * CURRENT assembled source.
+ * featureDefaults (from the smartsClaudeManager.feature.<id> settings) and
+ * numeric (from the smartsClaudeManager.autoContinueQuietMs-style settings)
+ * seed their respective runtime values on the webview's first load only —
+ * see seedScript() above.
+ * @param {string} extensionJs - the extension.js source to patch
+ * @param {Record<string, boolean>} [featureDefaults] - per-feature on/off seed values
+ * @param {NumericConfig} [numeric] - numeric tunable seed values
+ * @returns {{out: string, changed: boolean}} patched source and whether it changed
+ */
 export function applyBehaviorScript(
   extensionJs: string,
   featureDefaults?: Record<string, boolean>,
@@ -142,10 +160,14 @@ export function removeBehaviorScript(extensionJs: string): string {
   return extensionJs.replace(re, "\n");
 }
 
-// Extract the currently-injected script body (unescaped), or undefined if absent —
-// used by analyze() to detect drift (bundle content differs from what the CURRENT
-// feature registry would assemble, e.g. after this extension is updated with new/
-// changed features).
+/**
+ * Extract the currently-injected script body (unescaped), or undefined if
+ * absent — used by analyze() to detect drift (bundle content differs from
+ * what the CURRENT feature registry would assemble, e.g. after this
+ * extension is updated with new/changed features).
+ * @param {string} extensionJs - the extension.js source to inspect
+ * @returns {string | undefined} the unescaped injected script body, or undefined
+ */
 export function currentBehaviorScript(extensionJs: string): string | undefined {
   const m = extensionJs.match(
     /<script nonce="\$\{\w+\}">\/\*ccup-behavior\*\/\n([\s\S]*?)\n<\/script>/,
@@ -160,28 +182,37 @@ export function wantedBehaviorScript(
   return assembledScript(featureDefaults, numeric);
 }
 
-// The declared feature ids, for building both the settings schema
-// (smartsClaudeManager.feature.<id>) and the panel's Chat Features grid —
-// sourced from the SAME registry the injected script is built from, so it can
-// never drift out of sync with what's actually injected.
+/**
+ * The declared feature ids, for building both the settings schema
+ * (smartsClaudeManager.feature.<id>) and the panel's Chat Features grid —
+ * sourced from the SAME registry the injected script is built from, so it
+ * can never drift out of sync with what's actually injected.
+ * @returns {{id: string, label: string}[]} every registered feature's id/label pair
+ */
 export function featureIds(): { id: string; label: string }[] {
   return allFeatures().map((f) => ({ id: f.id, label: f.label }));
 }
 
-// --- CSS side: appended to webview/index.css as ONE marker-tagged LINE, matching
-// patcher.ts's cssApplyLine/cssRemoveLine/cssMarkedLine convention (marker-through-
-// next-newline). CSS is whitespace-insensitive, so the whole assembled stylesheet is
-// flattened to a single line (newlines stripped) rather than introducing a second,
-// multi-line marker convention alongside the existing single-line one. ---
+/* --- CSS side: appended to webview/index.css as ONE marker-tagged LINE,
+   matching patcher.ts's cssApplyLine/cssRemoveLine/cssMarkedLine convention
+   (marker-through-next-newline).
+   CSS is whitespace-insensitive, so the whole assembled stylesheet is
+   flattened to a single line (newlines stripped) rather than introducing a
+   second, multi-line marker convention alongside the existing single-line
+   one. --- */
 
 function flattenCss(css: string): string {
   return css.replace(/\s*\n\s*/g, "").trim();
 }
 
-// The full marked line patcher.ts's cssBuild contract expects: the marker followed
-// by the (flattened) assembled CSS, or undefined if there is nothing to inject
-// (kept as a function, not a constant, so it always reflects the CURRENT feature
-// registry — mirrors diffLinesCssBuild's shape).
+/**
+ * The full marked line patcher.ts's cssBuild contract expects: the marker
+ * followed by the (flattened) assembled CSS, or undefined if there is
+ * nothing to inject (kept as a function, not a constant, so it always
+ * reflects the CURRENT feature registry — mirrors diffLinesCssBuild's
+ * shape).
+ * @returns {string} the marker-prefixed, flattened CSS line
+ */
 export function behaviorCssMarkedLine(): string {
   return `${BEHAVIOR_CSS_MARKER}${flattenCss(assembledCss())}`;
 }

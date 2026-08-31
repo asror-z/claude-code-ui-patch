@@ -192,9 +192,11 @@ const JS = `
     return false;
   }
 
-  // Is this element an EXPLICIT error banner? role=alert/status, or a class matching the
-  // NARROW banner set (error|banner|alert|apiError|toast — NOT the over-broad
-  // notice|warning that let generic UI through).
+  /**
+   * Is this element an EXPLICIT error banner? role=alert/status, or a class matching the NARROW banner set (error|banner|alert|apiError|toast — NOT the over-broad notice|warning that let generic UI through).
+   * @param {Element} el - candidate element to test.
+   * @returns {boolean} true when el qualifies as an explicit error banner.
+   */
   function isBannerEl(el) {
     if (!el || el.nodeType !== 1) return false;
     var role = el.getAttribute("role");
@@ -203,9 +205,13 @@ const JS = `
     return /error|banner|alert|apiError|toast/i.test(cn);
   }
 
-  // Does the drop phrase sit at/near the START of the text? An error banner LEADS with the
-  // error ("API Error: Connection closed…"); prose buries it mid-paragraph. We accept a
-  // match within the first 40 chars.
+  /**
+   * Does the drop phrase sit at/near the START of the text?
+   * An error banner LEADS with the error ("API Error: Connection closed…"); prose buries it mid-paragraph.
+   * We accept a match within the first 40 chars.
+   * @param {string} text - candidate text to test.
+   * @returns {boolean} true when DROP_RE matches within the first 40 chars.
+   */
   function phraseLeads(text) {
     var m = DROP_RE.exec(text);
     return !!m && m.index <= 40;
@@ -213,26 +219,19 @@ const JS = `
 
   var rejected = 0; // count of near-miss rejects this sweep (for diagnose)
 
-  // A message-shaped element — user turn, assistant turn, or any timeline entry.
-  // Same class-substring set messageCount() below reuses for consistency.
+  /*
+   * A message-shaped element — user turn, assistant turn, or any timeline entry.
+   * Same class-substring set messageCount() below reuses for consistency.
+   */
   var MSG_SEL = "[class*='userMessageContainer'],[class*='timelineMessage'],[class*='turn_']";
 
-  // The NEWEST message in the chat, if (and only if) its own text LEADS with a
-  // drop phrase — regardless of whether it is a user or assistant/system turn.
-  //
-  // WHY THIS EXISTS (confirmed live, not theoretical): a real drop/throttle event
-  // does NOT always surface as a styled role=alert/error-classed banner element —
-  // Claude Code can instead surface it as an ORDINARY NEW MESSAGE in the timeline
-  // (observed directly: "API Error: Server is temporarily limiting requests (not
-  // your usage limit) · Rate limited" arrived framed exactly like a fresh user
-  // turn). findErrorBanners()'s own insideMessage() guard EXCLUDES anything inside
-  // a message container on purpose (so ordinary chat prose discussing "API Error"
-  // never false-fires) — that guard stays exactly as-is for the banner-ELEMENT
-  // scan below. This is a SEPARATE, additive detection path: only the CHAT'S OWN
-  // NEWEST message is ever checked (never an older one buried mid-history), so a
-  // user's earlier, unrelated message that happens to mention the phrase can never
-  // retroactively trigger this — only the single most recent turn can, exactly
-  // the same "eng oxirida" (the newest/latest one) semantics requested.
+  /**
+   * The NEWEST message in the chat, if (and only if) its own text LEADS with a drop phrase — regardless of whether it is a user or assistant/system turn.
+   * WHY THIS EXISTS (confirmed live, not theoretical): a real drop/throttle event does NOT always surface as a styled role=alert/error-classed banner element — Claude Code can instead surface it as an ORDINARY NEW MESSAGE in the timeline (observed directly: "API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited" arrived framed exactly like a fresh user turn).
+   * findErrorBanners()'s own insideMessage() guard EXCLUDES anything inside a message container on purpose (so ordinary chat prose discussing "API Error" never false-fires) — that guard stays exactly as-is for the banner-ELEMENT scan below.
+   * This is a SEPARATE, additive detection path: only the CHAT'S OWN NEWEST message is ever checked (never an older one buried mid-history), so a user's earlier, unrelated message that happens to mention the phrase can never retroactively trigger this — only the single most recent turn can, exactly the same "eng oxirida" (the newest/latest one) semantics requested.
+   * @returns {Element|null} the newest message element when it leads with a drop phrase, else null.
+   */
   function findLastMessageDrop() {
     var root = chatRoot();
     var msgs = root.querySelectorAll(MSG_SEL);
@@ -245,10 +244,12 @@ const JS = `
     return last;
   }
 
-  // Find TRUE error banners: an explicit banner element, NOT inside a message container,
-  // whose own short text LEADS with a specific drop phrase. No leaf-block escape hatch.
-  // PLUS (see findLastMessageDrop above): the chat's own newest message, whichever side
-  // authored it, when ITS text leads with the same drop phrase.
+  /**
+   * Finds TRUE error banners: an explicit banner element, NOT inside a message container, whose own short text LEADS with a specific drop phrase.
+   * No leaf-block escape hatch.
+   * PLUS (see findLastMessageDrop above): the chat's own newest message, whichever side authored it, when ITS text leads with the same drop phrase.
+   * @returns {Element[]} every qualifying banner/message element, deduped.
+   */
   function findErrorBanners() {
     var root = chatRoot();
     var out = [];
@@ -355,7 +356,11 @@ const JS = `
     } catch (e) {}
   }
 
-  // Type "continue" and submit. Returns true if it dispatched a submit.
+  /**
+   * Types "continue" into the composer and submits it.
+   * @param {Element} input - the composer element to type into.
+   * @returns {boolean} true if it dispatched a submit.
+   */
   function submitContinue(input) {
     try {
       input.focus();
@@ -407,33 +412,23 @@ const JS = `
   }
 
   // ---- main sweep -----------------------------------------------------------------
-  //
-  // TWO-PHASE fire ("N ms davomida yangi message kelmasa — Automatically continue deb
-  // yozvoradi": if no new message arrives for N ms, auto-type "continue"): detecting an
-  // error banner does NOT submit "continue" immediately — it arms a QUIET_MS countdown.
-  // The countdown RESTARTS whenever the chat's message count increases (a real new
-  // message/turn appearing — not just any DOM churn, which would make the timer
-  // effectively never fire in a live, constantly-repainting chat UI), and is cancelled
-  // outright if the banner itself clears (the run recovered on its own). Only once
-  // QUIET_MS has elapsed with NO new message AND the same banner still present does it
-  // actually submit "continue".
-  //
-  // QUIET_MS is a USER-CONFIGURABLE VS Code setting (smartsClaudeManager.autoContinueQuietMs,
-  // default 500ms), never a hardcoded constant — behaviorInject.ts's seedScript() writes
-  // it into localStorage on every webview load (the same seed mechanism the per-feature
-  // on/off toggles already use), read via the shared readNumSetting() helper above. A
-  // missing/invalid value (an older cached webview from before this setting existed, a
-  // corrupted localStorage entry) falls back to the same 500ms default the setting
-  // itself ships with.
+  /*
+   * TWO-PHASE fire ("N ms davomida yangi message kelmasa — Automatically continue deb yozvoradi": if no new message arrives for N ms, auto-type "continue"): detecting an error banner does NOT submit "continue" immediately — it arms a QUIET_MS countdown.
+   * The countdown RESTARTS whenever the chat's message count increases (a real new message/turn appearing — not just any DOM churn, which would make the timer effectively never fire in a live, constantly-repainting chat UI), and is cancelled outright if the banner itself clears (the run recovered on its own).
+   * Only once QUIET_MS has elapsed with NO new message AND the same banner still present does it actually submit "continue".
+   *
+   * QUIET_MS is a USER-CONFIGURABLE VS Code setting (smartsClaudeManager.autoContinueQuietMs, default 500ms), never a hardcoded constant — behaviorInject.ts's seedScript() writes it into localStorage on every webview load (the same seed mechanism the per-feature on/off toggles already use), read via the shared readNumSetting() helper above.
+   * A missing/invalid value (an older cached webview from before this setting existed, a corrupted localStorage entry) falls back to the same 500ms default the setting itself ships with.
+   */
   var QUIET_MS = readNumSetting("cc-autocontinue-quietms", 500);
   var quietTimer = null;
   var armedBanner = null; // the banner element the current quiet-timer is waiting on
   var lastMsgCount = -1;  // message-container count as of the last successful arm/restart
 
-  // A cheap count of real chat message containers (turns/bubbles), used ONLY to detect
-  // "a new message arrived" — reuses the same container-class heuristic as
-  // insideMessage()'s MSG_CONTAINER_RE so it tracks genuine chat content, not incidental
-  // DOM noise (cursor blink, hover states, timestamp re-renders).
+  /**
+   * A cheap count of real chat message containers (turns/bubbles), used ONLY to detect "a new message arrived" — reuses the same container-class heuristic as insideMessage()'s MSG_CONTAINER_RE so it tracks genuine chat content, not incidental DOM noise (cursor blink, hover states, timestamp re-renders).
+   * @returns {number} current message-container count, or -1 on error.
+   */
   function messageCount() {
     try {
       return chatRoot().querySelectorAll(
@@ -464,16 +459,12 @@ const JS = `
     var stillArmed = armedBanner;
     armedBanner = null;
     if (!stillArmed) return;
-    // A new message arrived at some point during the wait but the observer's debounced
-    // run() didn't get a chance to restart the timer before it fired (a race at the
-    // boundary) — re-check the count directly here too, belt-and-braces.
+    // A new message arrived at some point during the wait but the observer's debounced run() didn't get a chance to restart the timer before it fired (a race at the boundary) — re-check the count directly here too, belt-and-braces.
     if (messageCount() !== lastMsgCount) {
       diagLog({ kind: "cc.autocontinue", action: "quiet-wait-resolved", reason: "new-message-detected" });
       return;
     }
-    // Re-check the banner is STILL present/undone after the full quiet period — a run
-    // that resumed mid-wait already cleared/removed it (covered by cancelQuietTimer in
-    // run() too, but this is a defensive second check at fire-time).
+    // Re-check the banner is STILL present/undone after the full quiet period — a run that resumed mid-wait already cleared/removed it (covered by cancelQuietTimer in run() too, but this is a defensive second check at fire-time).
     var recheck = findErrorBanners();
     var stillThere = false;
     for (var i = 0; i < recheck.length; i++) {
@@ -653,8 +644,7 @@ const JS = `
     if (resetAt) {
       slArm(banner, resetAt, false);
     } else {
-      // No parseable time at all — arm the fixed fallback wait rather than ignoring a
-      // real (but unrecognized-shape) limit banner outright.
+      // No parseable time at all — arm the fixed fallback wait rather than ignoring a real (but unrecognized-shape) limit banner outright.
       diagLog({ kind: "cc.autocontinue", action: "sessionlimit-unparseable-fallback", text: text.slice(0, 160), fallbackMs: SESSIONLIMIT_FALLBACK_MS });
       slArm(banner, new Date(Date.now() + SESSIONLIMIT_FALLBACK_MS), true);
     }
@@ -665,10 +655,10 @@ const JS = `
 
     var banners = findErrorBanners();
     if (!banners.length) {
-      // a clean sweep (no error banner visible) means the run recovered on its own —
-      // cancel any pending quiet-wait and reset the per-session budget so a later,
-      // unrelated drop gets a fresh cap. If near-misses were rejected this sweep, log
-      // WHY so a future false-fire (or missed banner) is observable.
+      /*
+       * A clean sweep (no error banner visible) means the run recovered on its own — cancel any pending quiet-wait and reset the per-session budget so a later, unrelated drop gets a fresh cap.
+       * If near-misses were rejected this sweep, log WHY so a future false-fire (or missed banner) is observable.
+       */
       cancelQuietTimer("banner-cleared");
       if (rejected) diagLog({ kind: "cc.autocontinue", action: "rejected-candidates", rejected: rejected });
       resetCount();
@@ -685,9 +675,7 @@ const JS = `
     var curMsgCount = messageCount();
 
     if (armedBanner === fresh) {
-      // Same banner still pending: restart the QUIET_MS countdown only if a genuinely
-      // NEW message arrived since we last armed (not on incidental DOM churn) — this is
-      // the literal "no new message for 5 seconds" condition.
+      // Same banner still pending: restart the QUIET_MS countdown only if a genuinely NEW message arrived since we last armed (not on incidental DOM churn) — this is the literal "no new message for 5 seconds" condition.
       if (curMsgCount !== lastMsgCount) {
         diagLog({ kind: "cc.autocontinue", action: "quiet-wait-restarted", reason: "new-message", quietMs: QUIET_MS });
         armQuietTimer(fresh);
@@ -714,15 +702,14 @@ const JS = `
     W = win || window;
     try { run(); } catch (e) {}
     try {
-      // PLAIN debounced observer (NOT __ccObserve). The observer sweep's ONLY write is a
-      // guarded idempotent setAttribute (DONE_ATTR on handled banners), so it is ALREADY
-      // freeze-safe: a re-run stamps nothing new → emits no mutation → the observer goes
-      // quiet on its own. Routing it through __ccObserve with ownAttrPrefix was a mistake —
-      // the shared filter treats the DONE_ATTR write as self-churn and, in a mixed streaming
-      // batch, suppresses the sweep so a NEW "run limit" banner streaming in right after a
-      // handled one is missed (the same regression that broke UserStyle: userTagged=0).
-      // __ccObserve is only for element-APPENDING features. (The textContent write to the
-      // input is in the click action, not the sweep.) schedule() debounces run() ~250ms.
+      /*
+       * PLAIN debounced observer (NOT __ccObserve).
+       * The observer sweep's ONLY write is a guarded idempotent setAttribute (DONE_ATTR on handled banners), so it is ALREADY freeze-safe: a re-run stamps nothing new → emits no mutation → the observer goes quiet on its own.
+       * Routing it through __ccObserve with ownAttrPrefix was a mistake — the shared filter treats the DONE_ATTR write as self-churn and, in a mixed streaming batch, suppresses the sweep so a NEW "run limit" banner streaming in right after a handled one is missed (the same regression that broke UserStyle: userTagged=0).
+       * __ccObserve is only for element-APPENDING features.
+       * (The textContent write to the input is in the click action, not the sweep.)
+       * schedule() debounces run() ~250ms.
+       */
       new W.MutationObserver(schedule).observe(D.body, {
         childList: true,
         subtree: true,
@@ -750,13 +737,12 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* AutoContinue has NO visible UI of its own — it is an event-driven watcher that
-   auto-submits "continue" when a stream-error / throttle banner appears. This
-   stylesheet is an intentional (near-)empty placeholder so the feature remains a
-   normal copy-and-inject asset PAIR (js + css), matching every other feature.
+/*
+   AutoContinue has NO visible UI of its own — it is an event-driven watcher that auto-submits "continue" when a stream-error / throttle banner appears.
+   This stylesheet is an intentional (near-)empty placeholder so the feature remains a normal copy-and-inject asset PAIR (js + css), matching every other feature.
 
-   The only rule here is a marker so the injected <link> is never mistaken for empty
-   by tooling; it styles nothing visible. */
+   The only rule here is a marker so the injected <link> is never mistaken for empty by tooling; it styles nothing visible.
+*/
 [data-cc-autocont] {
   /* handled-banner marker — no visual change */
 }
