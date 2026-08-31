@@ -15,8 +15,9 @@ const JS = `
   var D = document;
   var W = window;
 
-  // Minified webviews sometimes render a quote as a <div>/<p> with a
-  // blockquote-ish class instead of a real <blockquote>. Catch those too.
+  /* Minified webviews sometimes render a quote as a <div>/<p> with a
+     blockquote-ish class instead of a real <blockquote>.
+     Catch those too. */
   var QUOTE_SELECTORS = [
     "blockquote",
     "[class*='blockquote']",
@@ -37,12 +38,13 @@ const JS = `
     tagInterrupts();
   }
 
-  // Tag "Tool interrupted" / aborted / cancelled SYSTEM notice blocks with
-  // data-cc-interrupt="1" so the CSS can paint them light-red — distinct from a
-  // user message (UserStyle blue) and a normal blockquote. We match either a
-  // class cue (/interrupt|aborted|cancelled|canceled/i) or a text cue
-  // ("Tool interrupted"), and tag the OUTERMOST such block (skip if an ancestor
-  // already carries the tag) so the whole notice is painted once, not per child.
+  /* Tag "Tool interrupted" / aborted / cancelled SYSTEM notice blocks with
+     data-cc-interrupt="1" so the CSS can paint them light-red — distinct from a
+     user message (UserStyle blue) and a normal blockquote.
+     We match either a class cue (/interrupt|aborted|cancelled|canceled/i) or a
+     text cue ("Tool interrupted"), and tag the OUTERMOST such block (skip if an
+     ancestor already carries the tag) so the whole notice is painted once, not
+     per child. */
   var INTERRUPT_CLASS_RE = /interrupt|aborted|cancelled|canceled/i;
   var INTERRUPT_TEXT_RE = /^(tool interrupted|interrupted by user|request interrupted)/i;
 
@@ -50,16 +52,18 @@ const JS = `
     var cn = (el.getAttribute && el.getAttribute("class")) || "";
     if (INTERRUPT_CLASS_RE.test(cn)) return true;
     var txt = (el.textContent || "").trim();
-    // Text cue: the block's trimmed text must START with the interrupt phrase
-    // (anchored), so a parent/conversation container that merely CONTAINS the
-    // phrase deeper down is NOT matched — only the notice block itself is.
+    /* Text cue: the block's trimmed text must START with the interrupt phrase
+       (anchored), so a parent/conversation container that merely CONTAINS the
+       phrase deeper down is NOT matched.
+       Only the notice block itself is. */
     if (txt.length <= 400 && INTERRUPT_TEXT_RE.test(txt)) return true;
     return false;
   }
 
   function tagInterrupts() {
-    // candidates: small blocks by class, plus any element whose own short text
-    // starts the interrupt phrase. Scan a bounded set of block-ish elements.
+    /* candidates: small blocks by class, plus any element whose own short text
+       starts the interrupt phrase.
+       Scan a bounded set of block-ish elements. */
     var candidates = D.querySelectorAll(
       "div,p,span,section,blockquote,[class*='message'],[class*='callout'],[class*='notice']"
     );
@@ -88,7 +92,11 @@ const JS = `
     }, 100);
   }
 
-  // init(doc, win) — bootstrap hands us the chat document; bind + observe it.
+  /**
+   * bootstrap hands us the chat document; bind + observe it.
+   * @param {Document} doc - the chat document
+   * @param {Window} win - the chat window
+   */
   function init(doc, win) {
     D = doc;
     W = win || window;
@@ -96,14 +104,17 @@ const JS = `
       run();
     } catch (e) {}
     try {
-      // PLAIN debounced observer (NOT __ccObserve). Blockquote's ONLY writes are guarded
-      // idempotent setAttribute tags (data-cc-blockquote / data-cc-interrupt), so it is
-      // ALREADY freeze-safe: a re-run tags nothing new → emits no mutation → the observer
-      // goes quiet on its own. Routing it through __ccObserve with ownAttrPrefix was a
-      // mistake — the shared filter treats the tag write as self-churn and, in a mixed
-      // streaming batch, suppresses the sweep so NEW quote/interrupt lines never get tagged
-      // (the same regression that broke UserStyle: userTagged=0). __ccObserve is only for
-      // element-APPENDING features. schedule() debounces run() ~100ms.
+      /* PLAIN debounced observer (NOT __ccObserve).
+         Blockquote's ONLY writes are guarded idempotent setAttribute tags
+         (data-cc-blockquote / data-cc-interrupt), so it is ALREADY freeze-safe: a
+         re-run tags nothing new → emits no mutation → the observer goes quiet on
+         its own.
+         Routing it through __ccObserve with ownAttrPrefix was a mistake — the
+         shared filter treats the tag write as self-churn and, in a mixed
+         streaming batch, suppresses the sweep so NEW quote/interrupt lines never
+         get tagged (the same regression that broke UserStyle: userTagged=0).
+         __ccObserve is only for element-APPENDING features.
+         schedule() debounces run() ~100ms. */
       new W.MutationObserver(schedule).observe(D.body, {
         childList: true,
         subtree: true,
@@ -113,11 +124,12 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand
-  // off now; otherwise queue onto window.__ccPending — the bootstrap drains it the
-  // moment it installs (it is injected too, so it WILL load). A last-resort timer
-  // covers the impossible case where no bootstrap ever appears, running once
-  // against the current document (the chat DOM lives in THIS document).
+  /* Order-independent registration: if the bootstrap is already installed, hand
+     off now; otherwise queue onto window.__ccPending — the bootstrap drains it
+     the moment it installs (it is injected too, so it WILL load).
+     A last-resort timer covers the impossible case where no bootstrap ever
+     appears, running once against the current document (the chat DOM lives in
+     THIS document). */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -174,9 +186,10 @@ blockquote > :last-child,
 
 /* "Tool interrupted" / aborted / cancelled SYSTEM notice — a distinct LIGHT-RED
    card so it reads as an interrupted/error state, NOT a user message (UserStyle
-   blue) or a normal blockquote. Tagged data-cc-interrupt="1" by the JS. The
-   doubled attribute selector + !important raise specificity so it wins over
-   [data-cc-user="1"] and [data-cc-blockquote="1"] on the same element. */
+   blue) or a normal blockquote.
+   Tagged data-cc-interrupt="1" by the JS.
+   The doubled attribute selector + !important raise specificity so it wins
+   over [data-cc-user="1"] and [data-cc-blockquote="1"] on the same element. */
 [data-cc-interrupt="1"][data-cc-interrupt="1"] {
   background: var(
     --vscode-inputValidation-errorBackground,

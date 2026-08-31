@@ -1,24 +1,25 @@
 import { registerFeature } from "./behaviorFeatures";
 
-// Shows the running model's name/version as the composer's PLACEHOLDER text
-// (before anything is typed) -- reusing the composer's own native placeholder
-// mechanism (webview/index.js sets data-placeholder on the contenteditable
-// messageInput_<hash> div; its stock CSS is
-// `.messageInput_<hash>:empty:before{content:attr(data-placeholder);...}`,
-// see patcher.ts's CHAT_COMPOSER_* comment). We do NOT overwrite Claude
-// Code's own data-placeholder attribute (React re-renders it every keystroke/
-// state change and would immediately stomp a direct write) -- instead we set
-// a SEPARATE data-cc-modelinfo attribute on the same element and add a higher-
-// priority CSS rule (later in the cascade, so it wins on equal specificity)
-// that swaps :empty:before's content to ours whenever that attribute is
-// present. The moment real text is typed the element stops matching :empty
-// and BOTH the native and our own placeholder vanish automatically -- no JS
-// needed for the show/hide transition, exactly the native placeholder's own
-// behavior.
-//
-// Requires the modelInfoBridge TogglePoint (always on, see patcher.ts /
-// modelInfoBridge.ts), which mirrors window.__ccModelInfo = {model, ...} from
-// the webview's own currentMainLoopModel/claudeConfig signals.
+/* Shows the running model's name/version as the composer's PLACEHOLDER text
+   (before anything is typed) -- reusing the composer's own native
+   placeholder mechanism (webview/index.js sets data-placeholder on the
+   contenteditable messageInput_<hash> div; its stock CSS is
+   `.messageInput_<hash>:empty:before{content:attr(data-placeholder);...}`,
+   see patcher.ts's CHAT_COMPOSER_* comment).
+   We do NOT overwrite Claude Code's own data-placeholder attribute (React
+   re-renders it every keystroke/state change and would immediately stomp a
+   direct write) -- instead we set a SEPARATE data-cc-modelinfo attribute on
+   the same element and add a higher-priority CSS rule (later in the
+   cascade, so it wins on equal specificity) that swaps :empty:before's
+   content to ours whenever that attribute is present.
+   The moment real text is typed the element stops matching :empty and BOTH
+   the native and our own placeholder vanish automatically -- no JS needed
+   for the show/hide transition, exactly the native placeholder's own
+   behavior.
+
+   Requires the modelInfoBridge TogglePoint (always on, see patcher.ts /
+   modelInfoBridge.ts), which mirrors window.__ccModelInfo = {model, ...}
+   from the webview's own currentMainLoopModel/claudeConfig signals. */
 const JS = `
 (function () {
   "use strict";

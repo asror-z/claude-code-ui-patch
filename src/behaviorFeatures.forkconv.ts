@@ -31,10 +31,10 @@ const JS = `
   ];
   var EXCLUDE_RE = /messageInput|messagesContainer|messageGradient|fullEditor|stickyHeader/i;
 
-  // Claude Code's own "Message actions" (⤴) button — a round icon-only button native to
-  // EVERY message, opening a dropdown POPUP with options like "Fork conversation from
-  // here" / "Rewind code to here". Matched by its title attribute (stable, human-readable
-  // UI text), mirroring UserCollapse's own MSG_ACTIONS_SEL.
+  /*
+   * Claude Code's own "Message actions" (⤴) button — a round icon-only button native to EVERY message, opening a dropdown POPUP with options like "Fork conversation from here" / "Rewind code to here".
+   * Matched by its title attribute (stable, human-readable UI text), mirroring UserCollapse's own MSG_ACTIONS_SEL.
+   */
   var MSG_ACTIONS_SEL = "button[title='Message actions']";
   // The popup itself and its option rows — version-proof CLASS-NAME SUBSTRING match (the
   // extension mints the hash suffix), mirroring UserCollapse's POPUP_SEL/POPUP_OPTION_SEL.
@@ -86,13 +86,12 @@ const JS = `
     return null;
   }
 
-  // Click THIS message's own "Message actions" trigger, then poll (bounded, ~30
-  // tries / ~600ms) for its popup to mount and carry a "Fork conversation from
-  // here" row — clicking it the instant it appears. The popup is a deliberate,
-  // click-only React mount (never present until the trigger is clicked), so
-  // there is no way to pre-locate it; a short bounded poll is the same
-  // defensive pattern this file's own register() already uses for bootstrap
-  // hand-off, applied here to a native popup's own mount delay.
+  /**
+   * Click THIS message's own "Message actions" trigger, then poll (bounded, ~30 tries / ~600ms) for its popup to mount and carry a "Fork conversation from here" row — clicking it the instant it appears.
+   * The popup is a deliberate, click-only React mount (never present until the trigger is clicked), so there is no way to pre-locate it; a short bounded poll is the same defensive pattern this file's own register() already uses for bootstrap hand-off, applied here to a native popup's own mount delay.
+   * @param {Element} msgEl - The user message element to fork the conversation from.
+   * @returns {void}
+   */
   function forkFrom(msgEl) {
     var trigger = msgEl.querySelector ? msgEl.querySelector(MSG_ACTIONS_SEL) : null;
     if (!trigger) return;
@@ -181,10 +180,12 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand
-  // off now; otherwise queue onto window.__ccPending — the bootstrap drains it the
-  // moment it installs. A last-resort timer covers the impossible case where no
-  // bootstrap ever appears, running once against the current document.
+  /**
+   * Order-independent registration: if the bootstrap is already installed, hand off now; otherwise queue onto window.__ccPending — the bootstrap drains it the moment it installs.
+   * A last-resort timer covers the impossible case where no bootstrap ever appears, running once against the current document.
+   * @param {Function} fn - The init function to register against the chat document.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -201,18 +202,13 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* ForkConversation — a small always-visible icon button docked to the LEFT of each of
-   your own (user) messages. Clicking it forks the conversation from that exact message,
-   by proxying a click onto Claude Code's own native "Message actions" -> "Fork
-   conversation from here" popup option (the same native action UserCollapse's own
-   comment already documents living in that popup).
-
-   The user-message bubble itself (UserStyle's [data-cc-user="1"]) is a right-aligned,
-   fit-content, block-level card inside a full-width row. To dock a button to its LEFT
-   without touching that row's own layout, the message element becomes the positioning
-   context (position:relative — the same class of !important override UserStyle already
-   applies to this same element) and the button is absolutely positioned just outside its
-   left edge, vertically centered. */
+/*
+ * ForkConversation — a small always-visible icon button docked to the LEFT of each of your own (user) messages.
+ * Clicking it forks the conversation from that exact message, by proxying a click onto Claude Code's own native "Message actions" -> "Fork conversation from here" popup option (the same native action UserCollapse's own comment already documents living in that popup).
+ *
+ * The user-message bubble itself (UserStyle's [data-cc-user="1"]) is a right-aligned, fit-content, block-level card inside a full-width row.
+ * To dock a button to its LEFT without touching that row's own layout, the message element becomes the positioning context (position:relative — the same class of !important override UserStyle already applies to this same element) and the button is absolutely positioned just outside its left edge, vertically centered.
+ */
 
 [class*="userMessageContainer"],
 [class*="userMessage"] {

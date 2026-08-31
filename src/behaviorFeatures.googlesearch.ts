@@ -14,16 +14,14 @@ const JS = `
     }, 200);
   }
 
-  // Right-clicking a text selection inside a chat message adds a "Search
-  // <selection> on Google" item to the browser's own native context menu (Cut/
-  // Copy/Paste). Selecting it opens a Google search for the selected text in
-  // the user's real default browser via the openExternalBridge (patcher.ts's
-  // openExternalHost/openExternalWebview TogglePoints), falling back to a
-  // clipboard-copy + toast if that bridge isn't available -- see
-  // openViaBridge()'s comment below for why a browser can't be opened directly
-  // from this webview. Mirrors behaviorFeatures.reply.ts's own
-  // selection-scoping: never offered for text selected inside the composer
-  // (that is editing, not researching).
+  /**
+   * Right-clicking a text selection inside a chat message adds a "Search <selection> on Google" item to the browser's own native context menu (Cut/Copy/Paste).
+   * Selecting it opens a Google search for the selected text in the user's real default browser via the openExternalBridge (patcher.ts's openExternalHost/openExternalWebview TogglePoints), falling back to a clipboard-copy + toast if that bridge isn't available -- see openViaBridge()'s comment below for why a browser can't be opened directly from this webview.
+   * Mirrors behaviorFeatures.reply.ts's own selection-scoping: never offered for text selected inside the composer (that is editing, not researching).
+   * @param {Document} D - The chat document to bind the context-menu listener on.
+   * @param {Window} W - The chat window.
+   * @returns {void}
+   */
   function init(D, W) {
     try {
       console.log("[cc-googlesearch] Google Search Feature loaded");
@@ -78,23 +76,13 @@ const JS = `
       if (el) el.style.display = "none";
     }
 
-    // The chat webview is an iframe VS Code sandboxes WITHOUT "allow-popups"
-    // (confirmed live: "Blocked opening '...' in a new window because the
-    // request was made in a sandboxed frame whose 'allow-popups' permission is
-    // not set" -- both window.open() and a real <a target="_blank"> click hit
-    // this same wall, since it blocks new-window navigation outright, not just
-    // the API used to request it). Reaching the extension host's real
-    // vscode.env.openExternal needs a postMessage bridge; patcher.ts's
-    // openExternalHost/openExternalWebview TogglePoints inject exactly that
-    // (see openExternalBridge.ts): window.__ccVsCodeApi is the chat webview's
-    // OWN already-acquired vscode API object (captured as a side effect of its
-    // single real acquireVsCodeApi() call -- we never call it ourselves, since
-    // a second call there crashes the whole webview), and the extension host
-    // has a second, additive onDidReceiveMessage listener for our
-    // {type:"ccOpenExternal"} message. If either half of the bridge is
-    // missing (an older/mismatched Claude Code build the anchor doesn't match)
-    // this silently falls back to copying the URL to the clipboard instead,
-    // with a brief on-screen confirmation to paste it into the browser.
+    /**
+     * The chat webview is an iframe VS Code sandboxes WITHOUT "allow-popups" (confirmed live: "Blocked opening '...' in a new window because the request was made in a sandboxed frame whose 'allow-popups' permission is not set" -- both window.open() and a real <a target="_blank"> click hit this same wall, since it blocks new-window navigation outright, not just the API used to request it).
+     * Reaching the extension host's real vscode.env.openExternal needs a postMessage bridge; patcher.ts's openExternalHost/openExternalWebview TogglePoints inject exactly that (see openExternalBridge.ts): window.__ccVsCodeApi is the chat webview's OWN already-acquired vscode API object (captured as a side effect of its single real acquireVsCodeApi() call -- we never call it ourselves, since a second call there crashes the whole webview), and the extension host has a second, additive onDidReceiveMessage listener for our {type:"ccOpenExternal"} message.
+     * If either half of the bridge is missing (an older/mismatched Claude Code build the anchor doesn't match) this silently falls back to copying the URL to the clipboard instead, with a brief on-screen confirmation to paste it into the browser.
+     * @param {string} url - The URL to open externally.
+     * @returns {boolean} True if the bridge message was posted, false if the bridge is unavailable.
+     */
     function openViaBridge(url) {
       try {
         if (W.__ccVsCodeApi && typeof W.__ccVsCodeApi.postMessage === "function") {

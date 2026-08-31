@@ -16,10 +16,11 @@ const JS = `
   var seq = 0; // tiebreaker so two messages in the same ms keep document order
 
   // --- Locale-aware formatting (i18n) ----------------------------------------
-  // Use the webview's own locale (document.documentElement.lang, then the
-  // browser's navigator.language) so dates/times match the user's region — 24h
-  // vs 12h, month names, and number system all follow the locale. Falls back to
-  // a manual HH:MM / English long date only if Intl is unavailable.
+  /**
+   * Use the webview's own locale (document.documentElement.lang, then the browser's navigator.language) so dates/times match the user's region — 24h vs 12h, month names, and number system all follow the locale.
+   * Falls back to a manual HH:MM / English long date only if Intl is unavailable.
+   * @returns {string} The resolved BCP-47 locale tag.
+   */
   function userLocale() {
     var l =
       (document.documentElement && document.documentElement.lang) ||
@@ -64,10 +65,12 @@ const JS = `
     return pad(d.getHours()) + ":" + pad(d.getMinutes());
   }
 
-  // The date separator label ALWAYS begins with the explicit YYYY-MM-DD numeric
-  // date, then the relative/localized word — e.g. "2026-06-30 Today",
-  // "2026-06-29 Yesterday", "2026-06-10 June 10, 2026". The numeric prefix is
-  // unambiguous; the trailing word stays locale-aware.
+  /**
+   * The date separator label ALWAYS begins with the explicit YYYY-MM-DD numeric date, then the relative/localized word — e.g. "2026-06-30 Today", "2026-06-29 Yesterday", "2026-06-10 June 10, 2026".
+   * The numeric prefix is unambiguous; the trailing word stays locale-aware.
+   * @param {Date} d - Date to format.
+   * @returns {string} The YYYY-MM-DD numeric date string.
+   */
   function ymdDate(d) {
     return (
       d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate())
@@ -118,13 +121,17 @@ const JS = `
     return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
   }
 
-  // D/W are bound to the real chat document/window by init() below (this target
-  // has no nested chat iframe — document IS the chat document). Until init()
-  // runs they default to the current document so the fallback path still works.
+  /*
+   * D/W are bound to the real chat document/window by init() below (this target has no nested chat iframe — document IS the chat document).
+   * Until init() runs they default to the current document so the fallback path still works.
+   */
   var D = document;
   var W = window;
 
-  // The chat scroll/content root, within the active document D.
+  /**
+   * The chat scroll/content root, within the active document D.
+   * @returns {Element} The chat root element.
+   */
   function chatRoot() {
     return (
       D.getElementById("root") ||
@@ -133,21 +140,17 @@ const JS = `
     );
   }
 
-  // Heuristically find the message elements to stamp. We target leaf-ish blocks
-  // that carry a recognized message role/marker, falling back to common chat
-  // selectors. Each is stamped at most once.
-  // Target ONLY real conversation messages — a user prompt bubble or an
-  // assistant/timeline message. The broad \`[class*='message']\` used to also match
-  // the PROMPT INPUT box (messageInput / messageInputContainer / messageGradient)
-  // and the scroll container (messagesContainer), so the time stamp rendered on
-  // the input box instead of on each message. We match the specific wrappers and
-  // then EXCLUDE the input/container/composer classes below.
-  // One stamp per conversation TURN (a turn_… wrapper = one user→assistant
-  // exchange), plus each user message bubble. We deliberately do NOT target
-  // \`timelineMessage\` — there are hundreds of those (one per tool-call / sub-step
-  // row inside an assistant turn), and stamping every one floods the chat with
-  // time labels. \`data-message-id\` / \`[role='listitem']\` are kept as
-  // cross-version fallbacks for builds that expose them.
+  /*
+   * Heuristically find the message elements to stamp.
+   * We target leaf-ish blocks that carry a recognized message role/marker, falling back to common chat selectors.
+   * Each is stamped at most once.
+   * Target ONLY real conversation messages — a user prompt bubble or an assistant/timeline message.
+   * The broad \`[class*='message']\` used to also match the PROMPT INPUT box (messageInput / messageInputContainer / messageGradient) and the scroll container (messagesContainer), so the time stamp rendered on the input box instead of on each message.
+   * We match the specific wrappers and then EXCLUDE the input/container/composer classes below.
+   * One stamp per conversation TURN (a turn_… wrapper = one user→assistant exchange), plus each user message bubble.
+   * We deliberately do NOT target \`timelineMessage\` — there are hundreds of those (one per tool-call / sub-step row inside an assistant turn), and stamping every one floods the chat with time labels.
+   * \`data-message-id\` / \`[role='listitem']\` are kept as cross-version fallbacks for builds that expose them.
+   */
   var MESSAGE_SELECTORS = [
     "[class*='turn_']",
     "[class*='userMessageContainer']",
@@ -156,8 +159,7 @@ const JS = `
     "[role='listitem']",
   ];
 
-  // Class fragments that mark NON-message UI (the composer/input + scroll
-  // container) — any element whose className matches is never stamped.
+  // Class fragments that mark NON-message UI (the composer/input + scroll container) — any element whose className matches is never stamped.
   var EXCLUDE_RE =
     /messageInput|messagesContainer|messageGradient|fullEditor|composer|inputContainer|promptInput|stickyMode/i;
 
@@ -176,10 +178,10 @@ const JS = `
         if (!isExcludedTarget(nodes[j])) set.add(nodes[j]);
       }
     }
-    // Keep only the outermost matched elements (drop nested matches) so a single
-    // message bubble is stamped once, not once per inner block.
-    // Array.prototype.slice.call(set) returns [] (a Set has no \`length\`); use
-    // Array.from to materialise the matched nodes.
+    /*
+     * Keep only the outermost matched elements (drop nested matches) so a single message bubble is stamped once, not once per inner block.
+     * Array.prototype.slice.call(set) returns [] (a Set has no \`length\`); use Array.from to materialise the matched nodes.
+     */
     var list = Array.from(set);
     return list.filter(function (el) {
       var p = el.parentElement;
@@ -191,7 +193,11 @@ const JS = `
     });
   }
 
-  // Derive a stable Date for a message element.
+  /**
+   * Derive a stable Date for a message element.
+   * @param {Element} el - Message element.
+   * @returns {Date} The stable derived Date.
+   */
   function messageTime(el) {
     if (seen && seen.has(el)) return seen.get(el);
     var d = readTimeCue(el) || new Date();
@@ -201,7 +207,11 @@ const JS = `
     return d;
   }
 
-  // Look for a real time cue on or inside the element (best effort).
+  /**
+   * Look for a real time cue on or inside the element (best effort).
+   * @param {Element} el - Message element.
+   * @returns {Date|null} The derived time cue, or null.
+   */
   function readTimeCue(el) {
     var t = el.querySelector ? el.querySelector("time[datetime]") : null;
     if (t) {
@@ -221,17 +231,18 @@ const JS = `
     return null;
   }
 
-  // Stamp the time as an ATTRIBUTE rendered via CSS ::after — NOT an appended
-  // child node. The React chat app re-renders message subtrees and DELETES any
-  // child element we inject (that is why an earlier appendChild(span) version
-  // left messages flagged \`stamped\` but with the <span> gone — 4 stamped, only 1
-  // span survived). An attribute set on the message element survives React's
-  // reconciliation (it ignores unknown data-* attrs), exactly like UserStyle's
-  // and Blockquote's data-cc-* hooks. The stylesheet draws the time with
-  //   [data-cc-dt-time]::after { content: attr(data-cc-dt-time); … }
-  // so there is no child node for React to strip. STAMPED_ATTR also carries the
-  // value, and we only re-write when the value drifts, so this stays idempotent
-  // and self-healing across re-renders.
+  /**
+   * Stamp the time as an ATTRIBUTE rendered via CSS ::after — NOT an appended child node.
+   * The React chat app re-renders message subtrees and DELETES any child element we inject (that is why an earlier appendChild(span) version left messages flagged \`stamped\` but with the <span> gone — 4 stamped, only 1 span survived).
+   * An attribute set on the message element survives React's reconciliation (it ignores unknown data-* attrs), exactly like UserStyle's and Blockquote's data-cc-* hooks.
+   * The stylesheet draws the time with:
+   *   [data-cc-dt-time]::after { content: attr(data-cc-dt-time); … }
+   * so there is no child node for React to strip.
+   * STAMPED_ATTR also carries the value, and we only re-write when the value drifts, so this stays idempotent and self-healing across re-renders.
+   * @param {Element} el - Message element to stamp.
+   * @param {Date} d - Derived time for the message.
+   * @returns {void}
+   */
   function stampTime(el, d) {
     var t = fmtTime(d);
     if (el.getAttribute(STAMPED_ATTR) === "1" && el.getAttribute(TIME_ATTR) === t) {
@@ -251,10 +262,12 @@ const JS = `
     return sep;
   }
 
-  // Warn ONCE if the chat clearly has content but our selectors matched nothing —
-  // the strong signal that an extension redesign broke this feature's selectors,
-  // surfaced loudly in the console instead of failing silently.
   var _warnedEmpty = false;
+  /**
+   * Warn ONCE if the chat clearly has content but our selectors matched nothing — the strong signal that an extension redesign broke this feature's selectors, surfaced loudly in the console instead of failing silently.
+   * @param {boolean} found - Whether the current sweep found any candidate messages.
+   * @returns {void}
+   */
   function warnIfBlind(found) {
     if (found || _warnedEmpty) return;
     var root = chatRoot();
@@ -273,8 +286,7 @@ const JS = `
 
   function run() {
     var msgs = candidateMessages();
-    // Cheap, EVERY-sweep headline so a stalled sweep is visible in the console,
-    // independent of any richer diagnostic.
+    // Cheap, EVERY-sweep headline so a stalled sweep is visible in the console, independent of any richer diagnostic.
     try {
       console.log("[cc-datetime] sweep candidateCount=" + ((msgs && msgs.length) || 0) + " docHasChat=" + (!!(D.querySelector && D.querySelector("[class*='userMessage'],[class*='turn_']"))));
     } catch (e) {}
@@ -296,8 +308,7 @@ const JS = `
       stampTime(el, d);
       var key = dayKey(d);
       if (key !== lastDay) {
-        // Insert a date separator before the first message of a new day, unless
-        // one for that day is already directly before it.
+        // Insert a date separator before the first message of a new day, unless one for that day is already directly before it.
         var prev = el.previousElementSibling;
         var already =
           prev &&
@@ -324,8 +335,13 @@ const JS = `
     }, 120);
   }
 
-  // init(doc, win) — called by window.__ccOnChatDoc with the real chat document.
-  // Bind D/W to that document/window, then run + observe it.
+  /**
+   * init(doc, win) — called by window.__ccOnChatDoc with the real chat document.
+   * Bind D/W to that document/window, then run + observe it.
+   * @param {Document} doc - The real chat document.
+   * @param {Window} win - The real chat window.
+   * @returns {void}
+   */
   function init(doc, win) {
     D = doc;
     W = win || window;
@@ -333,10 +349,10 @@ const JS = `
       run();
     } catch (e) {}
     try {
-      // Route the body observer through the shared self-churn-guarded helper so a
-      // steady-state sweep that re-touches our own data-cc-dt-* attrs / .cc-dt-time
-      // nodes never reschedules itself (the ~6Hz freeze class). __ccObserve owns the
-      // debounce, so the local \`schedule\` is not passed — \`run\` is the sweep.
+      /*
+       * Route the body observer through the shared self-churn-guarded helper so a steady-state sweep that re-touches our own data-cc-dt-* attrs / .cc-dt-time nodes never reschedules itself (the ~6Hz freeze class).
+       * __ccObserve owns the debounce, so the local \`schedule\` is not passed — \`run\` is the sweep.
+       */
       if (W.__ccObserve) {
         W.__ccObserve(D.body, run, {
           ownClass: TIME_CLASS,          // cc-dt-time (+ date-sep is our node too)
@@ -353,11 +369,12 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand
-  // off now; otherwise queue onto window.__ccPending — the bootstrap drains it the
-  // moment it installs (it is injected too, so it WILL load). A last-resort timer
-  // covers the impossible case where no bootstrap ever appears, running once
-  // against the current document (the chat DOM lives in THIS document).
+  /**
+   * Order-independent registration: if the bootstrap is already installed, hand off now; otherwise queue onto window.__ccPending — the bootstrap drains it the moment it installs (it is injected too, so it WILL load).
+   * A last-resort timer covers the impossible case where no bootstrap ever appears, running once against the current document (the chat DOM lives in THIS document).
+   * @param {Function} fn - The init function to hand off once the chat document is ready.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -390,22 +407,20 @@ const CSS = `
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  /* badge-foreground is the token VS Code themes pair with badge-background for
-     contrast — using descriptionForeground here (a token meant for plain text on
-     the editor background) produced unreadable dark-on-blue text in some themes. */
+  /* badge-foreground is the token VS Code themes pair with badge-background for contrast — using descriptionForeground here (a token meant for plain text on the editor background) produced unreadable dark-on-blue text in some themes. */
   color: var(--vscode-badge-foreground, #ffffff);
   background: var(--vscode-badge-background, rgba(120, 120, 120, 0.25));
   border-radius: 12px;
 }
 
-/* Small time label on each message, rendered via a CSS ::after on a data-
-   attribute — NOT an injected child node. The React chat app re-renders message
-   subtrees and strips any <span> we append (an earlier appendChild version left
-   messages flagged stamped but with the span gone), but it preserves unknown
-   data-* attributes, so an attribute-driven ::after survives re-renders. */
-/* Guard: never render the stamp on the prompt composer / scroll container, even
-   if a stale attribute lingers there from an earlier build (that is what blew the
-   input box up). The [class*=…] guards keep the ::after off the input area. */
+/*
+   Small time label on each message, rendered via a CSS ::after on a data-attribute — NOT an injected child node.
+   The React chat app re-renders message subtrees and strips any <span> we append (an earlier appendChild version left messages flagged stamped but with the span gone), but it preserves unknown data-* attributes, so an attribute-driven ::after survives re-renders.
+*/
+/*
+   Guard: never render the stamp on the prompt composer / scroll container, even if a stale attribute lingers there from an earlier build (that is what blew the input box up).
+   The [class*=…] guards keep the ::after off the input area.
+*/
 [data-cc-dt-time][class*="messageInput"]::after,
 [data-cc-dt-time][class*="messagesContainer"]::after,
 [data-cc-dt-time][class*="messageGradient"]::after,

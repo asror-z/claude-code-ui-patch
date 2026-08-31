@@ -1,16 +1,17 @@
 import { registerFeature } from "./behaviorFeatures";
 
-// Makes any INLINE code span (a backtick-quoted `` `path/to/file.ext` `` in
-// Markdown, rendered as a plain <code> not inside a <pre>) that looks like a
-// file path — relative or absolute, forward- or back-slashed, with or
-// without spaces in its segments (this project's own filenames routinely
-// contain spaces, e.g. "scripts/Verify Echo.mjs") — clickable: clicking it
-// asks the extension host to open that path in a real editor tab via the
-// openExternalBridge's ccOpenFile message (see openExternalBridge.ts),
-// reusing the SAME window.__ccVsCodeApi bridge already wired for
-// googlesearch.ts. A <pre><code> (a full fenced code BLOCK) is deliberately
-// excluded — codeblock.ts already owns that surface with its own copy-button
-// bar, and a multi-line block is never itself "a file path".
+/* Makes any INLINE code span (a backtick-quoted `` `path/to/file.ext` `` in
+   Markdown, rendered as a plain <code> not inside a <pre>) that looks like a
+   file path — relative or absolute, forward- or back-slashed, with or
+   without spaces in its segments (this project's own filenames routinely
+   contain spaces, e.g. "scripts/Verify Echo.mjs") — clickable: clicking it
+   asks the extension host to open that path in a real editor tab via the
+   openExternalBridge's ccOpenFile message (see openExternalBridge.ts),
+   reusing the SAME window.__ccVsCodeApi bridge already wired for
+   googlesearch.ts.
+   A <pre><code> (a full fenced code BLOCK) is deliberately excluded —
+   codeblock.ts already owns that surface with its own copy-button bar, and a
+   multi-line block is never itself "a file path". */
 const JS = `
 (function () {
   "use strict";
@@ -127,17 +128,17 @@ const JS = `
     }, 150);
   }
 
-  // Deliberately NOT window.__ccObserve here: process() touches several
-  // DIFFERENT attributes on the same element in one pass (class, role,
-  // tabindex, title, plus the PROCESSED_ATTR guard) -- __ccObserve's
-  // self-churn filter only recognizes a SINGLE configured attribute prefix
-  // as "ours", so a "class"/"role"/"tabindex"/"title" mutation would be
-  // misclassified as external and trigger an extra resweep every time (not
-  // a runaway loop, since PROCESSED_ATTR still guards re-processing the SAME
-  // element, but still the wrong tool for a multi-attribute write). The
-  // plain observer + a local debounced schedule() is the correct, simpler
-  // fit here, mirroring userstyle.ts's own established choice for the exact
-  // same reason.
+  /* Deliberately NOT window.__ccObserve here: process() touches several
+     DIFFERENT attributes on the same element in one pass (class, role,
+     tabindex, title, plus the PROCESSED_ATTR guard) -- __ccObserve's
+     self-churn filter only recognizes a SINGLE configured attribute prefix
+     as "ours", so a "class"/"role"/"tabindex"/"title" mutation would be
+     misclassified as external and trigger an extra resweep every time (not
+     a runaway loop, since PROCESSED_ATTR still guards re-processing the SAME
+     element, but still the wrong tool for a multi-attribute write).
+     The plain observer + a local debounced schedule() is the correct,
+     simpler fit here, mirroring userstyle.ts's own established choice for
+     the exact same reason. */
   function init(doc, win) {
     D = doc;
     W = win || window;

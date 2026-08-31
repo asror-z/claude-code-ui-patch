@@ -23,20 +23,19 @@ const JS = `
     "[class*='userMessageContainer']",
   ];
 
-  // Harness-injected NOTIFICATION blocks (a <task-notification> reporting a background
-  // agent finished, and similar <tool-use-id>/<system-reminder> blocks) are AGENT/system
-  // messages that the webview renders INSIDE a user-role container (userMessageContainer).
-  // They are NOT user messages and must NOT be turned into a right-aligned user bubble —
-  // they stay in the standard agent style. Detect them version-proof by one of these
-  // leading notification tags (a raw angle-bracket tag the webview shows verbatim)
-  // appearing near the start of the element's own trimmed text, mirroring how
-  // AutoContinue hard-excludes containers. NOT anchored to position 0 (no leading ^):
-  // a "Show more" toggle or a role/avatar label sharing the same container can push the
-  // real tag text past the very first character, silently defeating a ^-anchored match
-  // (confirmed live — see behaviorBootstrap.ts's own hideNotificationBlocks for the same
-  // fix and the incident it was found from). Checking only the first ~200 chars keeps
-  // this from false-matching a tag name merely quoted deep inside unrelated prose.
+  /*
+   * Harness-injected NOTIFICATION blocks (a <task-notification> reporting a background agent finished, and similar <tool-use-id>/<system-reminder> blocks) are AGENT/system messages that the webview renders INSIDE a user-role container (userMessageContainer).
+   * They are NOT user messages and must NOT be turned into a right-aligned user bubble — they stay in the standard agent style.
+   * Detect them version-proof by one of these leading notification tags (a raw angle-bracket tag the webview shows verbatim) appearing near the start of the element's own trimmed text, mirroring how AutoContinue hard-excludes containers.
+   * NOT anchored to position 0 (no leading ^): a "Show more" toggle or a role/avatar label sharing the same container can push the real tag text past the very first character, silently defeating a ^-anchored match (confirmed live — see behaviorBootstrap.ts's own hideNotificationBlocks for the same fix and the incident it was found from).
+   * Checking only the first ~200 chars keeps this from false-matching a tag name merely quoted deep inside unrelated prose.
+   */
   var NOTIFICATION_RE = /<\\s*(?:task-notification|task-id|tool-use-id|output-file|system-notification|system-reminder)\\b/i;
+  /**
+   * True if el is (or lives inside) a harness notification block — see NOTIFICATION_RE above.
+   * @param {Element} el - the element to test.
+   * @returns {boolean} true if el is (or lives inside) a harness notification block.
+   */
   function isUserNotification(el) {
     if (!el) return false;
     // (a) the candidate itself leads with a notification tag …
@@ -61,8 +60,10 @@ const JS = `
         set.add(nodes[j]);
       }
     }
-    // NOTE: Array.prototype.slice.call(set) returns [] — a Set has no \`length\`,
-    // so slice sees nothing. Use Array.from to actually materialise the members.
+    /*
+     * NOTE: Array.prototype.slice.call(set) returns [] — a Set has no \`length\`, so slice sees nothing.
+     * Use Array.from to actually materialise the members.
+     */
     var list = Array.from(set);
     // keep only the outermost matches (so a bubble is tagged once)
     return list.filter(function (el) {
@@ -75,9 +76,13 @@ const JS = `
     });
   }
 
-  // Warn ONCE per document if the chat clearly has content but no user message
-  // matched — surfaces a webview redesign loudly instead of failing silently.
   var _warned = false;
+  /**
+   * Warn ONCE per document if the chat clearly has content but no user message matched — surfaces a webview redesign loudly instead of failing silently.
+   * @param {Document} doc - the chat document.
+   * @param {boolean} found - whether at least one user message was found this run.
+   * @returns {void}
+   */
   function warnIfBlind(doc, found) {
     if (found || _warned) return;
     if (doc.body && (doc.body.textContent || "").trim().length > 200) {
@@ -100,9 +105,13 @@ const JS = `
     }
   }
 
-  // init(doc, win) — called by the bootstrap with the chat document, and again
-  // whenever the bootstrap re-detects the chat DOM. Each call wires a fresh
-  // observer on that document.
+  /**
+   * Called by the bootstrap with the chat document, and again whenever the bootstrap re-detects the chat DOM.
+   * Each call wires a fresh observer on that document.
+   * @param {Document} doc - the chat document.
+   * @param {Window} win - the chat window.
+   * @returns {void}
+   */
   function init(doc, win) {
     var pending = null;
     function schedule() {
@@ -113,14 +122,13 @@ const JS = `
       }, 100);
     }
     try { run(doc); } catch (e) {}
-    // PLAIN debounced observer (NOT __ccObserve). UserStyle's ONLY write is an idempotent
-    // setAttribute (run() guards it with getAttribute(TAG) !== "1"), so it is ALREADY
-    // freeze-safe: a re-run tags nothing new → emits no mutation → the observer goes quiet
-    // on its own. Routing it through __ccObserve with ownAttrPrefix was a mistake — the
-    // shared filter treated the tag-attribute write as self-churn and, in a mixed streaming
-    // batch, suppressed the sweep so NEW messages never got tagged (observed live:
-    // userTagged=0). __ccObserve is for element-APPENDING features (React-strip loops), not
-    // for pure attribute tags. schedule() debounces run() ~100ms.
+    /*
+     * PLAIN debounced observer (NOT __ccObserve).
+     * UserStyle's ONLY write is an idempotent setAttribute (run() guards it with getAttribute(TAG) !== "1"), so it is ALREADY freeze-safe: a re-run tags nothing new → emits no mutation → the observer goes quiet on its own.
+     * Routing it through __ccObserve with ownAttrPrefix was a mistake — the shared filter treated the tag-attribute write as self-churn and, in a mixed streaming batch, suppressed the sweep so NEW messages never got tagged (observed live: userTagged=0).
+     * __ccObserve is for element-APPENDING features (React-strip loops), not for pure attribute tags.
+     * schedule() debounces run() ~100ms.
+     */
     try {
       new win.MutationObserver(schedule).observe(doc.body, {
         childList: true,
@@ -131,11 +139,14 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand
-  // off now; otherwise queue onto window.__ccPending — the bootstrap drains it the
-  // moment it installs (it is injected too, so it WILL load). A last-resort timer
-  // covers the impossible case where no bootstrap ever appears, running once
-  // against the current document (the chat DOM lives in THIS document).
+  /**
+   * Order-independent registration.
+   * If the bootstrap is already installed, hand off now.
+   * Otherwise queue onto window.__ccPending — the bootstrap drains it the moment it installs (it is injected too, so it WILL load).
+   * A last-resort timer covers the impossible case where no bootstrap ever appears, running once against the current document (the chat DOM lives in THIS document).
+   * @param {Function} fn - the init(doc, win) callback to register.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -152,12 +163,13 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* User-message styling. The JS tags each user-message bubble with
-   data-cc-user="1"; these rules target that hook.
-
-   STYLE: a messenger-style CHAT BUBBLE for the user prompt — a filled, rounded,
-   padded card aligned to the RIGHT side of the chat (like the reference: a soft
-   gray bubble hugging the right edge). Bold text, no quote bar, no border. */
+/*
+ * User-message styling.
+ * The JS tags each user-message bubble with data-cc-user="1"; these rules target that hook.
+ *
+ * STYLE: a messenger-style CHAT BUBBLE for the user prompt — a filled, rounded, padded card aligned to the RIGHT side of the chat (like the reference: a soft gray bubble hugging the right edge).
+ * Bold text, no quote bar, no border.
+ */
 
 [data-cc-user="1"] {
   /* filled rounded bubble */

@@ -4,6 +4,12 @@ const JS = `
 (function () {
   "use strict";
 
+  /**
+   * Order-independent registration.
+   * If the bootstrap is already installed, hand off now; otherwise queue onto window.__ccPending until it does.
+   * @param {Function} fn - the init(D, W) callback to register.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -14,10 +20,13 @@ const JS = `
     }, 200);
   }
 
-  // When the user selects text inside a chat message (anywhere that is NOT the
-  // prompt-input box), a floating "Reply" button appears just above the
-  // selection. Clicking it quotes the selected text into the prompt input as a
-  // Markdown blockquote and focuses the editor.
+  /**
+   * When the user selects text inside a chat message (anywhere that is NOT the prompt-input box), a floating "Reply" button appears just above the selection.
+   * Clicking it quotes the selected text into the prompt input as a Markdown blockquote and focuses the editor.
+   * @param {Document} D - the chat document.
+   * @param {Window} W - the chat window.
+   * @returns {void}
+   */
   function init(D, W) {
     try {
       console.log("[cc-reply] Reply Feature loaded");
@@ -53,8 +62,11 @@ const JS = `
       current.text = "";
     }
 
-    // The prompt input is itself an editable region; never offer "Reply" for text
-    // selected inside it (that's editing, not quoting).
+    /**
+     * The prompt input is itself an editable region; never offer "Reply" for text selected inside it (that's editing, not quoting).
+     * @param {Node} node - the node to test.
+     * @returns {boolean} true if node is inside the prompt input/an editable region.
+     */
     function isInsidePromptInput(node) {
       var n = node && node.nodeType === 3 ? node.parentNode : node;
       while (n && n !== D.body) {
@@ -112,9 +124,11 @@ const JS = `
       btn.style.top = Math.round(top) + "px";
     }
 
-    // The chat prompt input is a contentEditable element, identified by
-    // role="textbox" + aria-label="Message input". Fall back to other editable
-    // selectors if the markup changes.
+    /**
+     * The chat prompt input is a contentEditable element, identified by role="textbox" + aria-label="Message input".
+     * Falls back to other editable selectors if the markup changes.
+     * @returns {Element|null} the prompt input element, or null if none found.
+     */
     function findPromptInput() {
       return (
         D.querySelector('[role="textbox"][aria-label="Message input"]') ||
@@ -124,10 +138,14 @@ const JS = `
       );
     }
 
-    // Build the quote as a SINGLE line (no "\\n"). This input mirrors its text
-    // into an overlay that ignores line breaks, so any "\\n" makes multi-line
-    // text overlap. Collapse the selection's newlines into spaces and prefix
-    // once with "> ", suffixed with ": " so typing continues right after it.
+    /**
+     * Build the quote as a SINGLE line (no "\\n").
+     * This input mirrors its text into an overlay that ignores line breaks, so any "\\n" makes multi-line text overlap.
+     * Collapse the selection's newlines into spaces and prefix once with "> ", suffixed with ": " so typing continues right after it.
+     * @param {string} text - the selected text to quote.
+     * @param {string} existing - the composer's existing content, if any.
+     * @returns {string} the single-line quote payload to insert.
+     */
     function buildQuoteText(text, existing) {
       var oneLine = text
         .replace(/\\r\\n/g, "\\n")
@@ -146,7 +164,11 @@ const JS = `
       return prefix + quote;
     }
 
-    // Move the caret to the very end of a contentEditable element.
+    /**
+     * Move the caret to the very end of a contentEditable element.
+     * @param {Element} el - the contentEditable element.
+     * @returns {void}
+     */
     function caretToEnd(el) {
       var range = D.createRange();
       range.selectNodeContents(el);
@@ -165,9 +187,10 @@ const JS = `
           caretToEnd(input);
           var existing = input.innerText || input.textContent || "";
           var payload = buildQuoteText(text, existing);
-          // Single-line payload, single execCommand call: goes through the native
-          // editing pipeline and fires the input events React listens for, with
-          // no "\\n" to confuse the input's mirror overlay.
+          /*
+           * Single-line payload, single execCommand call: goes through the native editing pipeline and fires the input events React listens for.
+           * There is no "\\n" to confuse the input's mirror overlay.
+           */
           D.execCommand("insertText", false, payload);
           input.focus();
           return;

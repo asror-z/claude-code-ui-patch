@@ -1,50 +1,24 @@
-// Chat DraftSave feature — ported from smarts-claude-patch's standalone
-// "Chat DraftSave Feature.js"/".css" asset pair into this extension's inline-injection
-// convention (see behaviorFeatures.ts).
-//
-// Auto-saves the composer's typed text to localStorage IN REAL TIME (debounced), so a
-// half-typed message is never lost across a reload, a closed tab, or an app restart. On
-// init it RESTORES the saved draft into an empty composer ONLY on a genuine reload of the
-// SAME webview instance (never on a brand-new tab/chat's first paint); when the message is
-// SENT (Enter or the send button) it CLEARS the key.
-//
-// STORAGE KEY — GLOBAL, not per-chat: cc-draft:global. Two earlier per-chat-key designs were
-// tried and both failed for reasons specific to THIS webview build:
-//   1. A session=<uuid> URL param — never exists in this build's real webview URLs at all
-//      (verified live), so the key was always null and the feature permanently no-opped.
-//   2. id=<uuid> (the actual per-webview URL param this build carries) — works within a live
-//      tab session, but id= regenerates on BOTH "Reload Webview" and "Reload Window"
-//      (confirmed by real user testing), so the draft was lost on any reload — the exact
-//      case this feature exists to protect against.
-//   3. vscode.setState()/getState() via a SECOND acquireVsCodeApi() call — CRASHES THE WHOLE
-//      CHAT WEBVIEW. acquireVsCodeApi() can only be called once per webview; Claude Code's
-//      own extension code already claims it for its React store's postMessage/setState
-//      plumbing, and a second call throws during bootstrap, corrupting that store's init
-//      ("Something went wrong / Encountered errors while disposing of store"). This is
-//      PERMANENTLY FORBIDDEN — see CLAUDE.md. There is no message channel back to our own
-//      extension host from inside Claude Code's chat webview at all: our extension only
-//      string-patches Claude Code's bundled files on disk before they load; it does not
-//      itself host this webview, so there is no onDidReceiveMessage to relay through either.
-// localStorage in a VS Code webview is partitioned by webview TYPE/origin, not by webview
-// INSTANCE, so it already survives every reload on its own — the bug was never the storage
-// medium, only the volatile id= KEY. The fix: a single fixed, non-per-chat key. Tradeoff:
-// the draft is not chat-specific — switching chats can surface another chat's last draft.
-// Two mitigations keep this acceptable: (a) RESTORE_ON_INIT below fires only for a real
-// reload of the SAME instance (guarded by a sessionStorage flag, which — unlike
-// localStorage — does NOT survive a reload, so it is unset on this instance's very first
-// paint), never for a brand-new tab/chat opened while another tab has a saved draft; (b) a
-// saved draft older than STALE_MS is treated as expired and never restored, so a long-stale
-// draft from a different chat days ago does not resurface.
-//
-// Unlike the Antigravity build this was ported from, this target has NO nested chat iframe —
-// document IS the chat document — so init(doc, win) is called directly with (document,
-// window); there is no frame-hunting/frame-swap wrapper.
-//
-// DIAGNOSTICS: every save/restore/clear/expire routes through window.__ccFaroLog (see
-// behaviorFeatures.faro.ts), passing "draftsave" as its own module id — a record is
-// emitted only while BOTH the "Logging (console + Grafana Loki)" feature AND this
-// feature's own panel checkbox are checked ON. Never logs the draft TEXT itself, only
-// its length and metadata (action, reason, age).
+/*
+   Chat DraftSave feature — ported from smarts-claude-patch's standalone "Chat DraftSave Feature.js"/".css" asset pair into this extension's inline-injection convention (see behaviorFeatures.ts).
+
+   Auto-saves the composer's typed text to localStorage IN REAL TIME (debounced), so a half-typed message is never lost across a reload, a closed tab, or an app restart.
+   On init it RESTORES the saved draft into an empty composer ONLY on a genuine reload of the SAME webview instance (never on a brand-new tab/chat's first paint); when the message is SENT (Enter or the send button) it CLEARS the key.
+
+   STORAGE KEY — GLOBAL, not per-chat: cc-draft:global.
+   Two earlier per-chat-key designs were tried and both failed for reasons specific to THIS webview build:
+     1. A session=<uuid> URL param — never exists in this build's real webview URLs at all (verified live), so the key was always null and the feature permanently no-opped.
+     2. id=<uuid> (the actual per-webview URL param this build carries) — works within a live tab session, but id= regenerates on BOTH "Reload Webview" and "Reload Window" (confirmed by real user testing), so the draft was lost on any reload — the exact case this feature exists to protect against.
+     3. vscode.setState()/getState() via a SECOND acquireVsCodeApi() call — CRASHES THE WHOLE CHAT WEBVIEW. acquireVsCodeApi() can only be called once per webview; Claude Code's own extension code already claims it for its React store's postMessage/setState plumbing, and a second call throws during bootstrap, corrupting that store's init ("Something went wrong / Encountered errors while disposing of store"). This is PERMANENTLY FORBIDDEN — see CLAUDE.md. There is no message channel back to our own extension host from inside Claude Code's chat webview at all: our extension only string-patches Claude Code's bundled files on disk before they load; it does not itself host this webview, so there is no onDidReceiveMessage to relay through either.
+   localStorage in a VS Code webview is partitioned by webview TYPE/origin, not by webview INSTANCE, so it already survives every reload on its own — the bug was never the storage medium, only the volatile id= KEY.
+   The fix: a single fixed, non-per-chat key.
+   Tradeoff: the draft is not chat-specific — switching chats can surface another chat's last draft.
+   Two mitigations keep this acceptable: (a) RESTORE_ON_INIT below fires only for a real reload of the SAME instance (guarded by a sessionStorage flag, which — unlike localStorage — does NOT survive a reload, so it is unset on this instance's very first paint), never for a brand-new tab/chat opened while another tab has a saved draft; (b) a saved draft older than STALE_MS is treated as expired and never restored, so a long-stale draft from a different chat days ago does not resurface.
+
+   Unlike the Antigravity build this was ported from, this target has NO nested chat iframe — document IS the chat document — so init(doc, win) is called directly with (document, window); there is no frame-hunting/frame-swap wrapper.
+
+   DIAGNOSTICS: every save/restore/clear/expire routes through window.__ccFaroLog (see behaviorFeatures.faro.ts), passing "draftsave" as its own module id — a record is emitted only while BOTH the "Logging (console + Grafana Loki)" feature AND this feature's own panel checkbox are checked ON.
+   Never logs the draft TEXT itself, only its length and metadata (action, reason, age).
+*/
 import { registerFeature } from "./behaviorFeatures";
 
 const JS = `
@@ -58,12 +32,13 @@ const JS = `
   var KEY = "cc-draft:global";
   var SAME_INSTANCE_FLAG = "cc-draft-instance-live"; // sessionStorage — unset on a fresh webview instance
 
-  // STALE_MS/SAVE_DEBOUNCE_MS are USER-CONFIGURABLE VS Code settings
-  // (smartsClaudeManager.draftSaveStaleMs/draftSaveDebounceMs), seeded into localStorage
-  // on every webview load by behaviorInject.ts's seedScript() — same mechanism
-  // AutoContinue's tunables use. A missing/invalid value (an older cached webview from
-  // before this setting existed, a corrupted localStorage entry) falls back to the
-  // same defaults the settings themselves ship with.
+  /**
+   * STALE_MS/SAVE_DEBOUNCE_MS are USER-CONFIGURABLE VS Code settings (smartsClaudeManager.draftSaveStaleMs/draftSaveDebounceMs), seeded into localStorage on every webview load by behaviorInject.ts's seedScript() — same mechanism AutoContinue's tunables use.
+   * A missing/invalid value (an older cached webview from before this setting existed, a corrupted localStorage entry) falls back to the same defaults the settings themselves ship with.
+   * @param {string} key - localStorage key to read.
+   * @param {number} fallback - value to use when the stored value is missing/invalid.
+   * @returns {number} the parsed setting, or fallback.
+   */
   function readNumSetting(key, fallback) {
     try {
       var v = parseInt(window.localStorage.getItem(key), 10);
@@ -100,15 +75,12 @@ const JS = `
   function lsDel(k) { try { if (W.localStorage) W.localStorage.removeItem(k); } catch (e) {} }
 
   // ---- reload-vs-new-tab detection --------------------------------------------
-  // sessionStorage is scoped to this browsing context's LIFETIME (unlike
-  // localStorage, which this VS Code build shares across every webview
-  // instance of this type/origin) — it starts EMPTY on a brand-new webview
-  // instance and, per the standard sessionStorage lifetime semantic, is
-  // expected to survive an in-place reload of that same instance. We use it
-  // ONLY as a best-effort signal, never as the sole gate: a saved draft is
-  // still subject to the STALE_MS check below regardless of this flag, so a
-  // wrong guess here degrades to "a recent global draft reappeared" at worst
-  // — never a crash, never data loss.
+  /**
+   * Best-effort check for whether this init is a reload of the SAME webview instance (vs. a brand-new tab/chat).
+   * sessionStorage is scoped to this browsing context's LIFETIME (unlike localStorage, which this VS Code build shares across every webview instance of this type/origin) — it starts EMPTY on a brand-new webview instance and, per the standard sessionStorage lifetime semantic, is expected to survive an in-place reload of that same instance.
+   * Used ONLY as a best-effort signal, never as the sole gate: a saved draft is still subject to the STALE_MS check below regardless of this flag, so a wrong guess here degrades to "a recent global draft reappeared" at worst — never a crash, never data loss.
+   * @returns {boolean} true when this looks like a reload of the same instance.
+   */
   function looksLikeReload() {
     try {
       if (!W.sessionStorage) return false;
@@ -277,10 +249,10 @@ const JS = `
     }, 150);
   }
 
-  // One-time purge of the legacy per-chat "cc-draft:<id>" keys written by earlier
-  // builds of this feature (before the single global key). localStorage has no
-  // prefix-scan API in a webview-safe way without iterating every key, so this
-  // sweeps the whole store once per init and removes any stale legacy entry.
+  /*
+     One-time purge of the legacy per-chat "cc-draft:<id>" keys written by earlier builds of this feature (before the single global key).
+     localStorage has no prefix-scan API in a webview-safe way without iterating every key, so this sweeps the whole store once per init and removes any stale legacy entry.
+  */
   function purgeLegacyPerChatKeys() {
     try {
       if (!W.localStorage) return;
@@ -293,17 +265,15 @@ const JS = `
     } catch (e) {}
   }
 
-  // NOTE: acquireVsCodeApi() can only be called ONCE per webview. Claude Code's
-  // own extension code already calls it to obtain its VS Code API handle (used
-  // for its own React/Redux store's postMessage/setState plumbing). A prior
-  // version of this feature called acquireVsCodeApi() a second time here (as a
-  // probe for a vscode.setState()-based draft-persistence redesign) — that
-  // second call throws inside VS Code's webview runtime, and because it ran
-  // during the chat webview's bootstrap, it corrupted Claude Code's own store
-  // init and crashed the whole chat panel ("Something went wrong / Error
-  // rendering content: Encountered errors while disposing of store"). Do NOT
-  // call acquireVsCodeApi() from this injected script again.
-
+  /**
+   * NOTE: acquireVsCodeApi() can only be called ONCE per webview.
+   * Claude Code's own extension code already calls it to obtain its VS Code API handle (used for its own React/Redux store's postMessage/setState plumbing).
+   * A prior version of this feature called acquireVsCodeApi() a second time here (as a probe for a vscode.setState()-based draft-persistence redesign) — that second call throws inside VS Code's webview runtime, and because it ran during the chat webview's bootstrap, it corrupted Claude Code's own store init and crashed the whole chat panel ("Something went wrong / Error rendering content: Encountered errors while disposing of store").
+   * Do NOT call acquireVsCodeApi() from this injected script again.
+   * @param {Document} doc - the chat document to init against.
+   * @param {Window} win - the chat window to init against.
+   * @returns {void}
+   */
   function init(doc, win) {
     D = doc;
     W = win || window;
@@ -312,12 +282,11 @@ const JS = `
     markInstanceLive();
     try { bindComposer(); } catch (e) {}
     try { bindSendClick(); } catch (e) {}
-    // Restore as soon as the composer exists — NOT after a fixed delay. A 300ms
-    // setTimeout here made the composer visibly render small/empty first, then
-    // suddenly grow once the delayed restore inserted a saved multi-line draft —
-    // a jarring "pop" on every tab open. findComposer() already returns null until
-    // the element exists, so poll at animation-frame cadence and restore on the
-    // very first frame it's found, instead of waiting on an arbitrary timer.
+    /*
+       Restore as soon as the composer exists — NOT after a fixed delay.
+       A 300ms setTimeout here made the composer visibly render small/empty first, then suddenly grow once the delayed restore inserted a saved multi-line draft — a jarring "pop" on every tab open.
+       findComposer() already returns null until the element exists, so poll at animation-frame cadence and restore on the very first frame it's found, instead of waiting on an arbitrary timer.
+    */
     try {
       if (findComposer()) {
         restoreIfEmpty();
@@ -330,10 +299,11 @@ const JS = `
         })();
       }
     } catch (e) { try { restoreIfEmpty(); } catch (e2) {} }
-    // Route the body observer through the shared self-churn-guarded helper. This
-    // observer only calls bindComposer (attaches listeners — no DOM writes), so it
-    // emits no mutations of its own; the helper still gives a debounced sweep and a
-    // runaway watchdog. DraftSave owns no element/attribute, so no ownClass/prefix.
+    /*
+       Route the body observer through the shared self-churn-guarded helper.
+       This observer only calls bindComposer (attaches listeners — no DOM writes), so it emits no mutations of its own; the helper still gives a debounced sweep and a runaway watchdog.
+       DraftSave owns no element/attribute, so no ownClass/prefix.
+    */
     try {
       if (W.__ccObserve) {
         W.__ccObserve(D.body, function () { try { bindComposer(); } catch (e) {} });
@@ -345,7 +315,11 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration (copied verbatim from the sibling features).
+  /**
+   * Order-independent registration (copied verbatim from the sibling features).
+   * @param {Function} fn - the feature init function to register.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -362,10 +336,11 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* DraftSave has NO visible UI — it silently mirrors the composer's text to
-   localStorage (a single global key) and restores it on reload. This stylesheet is
-   an intentional (near-)empty placeholder so the feature stays a normal copy-and-inject
-   asset PAIR (js + css), matching every other feature. It styles nothing visible. */
+/*
+   DraftSave has NO visible UI — it silently mirrors the composer's text to localStorage (a single global key) and restores it on reload.
+   This stylesheet is an intentional (near-)empty placeholder so the feature stays a normal copy-and-inject asset PAIR (js + css), matching every other feature.
+   It styles nothing visible.
+*/
 [data-cc-draftsave] {
   /* marker only — no visual change */
 }

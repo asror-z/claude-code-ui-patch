@@ -1,10 +1,7 @@
-// MultiSelect — a checkbox on every assistant OUTPUT message's CopyButtons row
-// (.cc-copy-group), plus a toolbar "Copy selected" action that copies the
-// combined Markdown or HTML of every checked message to the clipboard in one
-// shot. Depends on CopyButtons (behaviorFeatures.copybuttons.ts) for both the
-// row it docks into and the markdownOf()/htmlOf() extraction it reuses via
-// window.__ccCopyButtons (exposed for exactly this purpose) — mirrors how
-// ForkInCopy already docks into the same row.
+/*
+ * MultiSelect — a checkbox on every assistant OUTPUT message's CopyButtons row (.cc-copy-group), plus a toolbar "Copy selected" action that copies the combined Markdown or HTML of every checked message to the clipboard in one shot.
+ * Depends on CopyButtons (behaviorFeatures.copybuttons.ts) for both the row it docks into and the markdownOf()/htmlOf() extraction it reuses via window.__ccCopyButtons (exposed for exactly this purpose) — mirrors how ForkInCopy already docks into the same row.
+ */
 import { registerFeature } from "./behaviorFeatures";
 
 const JS = `

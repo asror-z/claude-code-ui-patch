@@ -1,10 +1,12 @@
 import * as vscode from "vscode";
 import { Patcher, tooltipLines } from "./patcher";
 
-// A status-bar item at the far right. Hover shows a read-only font-size summary
-// with a settings link; click opens the webview panel for interactive controls.
-// The warning (amber) background signals that settings don't match the on-disk
-// bundle state — e.g. after a Claude Code update reverted the patch.
+/* A status-bar item at the far right.
+   Hover shows a read-only font-size summary with a settings link; click
+   opens the webview panel for interactive controls.
+   The warning (amber) background signals that settings don't match the
+   on-disk bundle state — e.g. after a Claude Code update reverted the
+   patch. */
 export class StatusBar {
   private readonly item: vscode.StatusBarItem;
   private readonly sub: vscode.Disposable;

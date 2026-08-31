@@ -1,18 +1,20 @@
-// NoArrowUpHistory — suppresses Claude Code's OWN native composer behavior: pressing
-// ArrowUp in an empty composer calls the bundle's own cycleMessage(-1), replacing the
-// composer's content with your last sent message (confirmed live in
-// webview/index.js's minified source: `if(le.key==="ArrowUp"&&!R&&!Zi){if(Qs.cycleMessage(-1))...`).
-// This is deliberate upstream behavior, not a bug in this extension — it just isn't
-// wanted by everyone, since an accidental ArrowUp (e.g. reaching for Up to scroll)
-// silently overwrites whatever the user was about to type.
-//
-// The native handler is bound on a React synthetic-event listener attached at
-// bootstrap; a capture-phase listener on the SAME element, registered by us, always
-// runs first (capture fires outer-to-inner, and both listeners sit on the same
-// contenteditable element) — so ev.stopImmediatePropagation() here reliably stops
-// React's own handler from ever seeing the key event, without patching the bundle
-// itself. No CSS footprint — this feature is pure keydown interception, same
-// footprint shape as AutoContinue/DraftSave.
+/* NoArrowUpHistory — suppresses Claude Code's OWN native composer behavior:
+   pressing ArrowUp in an empty composer calls the bundle's own
+   cycleMessage(-1), replacing the composer's content with your last sent
+   message (confirmed live in webview/index.js's minified source:
+   `if(le.key==="ArrowUp"&&!R&&!Zi){if(Qs.cycleMessage(-1))...`).
+   This is deliberate upstream behavior, not a bug in this extension — it
+   just isn't wanted by everyone, since an accidental ArrowUp (e.g. reaching
+   for Up to scroll) silently overwrites whatever the user was about to type.
+
+   The native handler is bound on a React synthetic-event listener attached
+   at bootstrap; a capture-phase listener on the SAME element, registered by
+   us, always runs first (capture fires outer-to-inner, and both listeners
+   sit on the same contenteditable element) — so
+   ev.stopImmediatePropagation() here reliably stops React's own handler
+   from ever seeing the key event, without patching the bundle itself.
+   No CSS footprint — this feature is pure keydown interception, same
+   footprint shape as AutoContinue/DraftSave. */
 import { registerFeature } from "./behaviorFeatures";
 
 const JS = `

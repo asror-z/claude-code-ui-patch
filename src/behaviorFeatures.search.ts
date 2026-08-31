@@ -1,6 +1,4 @@
-// Chat Search feature — ported from smarts-claude-patch's standalone
-// "Chat Search Feature.js" / "Chat Search Feature.css" asset pair into this
-// extension's inline-injection convention (see behaviorFeatures.ts).
+// Chat Search feature — ported from smarts-claude-patch's standalone "Chat Search Feature.js" / "Chat Search Feature.css" asset pair into this extension's inline-injection convention (see behaviorFeatures.ts).
 import { registerFeature } from "./behaviorFeatures";
 
 const JS = `
@@ -49,7 +47,11 @@ const JS = `
       );
     }
 
-    // Never search inside our own UI or the prompt input editor.
+    /**
+     * Never search inside our own UI or the prompt input editor.
+     * @param {Node} node - Candidate text node or element.
+     * @returns {boolean} True if the node should be excluded from search.
+     */
     function isExcluded(node) {
       var n = node && node.nodeType === 3 ? node.parentNode : node;
       while (n && n !== D.body) {
@@ -75,8 +77,7 @@ const JS = `
       el = D.createElement("div");
       el.id = BAR_ID;
       el.style.display = "none";
-      // a11y: the bar is a labelled search landmark; the counter is an ARIA live
-      // region so screen readers announce "3 of 17" as the user navigates.
+      // a11y: the bar is a labelled search landmark; the counter is an ARIA live region so screen readers announce "3 of 17" as the user navigates.
       el.setAttribute("role", "search");
       el.setAttribute("aria-label", "Find in chat");
       el.innerHTML =
@@ -130,8 +131,7 @@ const JS = `
         closeBar();
       });
 
-      // a11y: trap Tab/Shift+Tab within the bar so keyboard focus cycles through
-      // input → prev → next → close and never escapes behind the open bar.
+      // a11y: trap Tab/Shift+Tab within the bar so keyboard focus cycles through input → prev → next → close and never escapes behind the open bar.
       el.addEventListener("keydown", function (e) {
         if (e.key !== "Tab") return;
         var focusable = Array.prototype.slice.call(
@@ -198,10 +198,13 @@ const JS = `
       state.fallbackMarks = [];
     }
 
-    // Walk the chat root for matches. In plain mode it's a case-insensitive
-    // substring scan; in regex mode (state.regex) the query is a case-insensitive,
-    // global regex. An invalid regex yields zero matches (never throws), and a
-    // regex that can match empty is guarded so the scan always advances.
+    /**
+     * Walk the chat root for matches.
+     * In plain mode it's a case-insensitive substring scan; in regex mode (state.regex) the query is a case-insensitive, global regex.
+     * An invalid regex yields zero matches (never throws), and a regex that can match empty is guarded so the scan always advances.
+     * @param {string} query - Search query text or regex source.
+     * @returns {Array<{node: Text, start: number, end: number}>} Matched ranges.
+     */
     function collectMatches(query) {
       var matches = [];
       var root = chatRoot();
@@ -269,8 +272,10 @@ const JS = `
           } catch (e) {}
         }
       } else {
-        // Fallback: wrap each match in a <mark>. Process per text node back-to-front
-        // so earlier offsets stay valid while we split the node.
+        /*
+         * Fallback: wrap each match in a <mark>.
+         * Process per text node back-to-front so earlier offsets stay valid while we split the node.
+         */
         var byNode = new Map();
         for (var j = 0; j < matches.length; j++) {
           var arr = byNode.get(matches[j].node) || [];

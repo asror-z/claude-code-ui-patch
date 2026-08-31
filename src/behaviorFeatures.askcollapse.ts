@@ -50,8 +50,11 @@ const JS = `
     } catch (e) {}
   }
 
-  // A compact "TAG.classPrefix > TAG.classPrefix > …" chain up to 6 ancestors, so a
-  // diagnose record reveals the modal/backdrop structure without logging any text.
+  /**
+   * A compact "TAG.classPrefix > TAG.classPrefix > …" chain up to 6 ancestors, so a diagnose record reveals the modal/backdrop structure without logging any text.
+   * @param {Element} el - Element to walk up from.
+   * @returns {string} The compact ancestor chain.
+   */
   function parentChain(el) {
     var out = [];
     var n = el, hops = 0;
@@ -89,7 +92,10 @@ const JS = `
     return false;
   }
 
-  // Find candidate close controls that live inside an AskUserQuestion-looking dialog.
+  /**
+   * Find candidate close controls that live inside an AskUserQuestion-looking dialog.
+   * @returns {Element[]} Matching close-control elements.
+   */
   function findCloseControls() {
     var root = chatRoot();
     var buttons = root.querySelectorAll(
@@ -103,10 +109,13 @@ const JS = `
     return hits;
   }
 
-  // LENIENT dialog-ish test — used only to SCOPE which close controls live inside a
-  // modal / question area (insideDialog). A header/footer/title sub-part matching here
-  // is fine, it only widens the "we are inside a dialog" check. "permission" covers the
-  // inline layout's permissionsContainer (the AskUserQuestion host in current builds).
+  /**
+   * LENIENT dialog-ish test — used only to SCOPE which close controls live inside a modal / question area (insideDialog).
+   * A header/footer/title sub-part matching here is fine, it only widens the "we are inside a dialog" check.
+   * "permission" covers the inline layout's permissionsContainer (the AskUserQuestion host in current builds).
+   * @param {Element} el - Candidate element.
+   * @returns {boolean} True if the element looks dialog-ish.
+   */
   function isDialogish(el) {
     if (!el || el.nodeType !== 1) return false;
     var role = el.getAttribute("role");
@@ -115,10 +124,13 @@ const JS = `
     return /dialog|modal|popover|question|askuser|permission/i.test(cn);
   }
 
-  // Is this card (or a near ancestor) inside an AskUserQuestion / permission scope?
-  // Filters out cards that only resolved via geometry (e.g. the composer's own
-  // inputContainer picked up as a panel fallback) — those never get a toggle.
   var SCOPE_RE = /dialog|modal|popover|askuser|question|permission/i;
+  /**
+   * Is this card (or a near ancestor) inside an AskUserQuestion / permission scope?
+   * Filters out cards that only resolved via geometry (e.g. the composer's own inputContainer picked up as a panel fallback) — those never get a toggle.
+   * @param {Element} card - Candidate card element.
+   * @returns {boolean} True if the card is within a question scope.
+   */
   function withinQuestionScope(card) {
     var n = card, hops = 0;
     while (n && n !== D.body && hops < 5) {
@@ -131,12 +143,15 @@ const JS = `
     return false;
   }
 
-  // STRICT dialog-CARD test — the actual modal panel we collapse. role=dialog is the
-  // strong signal. A class match is accepted ONLY for container-ish words and NOT for
-  // a sub-part of a dialog (header/footer/title/body/content/actions), so
-  // "dialog_header" never masquerades as the card. This is the fix for cardFor
-  // resolving the header instead of the panel.
   var CARD_SUBPART_RE = /header|footer|title|titlebar|body|content|actions|toolbar|controls/i;
+  /**
+   * STRICT dialog-CARD test — the actual modal panel we collapse.
+   * role=dialog is the strong signal.
+   * A class match is accepted ONLY for container-ish words and NOT for a sub-part of a dialog (header/footer/title/body/content/actions), so "dialog_header" never masquerades as the card.
+   * This is the fix for cardFor resolving the header instead of the panel.
+   * @param {Element} el - Candidate element.
+   * @returns {boolean} True if the element is the dialog card.
+   */
   function isDialogCard(el) {
     if (!el || el.nodeType !== 1) return false;
     var role = el.getAttribute("role");
@@ -146,8 +161,11 @@ const JS = `
     return /dialog|modal|popover|askuser/i.test(cn);
   }
 
-  // Is 'el' inside something dialog-ish OR a positioned overlay? (used to filter
-  // close controls to only those in a real modal, not e.g. a toolbar ✕).
+  /**
+   * Is 'el' inside something dialog-ish OR a positioned overlay? (used to filter close controls to only those in a real modal, not e.g. a toolbar ✕).
+   * @param {Element} el - Candidate element.
+   * @returns {boolean} True if inside a dialog/overlay.
+   */
   function insideDialog(el) {
     var n = el;
     var hops = 0;
@@ -165,12 +183,9 @@ const JS = `
     var hops = 0;
     var fallback = null;
     while (n && n !== D.body && hops < 12) {
-      // the STRICT card test — role=dialog or a container-class (not a sub-part),
-      // so we never stop at the header/footer that holds the ✕.
+      // the STRICT card test — role=dialog or a container-class (not a sub-part), so we never stop at the header/footer that holds the ✕.
       if (isDialogCard(n)) return n;
-      // SLIM-HEADER heuristic — the inline AskUserQuestion card has no dialog class
-      // and no backdrop: the card is the deepest sizeable ancestor whose direct
-      // child holding the ✕ is a slim header strip with bulky siblings to hide.
+      // SLIM-HEADER heuristic — the inline AskUserQuestion card has no dialog class and no backdrop: the card is the deepest sizeable ancestor whose direct child holding the ✕ is a slim header strip with bulky siblings to hide.
       if (isCardBySlimHeader(n, child)) return n;
       // remember a positioned, sizeable panel as a fallback card
       if (!fallback && isPanel(n)) fallback = n;
@@ -182,10 +197,13 @@ const JS = `
     return fallback || (closeBtn.parentElement && closeBtn.parentElement.parentElement) || closeBtn.parentElement;
   }
 
-  // Card test via the header shape: 'h' (the direct child of 'A' on the ✕'s path)
-  // must be a slim strip while 'A' is a sizeable card with other (bulky) children —
-  // and 'A' must NOT host the live composer (a card never contains a textarea).
-  // With no layout (jsdom), falls back to structural cues instead of pixel sizes.
+  /**
+   * Card test via the header shape: 'h' (the direct child of 'A' on the ✕'s path) must be a slim strip while 'A' is a sizeable card with other (bulky) children — and 'A' must NOT host the live composer (a card never contains a textarea).
+   * With no layout (jsdom), falls back to structural cues instead of pixel sizes.
+   * @param {Element} A - Candidate card ancestor.
+   * @param {Element} h - The header child on the close button's path.
+   * @returns {boolean} True if A qualifies as the card via the slim-header heuristic.
+   */
   function isCardBySlimHeader(A, h) {
     if (!A || !h || h.parentElement !== A) return false;
     if (!A.children || A.children.length < 2) return false;
@@ -222,8 +240,12 @@ const JS = `
     } catch (e) { return false; }
   }
 
-  // A backdrop/overlay = a fixed or absolute ancestor that spans (near) the whole
-  // viewport. That is what dims the chat and blocks clicks.
+  /**
+   * A backdrop/overlay = a fixed or absolute ancestor that spans (near) the whole viewport.
+   * That is what dims the chat and blocks clicks.
+   * @param {Element} el - Candidate element.
+   * @returns {boolean} True if the element is a backdrop/overlay.
+   */
   function isBackdrop(el) {
     if (!el || el.nodeType !== 1 || el === D.body) return false;
     try {
@@ -251,10 +273,11 @@ const JS = `
     return null;
   }
 
-  // Only a TRUE modal backdrop may be neutralized: position:fixed always qualifies;
-  // an absolute overlay qualifies only when it hosts no live composer OUTSIDE the
-  // card — the inline layout's inputContainer (which holds the composer textarea)
-  // must never be made transparent + click-through.
+  /**
+   * Only a TRUE modal backdrop may be neutralized: position:fixed always qualifies; an absolute overlay qualifies only when it hosts no live composer OUTSIDE the card — the inline layout's inputContainer (which holds the composer textarea) must never be made transparent + click-through.
+   * @param {Element} card - The resolved dialog card.
+   * @returns {Element|null} The safe backdrop element, or null.
+   */
   function safeBackdropFor(card) {
     var bd = backdropFor(card);
     if (!bd) return null;
@@ -271,8 +294,12 @@ const JS = `
     return bd;
   }
 
-  // The header strip to keep visible when collapsed = the child of the card that
-  // CONTAINS the close button (so title + our toggle + ✕ stay on-screen).
+  /**
+   * The header strip to keep visible when collapsed = the child of the card that CONTAINS the close button (so title + our toggle + ✕ stay on-screen).
+   * @param {Element} card - The resolved dialog card.
+   * @param {Element} closeBtn - The close-control element.
+   * @returns {Element|null} The header strip element to keep visible.
+   */
   function headerFor(card, closeBtn) {
     var n = closeBtn;
     while (n && n.parentElement && n.parentElement !== card) n = n.parentElement;
@@ -327,7 +354,12 @@ const JS = `
     return btn;
   }
 
-  // Ensure OUR toggle sits immediately to the LEFT of the native ✕ (same parent).
+  /**
+   * Ensure OUR toggle sits immediately to the LEFT of the native ✕ (same parent).
+   * @param {Element} card - The resolved dialog card.
+   * @param {Element} closeBtn - The close-control element.
+   * @returns {Element} The toggle button, existing or newly created.
+   */
   function ensureToggle(card, closeBtn) {
     var parent = closeBtn.parentElement;
     if (!parent) return;
@@ -351,8 +383,11 @@ const JS = `
     return true;
   }
 
-  // Among a card's close candidates pick the BEST: a labeled/glyph close control
-  // beats a bare svg icon button; ties go to the one nearest the card's top-right.
+  /**
+   * Among a card's close candidates pick the BEST: a labeled/glyph close control beats a bare svg icon button; ties go to the one nearest the card's top-right.
+   * @param {Element} b - Candidate close-control element.
+   * @returns {number} Score for the candidate (higher is better).
+   */
   function closeScore(b) {
     var label = (b.getAttribute("aria-label") || b.getAttribute("title") || "").trim();
     if (label && CLOSE_LABEL_RE.test(label)) return 2;
@@ -396,8 +431,7 @@ const JS = `
       var btn = bestCloseBtn(byCard[c], cards[c]);
       if (btn && processDialog(cards[c], btn)) attached++;
     }
-    // remove stray toggles left outside every resolved card (stale placements from
-    // an earlier sweep against a since-changed layout)
+    // remove stray toggles left outside every resolved card (stale placements from an earlier sweep against a since-changed layout)
     var strays = D.querySelectorAll("[" + BTN_ATTR + "]");
     for (var s = 0; s < strays.length; s++) {
       var inCard = false;
@@ -439,17 +473,13 @@ const JS = `
   }
 
   // ---- stale-on-tab-return sweep --------------------------------------------------
-  // A VS Code editor tab's webview is throttled/suspended while hidden. If an
-  // AskUserQuestion suggestion chip is mid-animation/reposition at the moment the
-  // tab loses visibility, it can freeze mid-frame and repaint stuck — floating over
-  // the composer/toolbar of whichever tab is active when the frame finally resumes
-  // (reported live: a suggestion chip from one tab visible over a DIFFERENT tab's
-  // composer, clearing only after switching away and back once more). This is a
-  // rendering artifact of VS Code's own webview suspend/resume, not a DOM node our
-  // script created or owns — the fix is a forced reflow of any floating,
-  // question-scoped element the moment the tab becomes visible again, which is
-  // enough to make the browser repaint it at its correct position/visibility
-  // instead of the frozen stale one.
+  /**
+   * A VS Code editor tab's webview is throttled/suspended while hidden.
+   * If an AskUserQuestion suggestion chip is mid-animation/reposition at the moment the tab loses visibility, it can freeze mid-frame and repaint stuck — floating over the composer/toolbar of whichever tab is active when the frame finally resumes (reported live: a suggestion chip from one tab visible over a DIFFERENT tab's composer, clearing only after switching away and back once more).
+   * This is a rendering artifact of VS Code's own webview suspend/resume, not a DOM node our script created or owns — the fix is a forced reflow of any floating, question-scoped element the moment the tab becomes visible again, which is enough to make the browser repaint it at its correct position/visibility instead of the frozen stale one.
+   * @param {Element} el - Candidate element.
+   * @returns {boolean} True if the element is a floating, question-scoped element.
+   */
   function isFloatingQuestionEl(el) {
     if (!el || el.nodeType !== 1) return false;
     try {
@@ -469,11 +499,10 @@ const JS = `
       for (var i = 0; i < candidates.length; i++) {
         var el = candidates[i];
         if (!isFloatingQuestionEl(el)) continue;
-        // Force a reflow: toggling a no-op inline style property makes the engine
-        // recompute layout/paint for this element instead of reusing a stale frame
-        // left over from before the tab was suspended. Reading offsetHeight forces
-        // the flush; the display toggle nudges a truly-orphaned overlay to actually
-        // disappear if its own logic already decided it should be gone.
+        /*
+         * Force a reflow: toggling a no-op inline style property makes the engine recompute layout/paint for this element instead of reusing a stale frame left over from before the tab was suspended.
+         * Reading offsetHeight forces the flush; the display toggle nudges a truly-orphaned overlay to actually disappear if its own logic already decided it should be gone.
+         */
         var prevDisplay = el.style.display;
         el.style.display = "none";
         void el.offsetHeight; // force reflow
@@ -483,8 +512,12 @@ const JS = `
     } catch (e) {}
   }
 
-  // init(doc, win) — called directly with (document, window) once real chat DOM is
-  // detected; bind + observe it.
+  /**
+   * init(doc, win) — called directly with (document, window) once real chat DOM is detected; bind + observe it.
+   * @param {Document} doc - The real chat document.
+   * @param {Window} win - The real chat window.
+   * @returns {void}
+   */
   function init(doc, win) {
     D = doc;
     W = win || window;
@@ -504,10 +537,12 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand off
-  // now; otherwise queue onto window.__ccPending — the bootstrap drains it the moment
-  // it installs. A last-resort timer covers the impossible case where no bootstrap
-  // ever appears, running once against the current document.
+  /**
+   * Order-independent registration: if the bootstrap is already installed, hand off now; otherwise queue onto window.__ccPending — the bootstrap drains it the moment it installs.
+   * A last-resort timer covers the impossible case where no bootstrap ever appears, running once against the current document.
+   * @param {Function} fn - The init function to hand off once the chat document is ready.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -524,7 +559,8 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* AskCollapse — collapse/expand toggle for the AskUserQuestion modal dialog.
+/*
+   AskCollapse — collapse/expand toggle for the AskUserQuestion modal dialog.
    Injected as part of the assembled inline <script>/<style> block.
 
    The JS tags:
@@ -533,8 +569,8 @@ const CSS = `
      * the header strip kept  -> [data-cc-askcol-keep="1"]  (direct child of the card)
      * the neutralized backdrop -> [data-cc-askcol-backdrop="1"]
 
-   CSS does the visual work: hide the body when collapsed, keep only the header,
-   and drop the backdrop dim + pointer-blocking so the chat behind is readable. */
+   CSS does the visual work: hide the body when collapsed, keep only the header, and drop the backdrop dim + pointer-blocking so the chat behind is readable.
+*/
 
 /* Our toggle button — sits immediately LEFT of the native ✕, styled like the ✕. */
 button.cc-askcol-btn[data-cc-askcol-btn="1"] {
@@ -561,9 +597,10 @@ button.cc-askcol-btn[data-cc-askcol-btn="1"]:hover {
 
 /* ---- COLLAPSED state ------------------------------------------------------- */
 
-/* When the card is collapsed, hide every DIRECT child except the kept header
-   strip. (Direct-child scope keeps the header's own contents — title + our toggle
-   + ✕ — fully visible.) */
+/*
+   When the card is collapsed, hide every DIRECT child except the kept header strip.
+   (Direct-child scope keeps the header's own contents — title + our toggle + ✕ — fully visible.)
+*/
 [data-cc-askcol="collapsed"] > :not([data-cc-askcol-keep="1"]) {
   display: none !important;
 }
@@ -575,10 +612,10 @@ button.cc-askcol-btn[data-cc-askcol-btn="1"]:hover {
   max-height: none !important;
 }
 
-/* Neutralized backdrop — transparent + click-through so the chat behind is BOTH
-   visible and scrollable. The card sits ON the backdrop, so re-enable pointer
-   events on the card itself (and our controls) even though the backdrop ignores
-   them. */
+/*
+   Neutralized backdrop — transparent + click-through so the chat behind is BOTH visible and scrollable.
+   The card sits ON the backdrop, so re-enable pointer events on the card itself (and our controls) even though the backdrop ignores them.
+*/
 [data-cc-askcol-backdrop="1"] {
   background: transparent !important;
   backdrop-filter: none !important;

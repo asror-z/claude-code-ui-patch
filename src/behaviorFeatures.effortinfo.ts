@@ -1,17 +1,18 @@
 import { registerFeature } from "./behaviorFeatures";
 
-// Shows the running effort level + extended-thinking status as the
-// composer's PLACEHOLDER text (before anything is typed) -- same native
-// placeholder mechanism as ModelInfo (behaviorFeatures.modelinfo.ts): a
-// data-cc-effortinfo attribute + a higher-priority :empty:before CSS rule, so
-// it appears/disappears automatically with the composer's own empty state,
-// no JS-driven show/hide needed. When BOTH modelinfo and effortinfo are on,
-// they compose into one combined placeholder line (see the CSS's combined
-// selector below) rather than one silently overwriting the other's attribute.
-//
-// Requires the modelInfoBridge TogglePoint (always on, see patcher.ts /
-// modelInfoBridge.ts), which mirrors window.__ccModelInfo = {effort, thinking}
-// from the webview's own effortLevel/thinkingLevel signals.
+/* Shows the running effort level + extended-thinking status as the
+   composer's PLACEHOLDER text (before anything is typed) -- same native
+   placeholder mechanism as ModelInfo (behaviorFeatures.modelinfo.ts): a
+   data-cc-effortinfo attribute + a higher-priority :empty:before CSS rule,
+   so it appears/disappears automatically with the composer's own empty
+   state, no JS-driven show/hide needed.
+   When BOTH modelinfo and effortinfo are on, they compose into one combined
+   placeholder line (see the CSS's combined selector below) rather than one
+   silently overwriting the other's attribute.
+
+   Requires the modelInfoBridge TogglePoint (always on, see patcher.ts /
+   modelInfoBridge.ts), which mirrors window.__ccModelInfo = {effort,
+   thinking} from the webview's own effortLevel/thinkingLevel signals. */
 const JS = `
 (function () {
   "use strict";

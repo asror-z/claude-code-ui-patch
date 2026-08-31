@@ -1,19 +1,15 @@
-// Ported from the smarts-claude-patch skill's standalone asset pairs:
-//   "Chat Toc Feature.js" / "Chat Toc Feature.css"
-//   "Chat Export Feature.js" / "Chat Export Feature.css"
-//   "Chat Scroll Feature.js" / "Chat Scroll Feature.css"
-// into this extension's inline-injection convention (see behaviorFeatures.ts).
-//
-// Three independent, unrelated toolbar-consumer features are registered from this
-// one file (no cross-dependency between them): "toc" (outline/prompt-jump panel),
-// "export" (copy chat as Markdown/HTML), and "scroll" (jump to first/latest message).
-//
-// Unlike the source skill's target (which runs inside a nested `active-frame`
-// iframe and needs frame-hunting/frame-swap polling), this extension's webview has
-// NO nested iframe — `document` IS the chat document — so all frame-search logic
-// from the originals is dropped; window.__ccOnChatDoc(init) calls init(document,
-// window) directly. Faro/telemetry calls are dropped too (replaced with plain
-// console logging) since this build has no Faro wiring.
+/*
+ * Ported from the smarts-claude-patch skill's standalone asset pairs:
+ *   "Chat Toc Feature.js" / "Chat Toc Feature.css"
+ *   "Chat Export Feature.js" / "Chat Export Feature.css"
+ *   "Chat Scroll Feature.js" / "Chat Scroll Feature.css"
+ * into this extension's inline-injection convention (see behaviorFeatures.ts).
+ *
+ * Three independent, unrelated toolbar-consumer features are registered from this one file (no cross-dependency between them): "toc" (outline/prompt-jump panel), "export" (copy chat as Markdown/HTML), and "scroll" (jump to first/latest message).
+ *
+ * Unlike the source skill's target (which runs inside a nested `active-frame` iframe and needs frame-hunting/frame-swap polling), this extension's webview has NO nested iframe — `document` IS the chat document — so all frame-search logic from the originals is dropped; window.__ccOnChatDoc(init) calls init(document, window) directly.
+ * Faro/telemetry calls are dropped too (replaced with plain console logging) since this build has no Faro wiring.
+ */
 import { registerFeature } from "./behaviorFeatures";
 
 // ---------------------------------------------------------------------------
@@ -88,9 +84,10 @@ const TOC_JS = `
   var open = false;
 
   function ensureUI() {
-    // Re-check the live DOM (React can strip appended nodes, and a fresh module
-    // scope after a re-eval starts with null refs). Adopt an existing element if
-    // one is already in the document so we never create a duplicate.
+    /*
+     * Re-check the live DOM (React can strip appended nodes, and a fresh module scope after a re-eval starts with null refs).
+     * Adopt an existing element if one is already in the document so we never create a duplicate.
+     */
     if (toggleBtn && !D.body.contains(toggleBtn)) toggleBtn = null;
     if (panel && !D.body.contains(panel)) { panel = null; listEl = null; open = false; }
     if (!toggleBtn) toggleBtn = D.querySelector(".cc-toc-toggle");
@@ -99,18 +96,20 @@ const TOC_JS = `
       if (panel) listEl = panel.querySelector(".cc-toc-list");
     }
 
-    // ALWAYS destroy any standalone fixed fallback FAB — the toolbar is the ONLY home
-    // for the Toc toggle. A leftover .cc-toc-toggle that is NOT a toolbar chip (from an
-    // earlier frame / a view without the composer) is the stray floating ☰; nuke every
-    // one, unconditionally.
+    /*
+     * ALWAYS destroy any standalone fixed fallback FAB — the toolbar is the ONLY home for the Toc toggle.
+     * A leftover .cc-toc-toggle that is NOT a toolbar chip (from an earlier frame / a view without the composer) is the stray floating ☰; nuke every one, unconditionally.
+     */
     var strays = D.querySelectorAll(".cc-toc-toggle:not(.cc-toolbar-btn)");
     for (var sI = 0; sI < strays.length; sI++) { try { strays[sI].remove(); } catch (e) {} }
     if (toggleBtn && !toggleBtn.classList.contains("cc-toolbar-btn")) toggleBtn = null;
     if (!toggleBtn) toggleBtn = D.querySelector(".cc-toc-toggle.cc-toolbar-btn");
 
     if (!toggleBtn) {
-      // Register into the shared toolbar. If it isn't parsed yet, queue and wait —
-      // do NOT create a floating fallback (that is what caused the stray ☰).
+      /*
+       * Register into the shared toolbar.
+       * If it isn't parsed yet, queue and wait — do NOT create a floating fallback (that is what caused the stray ☰).
+       */
       if (W.__ccToolbar && W.__ccToolbar.add) {
         toggleBtn = W.__ccToolbar.add({
           id: "toc", icon: "☰", label: "Chat outline — jump to a prompt",
@@ -189,8 +188,7 @@ const TOC_JS = `
     return g;
   }
 
-  // Assistant headings (##/### rendered as <h2>/<h3> inside assistant messages),
-  // shown only when \`showHeadings\` is on (toggled from the panel header).
+  // Assistant headings (##/### rendered as <h2>/<h3> inside assistant messages), shown only when \`showHeadings\` is on (toggled from the panel header).
   var showHeadings = false;
   function findHeadings() {
     var out = [];
@@ -247,16 +245,10 @@ const TOC_JS = `
     }
   }
 
-  // The panel is position:fixed, so its "right" offset is measured from the
-  // WHOLE CSS viewport — which, in this webview, can be noticeably WIDER
-  // than the composer's own visually-bordered box (confirmed live via a
-  // screenshot: a plain "right:16px" left the panel floating well past the
-  // composer's right edge, out in open space). Align the panel's right edge
-  // to the composer's OWN right edge instead of a flat viewport-relative
-  // offset: the composer's action-footer row (".cc-toolbar" itself docks
-  // into it, see behaviorToolbar.ts) spans the composer box corner to
-  // corner, so its own getBoundingClientRect().right IS the composer's
-  // right edge.
+  /*
+   * The panel is position:fixed, so its "right" offset is measured from the WHOLE CSS viewport — which, in this webview, can be noticeably WIDER than the composer's own visually-bordered box (confirmed live via a screenshot: a plain "right:16px" left the panel floating well past the composer's right edge, out in open space).
+   * Align the panel's right edge to the composer's OWN right edge instead of a flat viewport-relative offset: the composer's action-footer row (".cc-toolbar" itself docks into it, see behaviorToolbar.ts) spans the composer box corner to corner, so its own getBoundingClientRect().right IS the composer's right edge.
+   */
   function positionPanel() {
     if (!panel) return;
     var footer = D.querySelector("[class*='inputFooter']");
@@ -298,8 +290,7 @@ const TOC_JS = `
     });
     // Rebuild the outline when pins change (from the Pin feature) while open.
     try { W.addEventListener("cc-pins-changed", function () { if (open) rebuild(); }); } catch (e) {}
-    // Keep the panel's right edge pinned to the composer's own right edge if
-    // the window/panel is resized while open.
+    // Keep the panel's right edge pinned to the composer's own right edge if the window/panel is resized while open.
     try { W.addEventListener("resize", function () { if (open) positionPanel(); }); } catch (e) {}
   }
 
@@ -308,9 +299,12 @@ const TOC_JS = `
     if (open) rebuild();
   }
 
-  // Is a node our own UI (the panel/toggle)? Mutations confined to it must NOT
-  // reschedule — rebuild() appends list items, which would otherwise loop the
-  // observer forever (self-triggered childList churn).
+  /**
+   * Is a node our own UI (the panel/toggle)?
+   * Mutations confined to it must NOT reschedule — rebuild() appends list items, which would otherwise loop the observer forever (self-triggered childList churn).
+   * @param {Node} node - the mutation-observer target node to test.
+   * @returns {boolean} true when node is (or lives inside) our own panel/toggle UI.
+   */
   function isOwnUI(node) {
     var el = node && node.nodeType === 1 ? node : (node && node.parentElement);
     while (el) {
@@ -372,10 +366,10 @@ const TOC_JS = `
 `.trim();
 
 const TOC_CSS = `
-/* Chat TOC / Outline feature — a toolbar action + a prompt-list panel.
-   The ☰ toggle normally lives INSIDE the shared toolbar (.cc-toolbar-btn); the
-   rules below only style the STANDALONE fallback FAB (when the toolbar is absent),
-   scoped with :not(.cc-toolbar-btn) so they never re-position the in-toolbar chip. */
+/*
+   Chat TOC / Outline feature — a toolbar action + a prompt-list panel.
+   The ☰ toggle normally lives INSIDE the shared toolbar (.cc-toolbar-btn); the rules below only style the STANDALONE fallback FAB (when the toolbar is absent), scoped with :not(.cc-toolbar-btn) so they never re-position the in-toolbar chip.
+*/
 
 .cc-toc-toggle:not(.cc-toolbar-btn) {
   position: fixed;
@@ -552,8 +546,7 @@ const EXPORT_JS = `
     "[class*='chatMessage']",
   ]);
   var EXCLUDE_RE = /messageInput|messagesContainer|messageGradient|fullEditor/;
-  // Tool-chip containers whose collapsed bodies show only a summary label, never
-  // prose — stripped from the export (version-proof substring set, like CopyButtons).
+  // Tool-chip containers whose collapsed bodies show only a summary label, never prose — stripped from the export (version-proof substring set, like CopyButtons).
   var TOOL_SELECTOR = [
     "toolUse", "toolResult", "toolBody", "toolSummary", "toolItem",
     "toolName", "collapsibleToolCalls",
@@ -603,8 +596,11 @@ const EXPORT_JS = `
     return list;
   }
 
-  // The prose/content root of a message: prefer a markdown/prose/messageContent
-  // container that is NOT a tool block; else the message itself.
+  /**
+   * The prose/content root of a message: prefer a markdown/prose/messageContent container that is NOT a tool block; else the message itself.
+   * @param {Element} el - the message element to search.
+   * @returns {Element} the content-root element, or el itself as fallback.
+   */
   function contentRoot(el) {
     var cands = el.querySelectorAll("[class*='markdown'],[class*='prose'],[class*='messageContent']");
     for (var i = 0; i < cands.length; i++) {
@@ -613,9 +609,11 @@ const EXPORT_JS = `
     return el;
   }
 
-  // Clone the content root, strip our own injected UI + every tool block, return
-  // the cleaned clone (so exports carry only prose/code, never tool summaries or
-  // our buttons).
+  /**
+   * Clones the content root, strips our own injected UI + every tool block, returns the cleaned clone (so exports carry only prose/code, never tool summaries or our buttons).
+   * @param {Element} root - the content-root element to clone and clean.
+   * @returns {Element} the cleaned clone.
+   */
   function cleanClone(root) {
     var clone = root.cloneNode(true);
     var junk = clone.querySelectorAll(
@@ -717,15 +715,22 @@ const EXPORT_JS = `
 
   function roleOf(el) { return isUser(el) ? "You" : "Claude"; }
 
-  // The message's own timestamp, if the DateTime feature stamped it
-  // (\`[data-cc-dt-time]\`). Empty string when DateTime is absent.
+  /**
+   * The message's own timestamp, if the DateTime feature stamped it (\`[data-cc-dt-time]\`).
+   * Empty string when DateTime is absent.
+   * @param {Element} el - the message element to read the stamp from.
+   * @returns {string} the timestamp text, or "" when absent.
+   */
   function stampOf(el) {
     var t = el.querySelector && el.querySelector("[data-cc-dt-time]");
     var v = t && (t.getAttribute("data-cc-dt-time") || (t.textContent || "").trim());
     return v || "";
   }
 
-  // A chat title for the export header — the first user prompt, truncated.
+  /**
+   * A chat title for the export header — the first user prompt, truncated.
+   * @returns {string} the derived chat title.
+   */
   function chatTitle() {
     var msgs = messages();
     for (var i = 0; i < msgs.length; i++) {
@@ -821,10 +826,14 @@ const EXPORT_JS = `
     } catch (e) {}
   }
 
-  // Download in a webview is unreliable (the vscode-webview sandbox often blocks a
-  // blob/<a download> and data-URI open). So: try the blob download; ALWAYS also copy
-  // the content to the clipboard as a guaranteed fallback, and tell the user + log the
-  // outcome to the console (so the outcome is at least visible, not silently lost).
+  /**
+   * Download in a webview is unreliable (the vscode-webview sandbox often blocks a blob/<a download> and data-URI open).
+   * So: try the blob download; ALWAYS also copy the content to the clipboard as a guaranteed fallback, and tell the user + log the outcome to the console (so the outcome is at least visible, not silently lost).
+   * @param {string} filename - suggested filename for the blob download.
+   * @param {string} text - the content to download/copy.
+   * @param {string} mime - MIME type for the blob.
+   * @returns {boolean} true when either the blob download or the clipboard copy succeeded.
+   */
   function download(filename, text, mime) {
     var blobOk = false;
     try {
@@ -874,11 +883,7 @@ const EXPORT_JS = `
   var menu = null;
   var menuOpen = false;
 
-  // Same fix as the TOC panel's positionPanel() (see its own comment): a
-  // flat "right:16px" is measured from the whole CSS viewport, which can be
-  // noticeably wider than the composer's own bordered box in this webview —
-  // align the menu's right edge to the composer action-footer's real right
-  // edge instead.
+  // Same fix as the TOC panel's positionPanel() (see its own comment): a flat "right:16px" is measured from the whole CSS viewport, which can be noticeably wider than the composer's own bordered box in this webview — align the menu's right edge to the composer action-footer's real right edge instead.
   function positionMenu() {
     if (!menu) return;
     var footer = D.querySelector("[class*='inputFooter']");
@@ -908,10 +913,10 @@ const EXPORT_JS = `
     if (!toggleBtn) toggleBtn = D.querySelector(".cc-export-toggle");
     if (!menu) menu = D.querySelector(".cc-export-menu");
 
-    // ALWAYS destroy any standalone fixed fallback FAB — the toolbar is the ONLY
-    // home for the Export toggle. A leftover .cc-export-toggle that is NOT a toolbar
-    // chip (from an earlier frame, or a race where the toolbar wasn't ready) is the
-    // duplicate top-right ⭳; nuke every one of them, unconditionally.
+    /*
+     * ALWAYS destroy any standalone fixed fallback FAB — the toolbar is the ONLY home for the Export toggle.
+     * A leftover .cc-export-toggle that is NOT a toolbar chip (from an earlier frame, or a race where the toolbar wasn't ready) is the duplicate top-right ⭳; nuke every one of them, unconditionally.
+     */
     var strays = D.querySelectorAll(".cc-export-toggle:not(.cc-toolbar-btn)");
     for (var sI = 0; sI < strays.length; sI++) { try { strays[sI].remove(); } catch (e) {} }
     if (toggleBtn && !toggleBtn.classList.contains("cc-toolbar-btn")) toggleBtn = null;
@@ -919,8 +924,10 @@ const EXPORT_JS = `
     if (!toggleBtn) toggleBtn = D.querySelector(".cc-export-toggle.cc-toolbar-btn");
 
     if (!toggleBtn) {
-      // Register into the shared toolbar. If the toolbar isn't ready yet, queue and
-      // wait — do NOT create a floating fallback (that is what caused the duplicate).
+      /*
+       * Register into the shared toolbar.
+       * If the toolbar isn't ready yet, queue and wait — do NOT create a floating fallback (that is what caused the duplicate).
+       */
       if (W.__ccToolbar && W.__ccToolbar.add) {
         toggleBtn = W.__ccToolbar.add({
           id: "export", icon: "💾", label: "Copy the chat as Markdown or HTML",
@@ -939,8 +946,7 @@ const EXPORT_JS = `
       menu = D.createElement("div");
       menu.className = "cc-export-menu";
       menu.style.display = "none";
-      // Two clipboard actions (webview file-download is unreliable, so we copy):
-      // "Copy MD" and "Copy HTML".
+      // Two clipboard actions (webview file-download is unreliable, so we copy): "Copy MD" and "Copy HTML".
       var mdItem = D.createElement("button");
       mdItem.type = "button";
       mdItem.className = "cc-export-item";
@@ -965,8 +971,10 @@ const EXPORT_JS = `
     }
   }
 
-  // Copy the whole-chat Markdown to the clipboard (scope+format option: to
-  // clipboard rather than a file), with a hidden-textarea fallback.
+  /**
+   * Copies the whole-chat Markdown to the clipboard (scope+format option: to clipboard rather than a file), with a hidden-textarea fallback.
+   * @returns {boolean} true when the copy succeeded.
+   */
   function copyMd() {
     var text = buildMarkdown();
     var ok = toClipboard(text);
@@ -995,8 +1003,7 @@ const EXPORT_JS = `
       if (toggleBtn && toggleBtn.contains(ev.target)) return;
       setMenu(false);
     });
-    // Keep the menu's right edge pinned to the composer's own right edge if
-    // the window/panel is resized while open.
+    // Keep the menu's right edge pinned to the composer's own right edge if the window/panel is resized while open.
     try { W.addEventListener("resize", function () { if (menuOpen) positionMenu(); }); } catch (e) {}
   }
 
@@ -1034,10 +1041,10 @@ const EXPORT_JS = `
 `.trim();
 
 const EXPORT_CSS = `
-/* Chat Export feature — a toolbar action + a .md/.html/clipboard menu.
-   The ⤓ toggle normally lives INSIDE the shared toolbar (.cc-toolbar-btn); the
-   rules below only style the STANDALONE fallback FAB (toolbar absent), scoped with
-   :not(.cc-toolbar-btn) so they never re-position the in-toolbar chip. */
+/*
+   Chat Export feature — a toolbar action + a .md/.html/clipboard menu.
+   The ⤓ toggle normally lives INSIDE the shared toolbar (.cc-toolbar-btn); the rules below only style the STANDALONE fallback FAB (toolbar absent), scoped with :not(.cc-toolbar-btn) so they never re-position the in-toolbar chip.
+*/
 
 .cc-export-toggle:not(.cc-toolbar-btn) {
   position: fixed;
@@ -1150,10 +1157,11 @@ const SCROLL_JS = `
     return list;
   }
 
-  // Find the actual SCROLL CONTAINER — the nearest ancestor of the messages that
-  // genuinely scrolls (scrollHeight > clientHeight and overflow-y auto/scroll).
-  // Setting its scrollTop directly is the reliable way to reach the very top/bottom;
-  // scrollIntoView only brings an element into view, so it stops "a little" short.
+  /**
+   * Finds the actual SCROLL CONTAINER — the nearest ancestor of the messages that genuinely scrolls (scrollHeight > clientHeight and overflow-y auto/scroll).
+   * Setting its scrollTop directly is the reliable way to reach the very top/bottom; scrollIntoView only brings an element into view, so it stops "a little" short.
+   * @returns {Element} the scroll-container element, or a document-level fallback.
+   */
   function scrollContainer() {
     // Prefer the extension's own messages/scroll container if present.
     var named = D.querySelector("[class*='messagesContainer'],[class*='scrollable'],[class*='conversation']");
@@ -1208,16 +1216,17 @@ const SCROLL_JS = `
   var _done = false;
   function ensureUI() {
     if (W.__ccToolbar && W.__ccToolbar.add) {
-      // Toolbar owns these actions. Remove any stray standalone fallback buttons
-      // (created on an earlier frame before the toolbar loaded) so they never double.
+      /*
+       * Toolbar owns these actions.
+       * Remove any stray standalone fallback buttons (created on an earlier frame before the toolbar loaded) so they never double.
+       */
       var strays = D.querySelectorAll(".cc-scroll-top:not(.cc-toolbar-btn),.cc-scroll-bottom:not(.cc-toolbar-btn)");
       for (var sI = 0; sI < strays.length; sI++) { try { strays[sI].remove(); } catch (e) {} }
       W.__ccToolbar.add({ id: "scroll-top", icon: "⤒", label: "Scroll to the first message", order: 40, onClick: function () { scrollTo("top"); } });
       W.__ccToolbar.add({ id: "scroll-bottom", icon: "⤓", label: "Jump to the latest message", order: 41, onClick: function () { scrollTo("bottom"); } });
       var b = W.__ccToolbar.get && W.__ccToolbar.get("scroll-top");
       if (b) b.classList.add("cc-scroll-top");
-      // scroll-bottom was missing its class entirely — with the scroll feature
-      // toggled OFF, FOOTPRINT hid ⤒ (classed) but left ⤓ visible (classless).
+      // scroll-bottom was missing its class entirely — with the scroll feature toggled OFF, FOOTPRINT hid ⤒ (classed) but left ⤓ visible (classless).
       var b2 = W.__ccToolbar.get && W.__ccToolbar.get("scroll-bottom");
       if (b2) b2.classList.add("cc-scroll-bottom");
     } else if (!D.querySelector(".cc-scroll-top")) {
@@ -1247,8 +1256,7 @@ const SCROLL_JS = `
 `.trim();
 
 const SCROLL_CSS = `
-/* Chat Scroll feature — fallback floating buttons (only used when the shared
-   toolbar is absent; when the toolbar is present these live inside it). */
+/* Chat Scroll feature — fallback floating buttons (only used when the shared toolbar is absent; when the toolbar is present these live inside it). */
 .cc-scroll-top,
 .cc-scroll-bottom {
   display: flex;

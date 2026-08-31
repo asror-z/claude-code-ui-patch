@@ -16,12 +16,11 @@ const JS = `
   var TIME_ATTR = "data-cc-dt-time"; // the DateTime feature's per-message stamp anchor
   var COPIED_CLASS = "cc-copy-done"; // transient "Copied!" feedback state
 
-  // Tool-call/tool-result chip containers. An assistant OUTPUT turn interleaves the
-  // assistant's prose with TOOL blocks (Read/Edit/Bash) whose collapsed bodies render
-  // only a SUMMARY LABEL ("49 lines of output", "Added 12 lines", "Write failed") — NOT
-  // the assistant's words. We match these by SUBSTRING (the extension mints the classes
-  // minified/hashed, e.g. \`toolSummary_ZUQaOA\`), a version-proof anchor that survives a
-  // re-minify — never a literal hashed token.
+  /*
+   * Tool-call/tool-result chip containers.
+   * An assistant OUTPUT turn interleaves the assistant's prose with TOOL blocks (Read/Edit/Bash) whose collapsed bodies render only a SUMMARY LABEL ("49 lines of output", "Added 12 lines", "Write failed") — NOT the assistant's words.
+   * We match these by SUBSTRING (the extension mints the classes minified/hashed, e.g. \`toolSummary_ZUQaOA\`), a version-proof anchor that survives a re-minify — never a literal hashed token.
+   */
   var TOOL_SELECTOR =
     "[class*='toolUse'],[class*='toolResult'],[class*='toolBody']," +
     "[class*='toolSummary'],[class*='toolItem'],[class*='toolName']," +
@@ -32,32 +31,24 @@ const JS = `
   var W = window;
 
   // --- content extraction ----------------------------------------------------
-  // The webview renders message content as real DOM (paragraphs, code blocks,
-  // lists, inline emphasis). We derive BOTH a Markdown and an HTML form from that
-  // rendered subtree. HTML is just the message's innerHTML, lightly trimmed.
-  // Markdown is a small, dependency-free DOM→Markdown walk covering the elements
-  // the chat actually uses (headings, p, strong/em, code, pre, a, ul/ol/li,
-  // blockquote, br, hr). Anything unknown degrades to its text content.
+  /*
+   * The webview renders message content as real DOM (paragraphs, code blocks, lists, inline emphasis).
+   * We derive BOTH a Markdown and an HTML form from that rendered subtree.
+   * HTML is just the message's innerHTML, lightly trimmed.
+   * Markdown is a small, dependency-free DOM→Markdown walk covering the elements the chat actually uses (headings, p, strong/em, code, pre, a, ul/ol/li, blockquote, br, hr).
+   * Anything unknown degrades to its text content.
+   */
 
-  // Find EVERY element that holds a piece of the message's rendered content. The
-  // stamped element is the message wrapper (a turn_/userMessageContainer block);
-  // an assistant OUTPUT turn can render its reply as SEVERAL SEPARATE
-  // markdown/prose sub-containers (e.g. prose interleaved with tool-call chips,
-  // or a long streamed reply split across multiple markdown blocks) — a single
-  // "return the first one found" used to silently drop every other block, which
-  // is why Copy as Markdown/HTML only ever copied one paragraph. So this now
-  // returns ALL qualifying, non-nested candidates in DOCUMENT ORDER, not just one.
-  // CRITICAL: a live \`turn_…\` OUTPUT wrapper NESTS the user prompt bubble
-  // (\`userMessageContainer_…\`, which has its OWN \`messageContent\`) BEFORE the
-  // assistant response's \`markdown\` container(s). A naive querySelector returns
-  // that nested user content first — so "Copy" copied the USER message instead of
-  // the OUTPUT. So we (a) collect ALL candidate containers, (b) SKIP any that live
-  // inside a \`userMessageContainer\` subtree (unless msgEl itself is that user
-  // bubble), (c) SKIP any tool-call/tool-result chip, (d) prefer \`markdown\`/\`prose\`
-  // containers (the response) over a generic \`messageContent\`/\`content\` one when
-  // BOTH kinds are present, and (e) drop any candidate that is an ANCESTOR of
-  // another kept candidate, so a message never counts once as a whole AND again
-  // via its own children.
+  /**
+   * Finds EVERY element that holds a piece of the message's rendered content.
+   * The stamped element is the message wrapper (a turn_/userMessageContainer block); an assistant OUTPUT turn can render its reply as SEVERAL SEPARATE markdown/prose sub-containers (e.g. prose interleaved with tool-call chips, or a long streamed reply split across multiple markdown blocks) — a single "return the first one found" used to silently drop every other block, which is why Copy as Markdown/HTML only ever copied one paragraph.
+   * So this now returns ALL qualifying, non-nested candidates in DOCUMENT ORDER, not just one.
+   * CRITICAL: a live \`turn_…\` OUTPUT wrapper NESTS the user prompt bubble (\`userMessageContainer_…\`, which has its OWN \`messageContent\`) BEFORE the assistant response's \`markdown\` container(s).
+   * A naive querySelector returns that nested user content first — so "Copy" copied the USER message instead of the OUTPUT.
+   * So we (a) collect ALL candidate containers, (b) SKIP any that live inside a \`userMessageContainer\` subtree (unless msgEl itself is that user bubble), (c) SKIP any tool-call/tool-result chip, (d) prefer \`markdown\`/\`prose\` containers (the response) over a generic \`messageContent\`/\`content\` one when BOTH kinds are present, and (e) drop any candidate that is an ANCESTOR of another kept candidate, so a message never counts once as a whole AND again via its own children.
+   * @param {Element} msgEl - the stamped message wrapper element.
+   * @returns {Element[]} every qualifying, non-nested content-root element, in document order.
+   */
   function contentRoots(msgEl) {
     var selfIsUser = isUserMessage(msgEl);
     var cands = msgEl.querySelectorAll
@@ -71,28 +62,23 @@ const JS = `
     for (var i = 0; i < cands.length; i++) {
       var c = cands[i];
       if (!c.textContent || !c.textContent.trim().length) continue; // skip empty shells
-      // Skip a candidate that sits inside a NESTED user bubble (when the message
-      // itself is NOT a user message) — that is the prompt, not the response.
+      // Skip a candidate that sits inside a NESTED user bubble (when the message itself is NOT a user message) — that is the prompt, not the response.
       if (!selfIsUser) {
         try {
           var inUser = c.closest && c.closest('[class*="userMessageContainer"],[class*="userMessage"]');
           if (inUser && inUser !== msgEl && msgEl.contains(inUser)) continue;
         } catch (e) {}
       }
-      // Skip any candidate that IS, or lives INSIDE, a tool-call/tool-result chip —
-      // its text is a collapsed SUMMARY label ("49 lines of output", "Added 12 lines",
-      // "Write failed"), never the assistant's prose.
+      // Skip any candidate that IS, or lives INSIDE, a tool-call/tool-result chip — its text is a collapsed SUMMARY label ("49 lines of output", "Added 12 lines", "Write failed"), never the assistant's prose.
       if (isInToolBlock(c)) continue;
       var cn = (c.getAttribute && c.getAttribute("class")) || "";
       var isProse = /markdown|prose/i.test(cn);
       (isProse ? prose : generic).push(c);
     }
-    // Prefer the markdown/prose set when it has anything; fall back to the
-    // generic messageContent/content set only when NO prose candidate exists.
+    // Prefer the markdown/prose set when it has anything; fall back to the generic messageContent/content set only when NO prose candidate exists.
     var kept = prose.length ? prose : generic;
     if (!kept.length) return [msgEl];
-    // Drop any candidate that is an ancestor of another kept candidate (keep only
-    // the innermost/outermost-non-overlapping set so nothing is double-counted).
+    // Drop any candidate that is an ancestor of another kept candidate (keep only the innermost/outermost-non-overlapping set so nothing is double-counted).
     var out = [];
     for (var k = 0; k < kept.length; k++) {
       var el = kept[k];
@@ -102,23 +88,28 @@ const JS = `
       }
       if (!isAncestorOfAnother) out.push(el);
     }
-    // Sort into document order (querySelectorAll already returns document order,
-    // but the prose/generic split plus the ancestor-drop above can reorder it).
+    // Sort into document order (querySelectorAll already returns document order, but the prose/generic split plus the ancestor-drop above can reorder it).
     out.sort(function (a, b) {
       try { return (a.compareDocumentPosition(b) & 4) !== 0 ? -1 : 1; } catch (e) { return 0; }
     });
     return out.length ? out : [msgEl];
   }
 
-  // Back-compat single-root accessor for callers that only need ONE anchor
-  // element (e.g. indent measurement) — never used for content extraction.
+  /**
+   * Back-compat single-root accessor for callers that only need ONE anchor element (e.g. indent measurement) — never used for content extraction.
+   * @param {Element} msgEl - the stamped message wrapper element.
+   * @returns {Element} the first content-root element, or msgEl as fallback.
+   */
   function contentRoot(msgEl) {
     var roots = contentRoots(msgEl);
     return roots[0] || msgEl;
   }
 
-  // True if \`el\` is, or lives inside, a tool-call/tool-result chip block (whose
-  // collapsed body is only a summary label, not the assistant's prose).
+  /**
+   * True if \`el\` is, or lives inside, a tool-call/tool-result chip block (whose collapsed body is only a summary label, not the assistant's prose).
+   * @param {Element} el - candidate element to test.
+   * @returns {boolean} true when el is/lives inside a tool block.
+   */
   function isInToolBlock(el) {
     if (!el) return false;
     try {
@@ -138,14 +129,15 @@ const JS = `
       var inner = (clone.innerHTML || "").trim();
       if (inner) parts.push(inner);
     }
-    // Wrap the prose in a full standalone HTML document (<html><body>…</body></html>) so
-    // the clipboard holds a complete document, not a bare fragment.
+    // Wrap the prose in a full standalone HTML document (<html><body>…</body></html>) so the clipboard holds a complete document, not a bare fragment.
     return "<html>\\n<body>\\n" + parts.join("\\n") + "\\n</body>\\n</html>";
   }
 
-  // Remove any of OUR nodes (button groups) AND any tool-call/tool-result chip blocks
-  // from a clone before serializing — so a mixed prose+tool message copies only the
-  // assistant's words, never a "49 lines of output" / "Added 12 lines" summary label.
+  /**
+   * Removes any of OUR nodes (button groups) AND any tool-call/tool-result chip blocks from a clone before serializing — so a mixed prose+tool message copies only the assistant's words, never a "49 lines of output" / "Added 12 lines" summary label.
+   * @param {Node} node - the clone to strip in place.
+   * @returns {void}
+   */
   function stripOwnNodes(node) {
     if (!node.querySelectorAll) return;
     var kill = node.querySelectorAll("." + GROUP_CLASS + "," + TOOL_SELECTOR);
@@ -166,9 +158,13 @@ const JS = `
     return parts.join("\\n\\n").replace(/\\n{3,}/g, "\\n\\n").trim();
   }
 
-  // Minimal, dependency-free DOM→Markdown. Recurses children; block elements get
-  // surrounding newlines, inline elements wrap their text. Unknown tags fall back
-  // to their children's Markdown (so structure is preserved, formatting dropped).
+  /**
+   * Minimal, dependency-free DOM→Markdown.
+   * Recurses children; block elements get surrounding newlines, inline elements wrap their text.
+   * Unknown tags fall back to their children's Markdown (so structure is preserved, formatting dropped).
+   * @param {Node} node - DOM node to convert.
+   * @returns {string} the Markdown representation of node and its children.
+   */
   function mdFromNode(node) {
     if (node.nodeType === 3) return node.nodeValue || ""; // text node
     if (node.nodeType !== 1) return ""; // comment / other
@@ -248,7 +244,11 @@ const JS = `
     return s;
   }
 
-  // Minimal GFM table: header row + separator + body rows.
+  /**
+   * Minimal GFM table: header row + separator + body rows.
+   * @param {Element} table - the table element to convert.
+   * @returns {string} the GFM Markdown table text.
+   */
   function tableMd(table) {
     var rows = table.querySelectorAll ? table.querySelectorAll("tr") : [];
     if (!rows.length) return "";
@@ -281,8 +281,13 @@ const JS = `
     legacyCopy(text, done);
   }
 
-  // Fallback for webviews where navigator.clipboard is blocked: a hidden textarea
-  // + execCommand("copy"). Best-effort; swallows errors.
+  /**
+   * Fallback for webviews where navigator.clipboard is blocked: a hidden textarea + execCommand("copy").
+   * Best-effort; swallows errors.
+   * @param {string} text - text to copy.
+   * @param {Function} [done] - optional callback invoked after the copy attempt.
+   * @returns {void}
+   */
   function legacyCopy(text, done) {
     try {
       var ta = D.createElement("textarea");
@@ -308,7 +313,11 @@ const JS = `
   var SVG_CHECK =
     '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
 
-  // Brief "copied" feedback: swap the copy icon to a green check, then restore.
+  /**
+   * Brief "copied" feedback: swap the copy icon to a green check, then restore.
+   * @param {Element} btn - the button to flash.
+   * @returns {void}
+   */
   function flash(btn) {
     if (!btn) return;
     var prevSvg = btn.innerHTML;
@@ -321,8 +330,14 @@ const JS = `
   }
 
   // --- button group ----------------------------------------------------------
-  // An ICON button: the SVG is the content; the full text lives in title/aria-label
-  // (hover tooltip + accessibility). No visible word.
+  /**
+   * An ICON button: the SVG is the content; the full text lives in title/aria-label (hover tooltip + accessibility).
+   * No visible word.
+   * @param {string} label - accessible label (title/aria-label/data-cc-label).
+   * @param {string} svg - inline SVG markup for the button's content.
+   * @param {Function} onClick - click handler, invoked with the button element.
+   * @returns {Element} the created button element.
+   */
   function makeButton(label, svg, onClick) {
     var b = D.createElement("button");
     b.type = "button";
@@ -339,8 +354,10 @@ const JS = `
     return b;
   }
 
-  // Per-message captured timestamp, remembered so the displayed stamp never shifts
-  // when React re-renders the subtree. Keyed by the message element.
+  /*
+   * Per-message captured timestamp, remembered so the displayed stamp never shifts when React re-renders the subtree.
+   * Keyed by the message element.
+   */
   var _stampAt = (typeof WeakMap !== "undefined") ? new WeakMap() : null;
 
   function stampFor(msgEl) {
@@ -354,8 +371,11 @@ const JS = `
     return new Date();
   }
 
-  // Build the full "YYYY-MM-DD HH:MM:SS" label (24-hour, with seconds) for a message,
-  // from the message's stable captured Date — NOT from DateTime's locale ::after string.
+  /**
+   * Builds the full "YYYY-MM-DD HH:MM:SS" label (24-hour, with seconds) for a message, from the message's stable captured Date — NOT from DateTime's locale ::after string.
+   * @param {Element} msgEl - the message element to build a label for.
+   * @returns {string} the formatted date+time label.
+   */
   function dateTimeLabel(msgEl) {
     var d = stampFor(msgEl);
     return (
@@ -373,8 +393,7 @@ const JS = `
   }
 
   function attach(msgEl) {
-    // Already has a LIVE group? (React may have stripped a prior one — re-check
-    // the DOM, not just the guard attribute.)
+    // Already has a LIVE group? (React may have stripped a prior one — re-check the DOM, not just the guard attribute.)
     var existing = msgEl.querySelector ? msgEl.querySelector(":scope > ." + GROUP_CLASS) : null;
     if (existing) {
       // Keep the in-group date+time text in sync if DateTime re-stamped a new value.
@@ -389,12 +408,11 @@ const JS = `
     // Stop selection/clicks on the group from bubbling into the message.
     group.addEventListener("mousedown", function (e) { try { e.stopPropagation(); } catch (x) {} });
 
-    // FIRST element of the group is the full DATE + TIME (e.g. "2026-07-01 13:38:57"):
-    // a YYYY-MM-DD HH:MM:SS 24-hour timestamp built from the message's own stable
-    // captured Date (stored in a WeakMap, so it never shifts on re-render) — NOT from
-    // DateTime's locale ::after string. The date+time + buttons live in ONE flex row,
-    // always visible. We then hide DateTime's own ::after time for THIS message (via
-    // data-cc-copy-hastime) so it isn't shown twice.
+    /*
+     * FIRST element of the group is the full DATE + TIME (e.g. "2026-07-01 13:38:57"): a YYYY-MM-DD HH:MM:SS 24-hour timestamp built from the message's own stable captured Date (stored in a WeakMap, so it never shifts on re-render) — NOT from DateTime's locale ::after string.
+     * The date+time + buttons live in ONE flex row, always visible.
+     * We then hide DateTime's own ::after time for THIS message (via data-cc-copy-hastime) so it isn't shown twice.
+     */
     var timeLbl = D.createElement("span");
     timeLbl.className = TIME_LABEL_CLASS;
     timeLbl.textContent = dateTimeLabel(msgEl);
@@ -407,21 +425,21 @@ const JS = `
     group.appendChild(mdBtn);
     group.appendChild(htmlBtn);
 
-    // NO prev/next navigation buttons here — message navigation is the toolbar UserNav's
-    // job. The row holds only the date+time label and the two copy buttons.
+    /*
+     * NO prev/next navigation buttons here — message navigation is the toolbar UserNav's job.
+     * The row holds only the date+time label and the two copy buttons.
+     */
 
-    // Append as the message's LAST child; the group carries its own time label, so
-    // time + buttons render together as one inline row at the message's end.
+    // Append as the message's LAST child; the group carries its own time label, so time + buttons render together as one inline row at the message's end.
     msgEl.setAttribute(ATTACHED_ATTR, "1");
     msgEl.setAttribute(HASTIME_ATTR, "1"); // CSS hides DateTime's ::after for this msg
     msgEl.appendChild(group);
-    // ALIGN the row's left edge with the message's PROSE content, not the outer turn
-    // wrapper. msgEl is the DateTime-stamped outermost element (the turn), which is less
-    // indented than the actual response text, so the timestamp would otherwise sit
-    // outdented in the left gutter. Measure the real indent = prose-left − msgEl-left
-    // and pad the group by it, so the timestamp starts in the same column as the text.
-    // Measured once at creation (read-only rects; the group is idempotent so this never
-    // re-runs on an already-attached message → no observer churn).
+    /*
+     * ALIGN the row's left edge with the message's PROSE content, not the outer turn wrapper.
+     * msgEl is the DateTime-stamped outermost element (the turn), which is less indented than the actual response text, so the timestamp would otherwise sit outdented in the left gutter.
+     * Measure the real indent = prose-left − msgEl-left and pad the group by it, so the timestamp starts in the same column as the text.
+     * Measured once at creation (read-only rects; the group is idempotent so this never re-runs on an already-attached message → no observer churn).
+     */
     try {
       var proseEl = contentRoot(msgEl);
       if (proseEl && proseEl !== msgEl && msgEl.getBoundingClientRect && proseEl.getBoundingClientRect) {
@@ -448,19 +466,20 @@ const JS = `
   }
 
   // --- message navigation (context-aware: user OR output) --------------------
-  // Is this stamped element a USER message? (used to pick the nav kind + label).
+  /**
+   * Is this stamped element a USER message? (used to pick the nav kind + label).
+   * @param {Element} el - candidate stamped element to test.
+   * @returns {boolean} true when el is a user message.
+   */
   function isUserMessage(el) {
-    // Classify by the element's OWN identity, never by what it CONTAINS. A live
-    // \`turn_…\` OUTPUT wrapper contains BOTH the user prompt bubble
-    // (\`userMessageContainer_…\`) and the assistant response, so a descendant
-    // \`querySelector('[class*="userMessage"]')\` test wrongly marks every output turn
-    // as a user message — which skipped them all and attached zero copy groups
-    // (proven live: stampedTimeAttr=13, copyGroups=0). So we test ONLY the element's
-    // own class (and an explicit user-bubble ancestor), NOT its descendants.
+    /*
+     * Classify by the element's OWN identity, never by what it CONTAINS.
+     * A live \`turn_…\` OUTPUT wrapper contains BOTH the user prompt bubble (\`userMessageContainer_…\`) and the assistant response, so a descendant \`querySelector('[class*="userMessage"]')\` test wrongly marks every output turn as a user message — which skipped them all and attached zero copy groups (proven live: stampedTimeAttr=13, copyGroups=0).
+     * So we test ONLY the element's own class (and an explicit user-bubble ancestor), NOT its descendants.
+     */
     var cn = (el.getAttribute && el.getAttribute("class")) || "";
     if (/userMessage/i.test(cn)) return true;
-    // An explicit user-bubble ancestor (the element sits INSIDE a user bubble) — but
-    // a \`turn_\` wrapper is NOT inside a user bubble, so this stays correct for output.
+    // An explicit user-bubble ancestor (the element sits INSIDE a user bubble) — but a \`turn_\` wrapper is NOT inside a user bubble, so this stays correct for output.
     try {
       var anc = el.closest && el.closest('[class*="userMessage"]');
       if (anc && anc !== el) return true;
@@ -468,10 +487,12 @@ const JS = `
     return false;
   }
 
-  // Collect, in document order, the OUTERMOST stamped messages of the given kind
-  // ("user" or "output"). We anchor on the same [data-cc-dt-time] elements the
-  // group attaches to, classify each by isUserMessage, drop the composer, and
-  // keep only outermost matches so a bubble counts once.
+  /**
+   * Collects, in document order, the OUTERMOST stamped messages of the given kind ("user" or "output").
+   * We anchor on the same [data-cc-dt-time] elements the group attaches to, classify each by isUserMessage, drop the composer, and keep only outermost matches so a bubble counts once.
+   * @param {string} kind - "user" or "output".
+   * @returns {Element[]} the outermost stamped messages of the given kind, in document order.
+   */
   function messageBubbles(kind) {
     var stamped = D.querySelectorAll ? D.querySelectorAll("[" + TIME_ATTR + "]") : [];
     var all = [];
@@ -493,7 +514,12 @@ const JS = `
     return out;
   }
 
-  // Document-order position comparison: returns true if a comes before b.
+  /**
+   * Document-order position comparison: returns true if a comes before b.
+   * @param {Node} a - candidate earlier node.
+   * @param {Node} b - candidate later node.
+   * @returns {boolean} true when a comes before b in document order.
+   */
   function isBefore(a, b) {
     try {
       // Node.DOCUMENT_POSITION_FOLLOWING (4) => b follows a => a is before b.
@@ -512,24 +538,23 @@ const JS = `
       // Skip the composer/input guard classes (same exclusions DateTime uses).
       var cn = (el.getAttribute && el.getAttribute("class")) || "";
       if (/messageInput|messagesContainer|messageGradient|fullEditor/i.test(cn)) continue;
-      // Controls belong ONLY on assistant OUTPUT messages — never on a user prompt.
-      // A user message gets no date+time label and no copy/nav buttons.
+      // Controls belong ONLY on assistant OUTPUT messages — never on a user prompt. A user message gets no date+time label and no copy/nav buttons.
       if (isUserMessage(el)) continue;
       attach(el);
       found++;
     }
-    // AskUserQuestion safety net: when an output message is immediately followed by
-    // an AskUserQuestion block, also place the controls at the END of that output
-    // (before the question). The question can be interrupted (its X), which would
-    // otherwise leave that output with no controls — this guarantees they are there.
+    /*
+     * AskUserQuestion safety net: when an output message is immediately followed by an AskUserQuestion block, also place the controls at the END of that output (before the question).
+     * The question can be interrupted (its X), which would otherwise leave that output with no controls — this guarantees they are there.
+     */
     try { attachBeforeAskQuestion(); } catch (e) {}
     warnIfBlind(found > 0);
   }
 
-  // Find AskUserQuestion blocks and ensure the OUTPUT message that precedes each one
-  // carries the controls. The question card is recognized by the AskQuestion
-  // feature's markers (data-cc-md / a question/option container) or an "askuser"
-  // class; we walk back to the nearest stamped output message and attach to it.
+  /*
+   * Finds AskUserQuestion blocks and ensures the OUTPUT message that precedes each one carries the controls.
+   * The question card is recognized by the AskQuestion feature's markers (data-cc-md / a question/option container) or an "askuser" class; we walk back to the nearest stamped output message and attach to it.
+   */
   function attachBeforeAskQuestion() {
     if (!D.querySelectorAll) return;
     var cards = D.querySelectorAll(
@@ -541,8 +566,11 @@ const JS = `
     }
   }
 
-  // The nearest stamped OUTPUT (non-user, non-composer) message that comes before
-  // \`node\` in document order — the output an AskUserQuestion was emitted at the end of.
+  /**
+   * The nearest stamped OUTPUT (non-user, non-composer) message that comes before \`node\` in document order — the output an AskUserQuestion was emitted at the end of.
+   * @param {Node} node - reference node (the AskUserQuestion card) to search before.
+   * @returns {Element|null} the preceding output message element, or null when none exists.
+   */
   function precedingOutput(node) {
     var outs = messageBubbles("output");
     var best = null;
@@ -562,25 +590,28 @@ const JS = `
     }, 140);
   }
 
-  // init(doc, win) — bootstrap hands us the chat document; bind + observe it.
+  /**
+   * bootstrap hands us the chat document; bind + observe it.
+   * @param {Document} doc - the chat document.
+   * @param {Window} [win] - the chat window (defaults to window).
+   * @returns {void}
+   */
   function init(doc, win) {
     D = doc;
     W = win || window;
     try { run(); } catch (e) {}
     try {
-      // Expose the pure content-extraction builders so OTHER features (e.g.
-      // MultiSelect's batch-copy) can reuse the exact same markdownOf()/htmlOf()
-      // a single message's own Copy buttons use, rather than re-deriving
-      // DOM->text logic independently and risking the two disagreeing on what
-      // "a message's content" means.
+      /*
+       * Expose the pure content-extraction builders so OTHER features (e.g. MultiSelect's batch-copy) can reuse the exact same markdownOf()/htmlOf() a single message's own Copy buttons use, rather than re-deriving DOM->text logic independently and risking the two disagreeing on what "a message's content" means.
+       */
       W.__ccCopyButtons = { markdownOf: markdownOf, htmlOf: htmlOf, contentRoots: contentRoots };
     } catch (e) {}
     try {
-      // Route the body observer through the shared self-churn-guarded helper so our
-      // OWN group/text-node writes never reschedule the sweep (the webview-freeze
-      // class). __ccObserve debounces internally, so the local \`schedule\` timer is
-      // no longer needed to feed it. Defensive fallback: the old raw observer only
-      // when the bootstrap helper is somehow absent.
+      /*
+       * Route the body observer through the shared self-churn-guarded helper so our OWN group/text-node writes never reschedule the sweep (the webview-freeze class).
+       * __ccObserve debounces internally, so the local \`schedule\` timer is no longer needed to feed it.
+       * Defensive fallback: the old raw observer only when the bootstrap helper is somehow absent.
+       */
       if (W.__ccObserve) {
         W.__ccObserve(D.body, run, { ownClass: GROUP_CLASS, ownAttrPrefix: "data-cc-copy" });
       } else {
@@ -591,11 +622,12 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand
-  // off now; otherwise queue onto window.__ccPending — the bootstrap drains it the
-  // moment it installs (it is injected too, so it WILL load). A last-resort timer
-  // covers the impossible case where no bootstrap ever appears, running once
-  // against the current document (the chat DOM lives in THIS document).
+  /**
+   * Order-independent registration: if the bootstrap is already installed, hand off now; otherwise queue onto window.__ccPending — the bootstrap drains it the moment it installs (it is injected too, so it WILL load).
+   * A last-resort timer covers the impossible case where no bootstrap ever appears, running once against the current document (the chat DOM lives in THIS document).
+   * @param {Function} fn - the init function to register.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -612,19 +644,17 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* Per-message "Copy as Markdown" / "Copy as HTML" buttons, injected alongside
-   the CopyButtons feature JS.
+/*
+   Per-message "Copy as Markdown" / "Copy as HTML" buttons, injected alongside the CopyButtons feature JS.
 
-   The JS appends ONE inline-flex group at the end of each stamped message that
-   holds, in order: the TIME text (read from DateTime's data-cc-dt-time value),
-   then the two buttons. So the time and both buttons render together on ONE line,
-   to the right, and are ALWAYS visible (no hover gating). DateTime's own ::after
-   time for that message is hidden (data-cc-copy-hastime) so the time isn't shown
-   twice. */
+   The JS appends ONE inline-flex group at the end of each stamped message that holds, in order: the TIME text (read from DateTime's data-cc-dt-time value), then the two buttons.
+   So the time and both buttons render together on ONE line, to the right, and are ALWAYS visible (no hover gating).
+   DateTime's own ::after time for that message is hidden (data-cc-copy-hastime) so the time isn't shown twice.
+*/
 
-/* Make the stamped message a flex column and push our group to the very BOTTOM
-   (order:9999), on its own full-width row UNDER the message content — so the
-   date+time + buttons sit beneath the message, not above it. */
+/*
+ * Make the stamped message a flex column and push our group to the very BOTTOM (order:9999), on its own full-width row UNDER the message content — so the date+time + buttons sit beneath the message, not above it.
+ */
 [data-cc-copy-attached] {
   display: flex !important;
   flex-direction: column;
@@ -637,8 +667,7 @@ const CSS = `
   gap: 6px;
   align-items: center;
   width: 100%;
-  /* Clear top margin so the controls are NOT glued to the user-message bubble that
-     precedes the output — plus a little bottom breathing room before the next turn. */
+  /* Clear top margin so the controls are NOT glued to the user-message bubble that precedes the output — plus a little bottom breathing room before the next turn. */
   margin-top: 14px;
   margin-bottom: 8px;
   user-select: none;
@@ -655,15 +684,15 @@ const CSS = `
   margin-inline-end: 2px;
 }
 
-/* Hide DateTime's own ::after time on any message we took over, so the time is
-   not rendered twice (once by DateTime, once inside our group). */
+/* Hide DateTime's own ::after time on any message we took over, so the time is not rendered twice (once by DateTime, once inside our group). */
 [data-cc-copy-hastime][data-cc-dt-time]::after {
   content: none !important;
 }
 
-/* Small SQUARE ICON buttons: the SVG is the content (no text). A soft tinted
-   chip by default with an accent-colored icon; on hover it fills with the accent
-   and the icon goes white. */
+/*
+   Small SQUARE ICON buttons: the SVG is the content (no text).
+   A soft tinted chip by default with an accent-colored icon; on hover it fills with the accent and the icon goes white.
+*/
 .cc-copy-btn {
   display: inline-flex;
   align-items: center;
@@ -707,8 +736,10 @@ const CSS = `
   border-color: var(--vscode-testing-iconPassed, #3fb950) !important;
 }
 
-/* Transient highlight on a user message we navigated to (Previous/Next). A soft
-   pulse that fades; removed by the JS after ~1s. */
+/*
+   Transient highlight on a user message we navigated to (Previous/Next).
+   A soft pulse that fades; removed by the JS after ~1s.
+*/
 .cc-nav-flash {
   animation: cc-nav-pulse 1s ease-out 1;
   border-radius: 8px;
@@ -725,8 +756,7 @@ const CSS = `
   }
 }
 
-/* Never render the group on the prompt composer / scroll container, even if a
-   stale data-cc-copy-attached lingers there from an earlier build. */
+/* Never render the group on the prompt composer / scroll container, even if a stale data-cc-copy-attached lingers there from an earlier build. */
 [data-cc-copy-attached][class*="messageInput"] > .cc-copy-group,
 [data-cc-copy-attached][class*="messagesContainer"] > .cc-copy-group,
 [data-cc-copy-attached][class*="messageGradient"] > .cc-copy-group,

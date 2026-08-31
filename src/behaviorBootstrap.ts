@@ -1,18 +1,11 @@
-// Shared runtime injected once into the chat webview (extension.js) to host every
-// chat-enhancement feature (Reply, Search, DateTime, ... — see behaviorFeatures.ts).
-// Unlike this extension's own PATCH_POINTS/TOGGLE_POINTS/INJECT_POINTS (which all
-// swap an EXISTING hardcoded value already present in the bundle), these features add
-// NEW behavior that doesn't exist in the stock bundle at all, so they ride as one
-// marker-tagged <script>/<style> block (see behaviorInject.ts) rather than a value-slot
-// patch.
-//
-// Unlike the Antigravity IDE build this design was ported from, this webview panel has
-// NO nested `active-frame` iframe: `getHtmlForWebview()`'s own template renders
-// `<div id="root">` directly under `<body>` in the SAME document our injected
-// <script> runs in. So the bootstrap needs no frame-hunting/frame-swap polling — the
-// chat DOM to observe is just `document`. window.__ccOnChatDoc(fn) still exists (so
-// every feature keeps the same registration call), but it resolves synchronously
-// against `document`/`window` and re-fires once chat content appears.
+/*
+   Shared runtime injected once into the chat webview (extension.js) to host every chat-enhancement feature (Reply, Search, DateTime, ... — see behaviorFeatures.ts).
+   Unlike this extension's own PATCH_POINTS/TOGGLE_POINTS/INJECT_POINTS (which all swap an EXISTING hardcoded value already present in the bundle), these features add NEW behavior that doesn't exist in the stock bundle at all, so they ride as one marker-tagged <script>/<style> block (see behaviorInject.ts) rather than a value-slot patch.
+
+   Unlike the Antigravity IDE build this design was ported from, this webview panel has NO nested `active-frame` iframe: `getHtmlForWebview()`'s own template renders `<div id="root">` directly under `<body>` in the SAME document our injected <script> runs in.
+   So the bootstrap needs no frame-hunting/frame-swap polling — the chat DOM to observe is just `document`.
+   window.__ccOnChatDoc(fn) still exists (so every feature keeps the same registration call), but it resolves synchronously against `document`/`window` and re-fires once chat content appears.
+*/
 export const BOOTSTRAP_SOURCE = `
 (function () {
   "use strict";
@@ -57,25 +50,14 @@ export const BOOTSTRAP_SOURCE = `
   // HARNESS NOTIFICATION HIDING — <task-notification>/<task-id>/<tool-use-id>/
   // <system-notification>/<system-reminder> blocks
   // ===================================================================
-  // The harness (Claude Code itself) occasionally renders one of these blocks
-  // VERBATIM as raw angle-bracket tag text inside a userMessageContainer (e.g.
-  // a background Task/subagent's completion notice: "<task-notification>
-  // <task-id>...</task-id> <tool-use-id>...</tool-use-id> ...", collapsed
-  // behind a "Show more" toggle). This is internal/system bookkeeping, not
-  // content meant for the user to read as raw XML — hide the whole container,
-  // not just skip styling it as a user bubble (see behaviorFeatures.userstyle's
-  // NOTIFICATION_RE, which this mirrors for the "don't bubble-ize it" half).
-  // ALWAYS ON — rides with the bootstrap itself, no per-feature toggle, since a
-  // stray raw-XML block is never something a user would want left visible.
-  //
-  // NOT anchored to the very start of textContent (no leading ^): a "Show
-  // more"/"Show less" toggle button, a role/avatar label, or any other small
-  // leading UI text sharing the same container pushes the real tag text past
-  // position 0, silently defeating a ^-anchored match (confirmed live: a
-  // real notification stayed visible despite this hider being correctly
-  // injected and running). Matching anywhere in the first ~200 chars is
-  // still specific enough to avoid a false positive on unrelated prose that
-  // merely quotes one of these tag names deep in a long message.
+  /*
+     The harness (Claude Code itself) occasionally renders one of these blocks VERBATIM as raw angle-bracket tag text inside a userMessageContainer (e.g. a background Task/subagent's completion notice: "<task-notification> <task-id>...</task-id> <tool-use-id>...</tool-use-id> ...", collapsed behind a "Show more" toggle).
+     This is internal/system bookkeeping, not content meant for the user to read as raw XML — hide the whole container, not just skip styling it as a user bubble (see behaviorFeatures.userstyle's NOTIFICATION_RE, which this mirrors for the "don't bubble-ize it" half).
+     ALWAYS ON — rides with the bootstrap itself, no per-feature toggle, since a stray raw-XML block is never something a user would want left visible.
+
+     NOT anchored to the very start of textContent (no leading ^): a "Show more"/"Show less" toggle button, a role/avatar label, or any other small leading UI text sharing the same container pushes the real tag text past position 0, silently defeating a ^-anchored match (confirmed live: a real notification stayed visible despite this hider being correctly injected and running).
+     Matching anywhere in the first ~200 chars is still specific enough to avoid a false positive on unrelated prose that merely quotes one of these tag names deep in a long message.
+  */
   var NOTIFICATION_RE = /<\s*(?:task-notification|task-id|tool-use-id|output-file|system-notification|system-reminder)\b/i;
   var NOTIFICATION_HIDE_ATTR = "data-cc-notif-hidden";
   var NOTIFICATION_CONTAINER_SELECTORS =
@@ -86,17 +68,11 @@ export const BOOTSTRAP_SOURCE = `
   function hideNotificationBlocks(doc) {
     try {
       var nodeList = doc.querySelectorAll(NOTIFICATION_CONTAINER_SELECTORS);
-      // Membership set of the QUERIED candidates only — an ancestor's own
-      // textContent naturally CONCATENATES every descendant's text, so an
-      // ancestor outside this set (e.g. the outer message-list container)
-      // can spuriously "start with" the notification tag whenever the
-      // notification happens to be its first child. Deferring to such an
-      // ancestor would wrongly skip the real notification container forever
-      // (caught live: a fixture where the notification wasn't the LAST
-      // sibling reproduced exactly this false negative). Only an ancestor
-      // that is ITSELF one of the queried candidates can legitimately be
-      // "the outermost match" — mirrors behaviorFeatures.userstyle.ts's own
-      // set.has(p) outermost-only filter.
+      /*
+         Membership set of the QUERIED candidates only — an ancestor's own textContent naturally CONCATENATES every descendant's text, so an ancestor outside this set (e.g. the outer message-list container) can spuriously "start with" the notification tag whenever the notification happens to be its first child.
+         Deferring to such an ancestor would wrongly skip the real notification container forever (caught live: a fixture where the notification wasn't the LAST sibling reproduced exactly this false negative).
+         Only an ancestor that is ITSELF one of the queried candidates can legitimately be "the outermost match" — mirrors behaviorFeatures.userstyle.ts's own set.has(p) outermost-only filter.
+      */
       var matched = [];
       for (var n = 0; n < nodeList.length; n++) {
         var cand = nodeList[n];
@@ -141,11 +117,14 @@ export const BOOTSTRAP_SOURCE = `
   // ===================================================================
   // SHARED SELF-CHURN-GUARDED OBSERVER — window.__ccObserve
   // ===================================================================
-  // The ONE observer helper every DOM feature must use instead of hand-rolling
-  // \`new MutationObserver\`. Debounced (~150ms) and drops any mutation batch that is
-  // ENTIRELY the feature's own churn (its own tagged elements/attrs/text), so a
-  // feature that idempotently re-marks its own nodes every sweep can never
-  // self-feed into a runaway observer loop.
+  /**
+   * The ONE observer helper every DOM feature must use instead of hand-rolling \`new MutationObserver\`.
+   * Debounced (~150ms) and drops any mutation batch that is ENTIRELY the feature's own churn (its own tagged elements/attrs/text), so a feature that idempotently re-marks its own nodes every sweep can never self-feed into a runaway observer loop.
+   * @param {Element} root - root node to observe.
+   * @param {Function} onSweep - callback invoked on a real (non-self-churn) mutation batch.
+   * @param {{ownClass?: string, ownAttrPrefix?: string, debounceMs?: number}} [opts] - self-churn/debounce config.
+   * @returns {MutationObserver|null} the created observer, or null if observation failed.
+   */
   window.__ccObserve = function (root, onSweep, opts) {
     if (!root || typeof onSweep !== "function") return null;
     opts = opts || {};
@@ -235,10 +214,10 @@ export const BOOTSTRAP_SOURCE = `
   // ===================================================================
   // SHARED FEATURE TOGGLE — window.__ccFeature(id) / __ccSetFeature(id, on)
   // ===================================================================
-  // Runtime on/off per feature, persisted in localStorage (a JSON id->bool map; a
-  // feature with no entry defaults to ON). Central enforcement (FOOTPRINT below)
-  // means most features never call __ccFeature themselves — a disabled feature's
-  // DOM footprint is CSS-hidden/neutralized by a single rebuilt <style> node.
+  /*
+     Runtime on/off per feature, persisted in localStorage (a JSON id->bool map; a feature with no entry defaults to ON).
+     Central enforcement (FOOTPRINT below) means most features never call __ccFeature themselves — a disabled feature's DOM footprint is CSS-hidden/neutralized by a single rebuilt <style> node.
+  */
   var TOGGLE_KEY = "cc-feature-toggles";
   function readToggleMap() {
     try {
@@ -324,10 +303,10 @@ export const BOOTSTRAP_SOURCE = `
 })();
 `.trim();
 
-// Design tokens + shared control base, mirrored from the CSS the bootstrap's JS
-// counterpart above assumes exists (\`.cc-btn\`, \`--cc-*\` custom properties, the
-// focus ring for every \`cc-*\` control). Every feature stylesheet block is appended
-// after this one so it can consume these tokens.
+/*
+   Design tokens + shared control base, mirrored from the CSS the bootstrap's JS counterpart above assumes exists (\`.cc-btn\`, \`--cc-*\` custom properties, the focus ring for every \`cc-*\` control).
+   Every feature stylesheet block is appended after this one so it can consume these tokens.
+*/
 export const BOOTSTRAP_CSS = `
 :root {
   --cc-accent: var(--vscode-button-background, #0e639c);

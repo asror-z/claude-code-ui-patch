@@ -1,38 +1,19 @@
-// Chat Faro Logging feature — ships structured diagnostics from every OTHER
-// chat-enhancement feature (and, monkey-patched, the raw console) to Grafana Cloud
-// Frontend Observability via the official @grafana/faro-web-sdk, loaded from the
-// unpkg CDN as a classic IIFE bundle (Grafana's own documented browser snippet) —
-// a plain <script src> + onload, no bundler, no dynamic import().
-//
-// WHY FARO (not a direct Loki push): Grafana Cloud's Loki push endpoint does not
-// answer the browser's CORS preflight, so a webview fetch() can never reach it
-// directly. The Faro Collector is purpose-built to receive telemetry straight
-// from a browser/webview and answers CORS for the configured app/domain.
-//
-// SECRETS: none. The Faro "app key" (the collector URL's path segment) is a
-// public write-only ingest identifier — safe to embed in client-side code,
-// unlike a Loki Basic-auth token. Stamped here from the smarts-logging-grafana
-// skill's central config (its .env FARO_* values), via that skill's own
-// `action=apply arch=skill` — re-run that skill (never hand-edit the two
-// constants below) if the collector URL/app name ever needs to change.
-//
-// PER-FEATURE GATING (this is the whole point of this feature existing as its
-// own toggleable row, not a silent always-on infra script): every OTHER feature
-// that wants to log calls window.__ccFaroLog(channel, fields, level, callerModule).
-// __ccFaroLog checks BOTH:
-//   1. THIS feature's own on/off switch — window.__ccFeature("faro"). Unchecking
-//      "Logging (console + Grafana Loki)" in the panel makes ALL logging (from
-//      every feature, and the wrapped console.*) truly silent everywhere — no
-//      console line, no Faro push — with no reload.
-//   2. The CALLING feature's own on/off switch — window.__ccFeature(callerModule).
-//      A caller passes its own module id (e.g. draftsave, autocontinue) as the
-//      4th arg; if THAT feature is toggled off, its records are dropped even
-//      while Faro itself stays on. This is the literal requirement: "qaysi
-//      feature yoqilgan bo'lsa - o'sha feature log yozadi, o'chirilgan bo'lsa
-//      yozmaydi" (whichever feature is ON logs; OFF ones don't) — checked
-//      per-record here so no caller has to re-implement the same test itself.
-// A caller with NO module id (raw console.* calls, wrapped below) is gated by
-// switch 1 only — there is no "which feature" to check for a bare console.log.
+/*
+   Chat Faro Logging feature — ships structured diagnostics from every OTHER chat-enhancement feature (and, monkey-patched, the raw console) to Grafana Cloud Frontend Observability via the official @grafana/faro-web-sdk, loaded from the unpkg CDN as a classic IIFE bundle (Grafana's own documented browser snippet) — a plain <script src> + onload, no bundler, no dynamic import().
+
+   WHY FARO (not a direct Loki push): Grafana Cloud's Loki push endpoint does not answer the browser's CORS preflight, so a webview fetch() can never reach it directly.
+   The Faro Collector is purpose-built to receive telemetry straight from a browser/webview and answers CORS for the configured app/domain.
+
+   SECRETS: none.
+   The Faro "app key" (the collector URL's path segment) is a public write-only ingest identifier — safe to embed in client-side code, unlike a Loki Basic-auth token.
+   Stamped here from the smarts-logging-grafana skill's central config (its .env FARO_* values), via that skill's own `action=apply arch=skill` — re-run that skill (never hand-edit the two constants below) if the collector URL/app name ever needs to change.
+
+   PER-FEATURE GATING (this is the whole point of this feature existing as its own toggleable row, not a silent always-on infra script): every OTHER feature that wants to log calls window.__ccFaroLog(channel, fields, level, callerModule).
+   __ccFaroLog checks BOTH:
+     1. THIS feature's own on/off switch — window.__ccFeature("faro"). Unchecking "Logging (console + Grafana Loki)" in the panel makes ALL logging (from every feature, and the wrapped console.*) truly silent everywhere — no console line, no Faro push — with no reload.
+     2. The CALLING feature's own on/off switch — window.__ccFeature(callerModule). A caller passes its own module id (e.g. draftsave, autocontinue) as the 4th arg; if THAT feature is toggled off, its records are dropped even while Faro itself stays on. This is the literal requirement: "qaysi feature yoqilgan bo'lsa - o'sha feature log yozadi, o'chirilgan bo'lsa yozmaydi" (whichever feature is ON logs; OFF ones don't) — checked per-record here so no caller has to re-implement the same test itself.
+   A caller with NO module id (raw console.* calls, wrapped below) is gated by switch 1 only — there is no "which feature" to check for a bare console.log.
+*/
 import { registerFeature } from "./behaviorFeatures";
 
 const JS = `
@@ -56,7 +37,11 @@ const JS = `
   }
 
   // ----- per-caller gate: the CALLING feature's own panel checkbox -------------
-  // No module id supplied (bare console.* wrap) -> gated by faroFeatureOn() alone.
+  /**
+   * No module id supplied (bare console.* wrap) -> gated by faroFeatureOn() alone.
+   * @param {string} [mod] - the calling feature's own module id.
+   * @returns {boolean} true when the calling feature is allowed to log.
+   */
   function callerOn(mod) {
     if (!mod) return true;
     try { return window.__ccFeature ? window.__ccFeature(mod) !== false : true; } catch (e) { return true; }
@@ -75,15 +60,12 @@ const JS = `
   }
   window.__ccFaroStatus = status;
 
-  // The chat webview's CSP is script-src nonce-only (no unsafe-inline, no host
-  // allowlist), so a dynamically-created script tag pointing at the unpkg CDN
-  // is BLOCKED unless it carries the page's live nonce — a real incident: the
-  // Faro SDK CDN load failed every time with a CSP violation, so Loki never got
-  // any data. The nonce is read at runtime from an existing nonced script tag
-  // (our own injected block, or Claude Code's index.js module script — both
-  // carry the same live nonce). Setting BOTH the nonce property and the nonce
-  // attribute is required: Chromium clears the reflected attribute after parse,
-  // so the property is the reliable carrier for a script the CSP checks.
+  /**
+   * The chat webview's CSP is script-src nonce-only (no unsafe-inline, no host allowlist), so a dynamically-created script tag pointing at the unpkg CDN is BLOCKED unless it carries the page's live nonce — a real incident: the Faro SDK CDN load failed every time with a CSP violation, so Loki never got any data.
+   * The nonce is read at runtime from an existing nonced script tag (our own injected block, or Claude Code's index.js module script — both carry the same live nonce).
+   * Setting BOTH the nonce property and the nonce attribute is required: Chromium clears the reflected attribute after parse, so the property is the reliable carrier for a script the CSP checks.
+   * @returns {string} the page's live CSP nonce, or "" if none found.
+   */
   function pageNonce() {
     try {
       if (D.currentScript && D.currentScript.nonce) return D.currentScript.nonce;
@@ -112,8 +94,12 @@ const JS = `
     D.head.appendChild(s);
   }
 
-  // The Faro collector requires \`context\` to be a FLAT STRING MAP — a nested
-  // object/array value is rejected. Coerce every value to a string.
+  /**
+   * The Faro collector requires \`context\` to be a FLAT STRING MAP — a nested object/array value is rejected.
+   * Coerces every value to a string.
+   * @param {object} payload - the raw fields object to flatten.
+   * @returns {object} a flat string-valued map safe to pass as Faro log context.
+   */
   function flattenContext(payload) {
     var out = {};
     if (!payload || typeof payload !== "object") return out;
@@ -149,9 +135,15 @@ const JS = `
   var _preReady = [];
   var _MAX_QUEUE = 200;
 
-  // window.__ccFaroLog(channel, fields, level, module) — the shared sink every
-  // OTHER feature calls to log. Exposed BEFORE any early return so a caller
-  // always has a working (if console-only/no-op) sink to call.
+  /**
+   * window.__ccFaroLog(channel, fields, level, module) — the shared sink every OTHER feature calls to log.
+   * Exposed BEFORE any early return so a caller always has a working (if console-only/no-op) sink to call.
+   * @param {string} channel - the log channel/event name.
+   * @param {object} [fields] - structured fields to attach as context.
+   * @param {string} [level] - log level (trace|debug|info|log|warn|error), defaults per channel.
+   * @param {string} [mod] - the calling feature's own module id, for per-caller gating.
+   * @returns {void}
+   */
   function logRecord(channel, fields, level, mod) {
     var payload = fields || {};
     var lvl = level || (channel === "window.onerror" ? "error" : "log");
@@ -300,21 +292,15 @@ const JS = `
     bootFaro();
     logRecord("frame.init", { kind: "frame.init" }, null, "faro");
     try {
-      // Global-error capture, hardened against a self-amplifying flood. A real
-      // incident: Claude Code's OWN bundle (webview/index.js) throws a repeating
-      // "Cannot read properties of undefined (reading 'toUrl')" from its Monaco
-      // web-worker setup (getWorkerUrl/$loadForeignModule) — dozens of times a
-      // second. The prior handler re-logged every one through logRecord ->
-      // console.error, and since console.error is monkey-patched (wrapConsole),
-      // that re-entered the wrapper and spammed the DevTools console into an
-      // unreadable wall, making the (working) features look dead. Three guards:
-      //   1. NEVER route a captured error through logRecord/console.* — push it
-      //      straight to Faro (raw), so it can't re-enter the wrapped console.
-      //   2. De-dupe + rate-limit: drop an identical message seen in the last
-      //      2s, and cap total captured errors to _MAX_ERR so a runaway upstream
-      //      crash can never flood the collector or the console either.
-      //   3. It still records the FIRST occurrence of each distinct error, so a
-      //      genuine one-off is never lost — only the repeat-spam is suppressed.
+      /*
+         Global-error capture, hardened against a self-amplifying flood.
+         A real incident: Claude Code's OWN bundle (webview/index.js) throws a repeating "Cannot read properties of undefined (reading 'toUrl')" from its Monaco web-worker setup (getWorkerUrl/$loadForeignModule) — dozens of times a second.
+         The prior handler re-logged every one through logRecord -> console.error, and since console.error is monkey-patched (wrapConsole), that re-entered the wrapper and spammed the DevTools console into an unreadable wall, making the (working) features look dead.
+         Three guards:
+           1. NEVER route a captured error through logRecord/console.* — push it straight to Faro (raw), so it can't re-enter the wrapped console.
+           2. De-dupe + rate-limit: drop an identical message seen in the last 2s, and cap total captured errors to _MAX_ERR so a runaway upstream crash can never flood the collector or the console either.
+           3. It still records the FIRST occurrence of each distinct error, so a genuine one-off is never lost — only the repeat-spam is suppressed.
+      */
       var _errSeen = {}, _errCount = 0, _MAX_ERR = 50;
       win.addEventListener(
         "error",

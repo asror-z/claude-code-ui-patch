@@ -157,16 +157,21 @@ const JS = `
     }, 120);
   }
 
-  // init(doc, win) — bootstrap hands us the chat document; bind + observe.
+  /**
+   * Bootstrap hands us the chat document; bind + observe.
+   * @param {Document} doc - the chat document.
+   * @param {Window} [win] - the chat window, defaults to window.
+   * @returns {void}
+   */
   function init(doc, win) {
     D = doc;
     W = win || window;
     try { run(); } catch (e) {}
     try {
-      // Route the body observer through the shared self-churn-guarded helper: the
-      // bar (.cc-code-bar) we insert into each <pre> is our own node, so its
-      // childList churn must not reschedule the sweep. __ccObserve owns the
-      // debounce, so \`run\` is the sweep (the local \`schedule\` becomes the fallback).
+      /*
+       * Route the body observer through the shared self-churn-guarded helper: the bar (.cc-code-bar) we insert into each <pre> is our own node, so its childList churn must not reschedule the sweep.
+       * __ccObserve owns the debounce, so \`run\` is the sweep (the local \`schedule\` becomes the fallback).
+       */
       if (W.__ccObserve) {
         var obs = W.__ccObserve(D.body, run, {
           ownClass: BAR_CLASS,          // cc-code-bar
@@ -183,11 +188,14 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand
-  // off now; otherwise queue onto window.__ccPending — the bootstrap drains it the
-  // moment it installs (it is injected too, so it WILL load). A last-resort timer
-  // covers the impossible case where no bootstrap ever appears, running once
-  // against the current document (the chat DOM lives in THIS document).
+  /**
+   * Order-independent registration.
+   * If the bootstrap is already installed, hand off now.
+   * Otherwise queue onto window.__ccPending — the bootstrap drains it the moment it installs (it is injected too, so it WILL load).
+   * A last-resort timer covers the impossible case where no bootstrap ever appears, running once against the current document (the chat DOM lives in THIS document).
+   * @param {Function} fn - the init(doc, win) callback to register.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);

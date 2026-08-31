@@ -1,9 +1,11 @@
-// Shared docked toolbar: a single inline cluster of chip buttons docked into the
-// composer's action-footer row, to the LEFT of the native "Bypass permissions"/send
-// group. Toc, Export, Scroll, UserNav, and FeatureToggle register into it via
-// window.__ccToolbar.add(...) instead of each floating its own button, so every
-// injected action lives in one stable, freeze-proof host (an earlier per-message
-// floating button design self-fed a MutationObserver loop that froze the webview).
+/* Shared docked toolbar: a single inline cluster of chip buttons docked into
+   the composer's action-footer row, to the LEFT of the native "Bypass
+   permissions"/send group.
+   Toc, Export, Scroll, UserNav, and FeatureToggle register into it via
+   window.__ccToolbar.add(...) instead of each floating its own button, so
+   every injected action lives in one stable, freeze-proof host (an earlier
+   per-message floating button design self-fed a MutationObserver loop that
+   froze the webview). */
 export const TOOLBAR_SOURCE = `
 (function () {
   "use strict";

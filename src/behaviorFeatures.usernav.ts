@@ -10,8 +10,10 @@ const JS = `
 
   var NAV_FLASH_CLASS = "cc-nav-flash"; // transient highlight on a navigated-to user msg
 
-  // The user-bubble selector (the REAL prompt bubbles) and the exclusions: the
-  // composer/scroll containers, and the sticky-header DUPLICATE of a bubble.
+  /*
+   * The user-bubble selector (the REAL prompt bubbles) and the exclusions.
+   * Exclusions: the composer/scroll containers, and the sticky-header DUPLICATE of a bubble.
+   */
   var USER_SELECTOR = "[class*='userMessageContainer'],[class*='userMessage']";
   var EXCLUDE_RE = /messageInput|messagesContainer|messageGradient|fullEditor|stickyHeader/i;
 
@@ -19,21 +21,30 @@ const JS = `
   var D = document;
   var W = window;
 
-  // --- icons: single GLYPHS, not SVG strings ---------------------------------
-  // The shared toolbar renders an action's \`icon\` via textContent, so an SVG markup
-  // string would show as raw text. Use plain arrow glyphs, exactly like Scroll's arrows.
+  /*
+   * --- icons: single GLYPHS, not SVG strings ---
+   * The shared toolbar renders an action's \`icon\` via textContent, so an SVG markup string would show as raw text.
+   * Use plain arrow glyphs, exactly like Scroll's arrows.
+   */
   var ICON_UP = "↑";   // Up arrow  Previous user message
   var ICON_DOWN = "↓"; // Down arrow  Next user message
 
   // --- collection ------------------------------------------------------------
-  // True if this element is an excluded non-message container or a sticky-header duplicate.
+  /**
+   * True if this element is an excluded non-message container or a sticky-header duplicate.
+   * @param {Element} el - the element to test.
+   * @returns {boolean} true if el should be excluded.
+   */
   function isExcluded(el) {
     var cn = (el.getAttribute && el.getAttribute("class")) || "";
     return EXCLUDE_RE.test(cn);
   }
 
-  // Collect, in document order, the OUTERMOST real USER bubbles. Read-only: this NEVER
-  // mutates the DOM, so it can never trigger an observer / freeze loop.
+  /**
+   * Collect, in document order, the OUTERMOST real USER bubbles.
+   * Read-only: this NEVER mutates the DOM, so it can never trigger an observer / freeze loop.
+   * @returns {Element[]} the outermost user bubbles, in document order.
+   */
   function userBubbles() {
     var nodes = D.querySelectorAll ? D.querySelectorAll(USER_SELECTOR) : [];
     var all = [];
@@ -56,7 +67,11 @@ const JS = `
     return out;
   }
 
-  // Add a transient highlight class, removed after ~1s (CSS animates it).
+  /**
+   * Add a transient highlight class, removed after ~1s (CSS animates it).
+   * @param {Element} el - the element to flash.
+   * @returns {void}
+   */
   function flashEl(el) {
     try {
       el.classList.add(NAV_FLASH_CLASS);
@@ -66,12 +81,12 @@ const JS = `
     } catch (e) {}
   }
 
-  // Sequential nav: from the user bubble we are currently "on" (the one whose top is
-  // nearest the viewport top), step exactly ONE message — dir=-1 previous, dir=+1 next —
-  // and land at its TOP (block:"start"), so its first paragraph sits at the viewport top.
-  // Detection and landing share the SAME edge (the viewport top): after scrolling bubble N
-  // to the top, nearest-to-top is N, so the next step is exactly N±1 — reliable
-  // one-at-a-time navigation (the earlier top-vs-center mismatch failed to advance).
+  /**
+   * Sequential nav: from the user bubble we are currently "on" (the one whose top is nearest the viewport top), step exactly ONE message — dir=-1 previous, dir=+1 next — and land at its TOP (block:"start"), so its first paragraph sits at the viewport top.
+   * Detection and landing share the SAME edge (the viewport top): after scrolling bubble N to the top, nearest-to-top is N, so the next step is exactly N±1 — reliable one-at-a-time navigation (the earlier top-vs-center mismatch failed to advance).
+   * @param {number} dir - -1 for previous, +1 for next.
+   * @returns {void}
+   */
   function gotoUser(dir) {
     var bubbles = userBubbles();
     if (!bubbles.length) return;
@@ -95,7 +110,15 @@ const JS = `
   }
 
   // --- toolbar registration (mirrors the Scroll feature) ---------------------
-  // A fixed floating fallback button used only when the shared toolbar is absent.
+  /**
+   * A fixed floating fallback button used only when the shared toolbar is absent.
+   * @param {string} cls - the button's own CSS class.
+   * @param {string} glyph - the button's text glyph.
+   * @param {string} label - the aria-label/title text.
+   * @param {Function} onClick - the click handler.
+   * @param {string} bottom - the CSS bottom offset.
+   * @returns {Element} the created button.
+   */
   function fallbackButton(cls, glyph, label, onClick, bottom) {
     var b = D.createElement("button");
     b.type = "button";
@@ -115,8 +138,10 @@ const JS = `
 
   function ensureUI() {
     if (W.__ccToolbar && W.__ccToolbar.add) {
-      // Toolbar owns these actions. Remove any stray standalone fallback buttons
-      // (created before the toolbar loaded) so they never double.
+      /*
+       * Toolbar owns these actions.
+       * Remove any stray standalone fallback buttons (created before the toolbar loaded) so they never double.
+       */
       var strays = D.querySelectorAll(".cc-usernav-up:not(.cc-toolbar-btn),.cc-usernav-down:not(.cc-toolbar-btn)");
       for (var sI = 0; sI < strays.length; sI++) { try { strays[sI].remove(); } catch (e) {} }
       // order 10/11 → LEFT end of the toolbar, before Toc (20) / Export (30) / Scroll (40).
@@ -132,8 +157,13 @@ const JS = `
     }
   }
 
-  // init(doc, win) — called with the chat document/window directly. No observer: the
-  // toolbar owns re-docking when the composer re-renders, exactly like Scroll/Toc.
+  /**
+   * Called with the chat document/window directly.
+   * No observer: the toolbar owns re-docking when the composer re-renders, exactly like Scroll/Toc.
+   * @param {Document} doc - the chat document.
+   * @param {Window} [win] - the chat window, defaults to window.
+   * @returns {void}
+   */
   function init(doc, win) {
     D = doc;
     W = win || window;
@@ -142,9 +172,13 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand off now;
-  // otherwise queue onto window.__ccPending — the bootstrap drains it once it installs. A
-  // last-resort timer covers the impossible case where no bootstrap ever appears.
+  /**
+   * Order-independent registration.
+   * If the bootstrap is already installed, hand off now; otherwise queue onto window.__ccPending — the bootstrap drains it once it installs.
+   * A last-resort timer covers the impossible case where no bootstrap ever appears.
+   * @param {Function} fn - the init(doc, win) callback to register.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -161,17 +195,16 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* Chat UserNav feature — styles for the two prev/next USER-message actions.
+/*
+ * Chat UserNav feature — styles for the two prev/next USER-message actions.
+ * UserNav is TOOLBAR-BASED: its up/down buttons live inside the shared composer toolbar (registered via window.__ccToolbar), so their chip styling comes from the toolbar's own .cc-toolbar-btn rules — this stylesheet only needs the fallback floating-button look (used when the toolbar is absent) and the shared navigate-to flash pulse.
+ * There is NO per-message element and NO positioning host, so the old .cc-usernav-group / host rules are gone (that per-bubble design self-churned into a freeze loop).
+ */
 
-   UserNav is TOOLBAR-BASED: its up/down buttons live inside the shared composer toolbar
-   (registered via window.__ccToolbar), so their chip styling comes from the toolbar's
-   own .cc-toolbar-btn rules — this stylesheet only needs the fallback floating-button
-   look (used when the toolbar is absent) and the shared navigate-to flash pulse. There
-   is NO per-message element and NO positioning host, so the old .cc-usernav-group /
-   host rules are gone (that per-bubble design self-churned into a freeze loop). */
-
-/* Fallback floating buttons — only used when the shared toolbar is absent; when the
-   toolbar is present these render inside it and inherit .cc-toolbar-btn styling. */
+/*
+ * Fallback floating buttons — only used when the shared toolbar is absent.
+ * When the toolbar is present these render inside it and inherit .cc-toolbar-btn styling.
+ */
 .cc-usernav-up,
 .cc-usernav-down {
   display: flex;
@@ -190,10 +223,11 @@ const CSS = `
   pointer-events: none;
 }
 
-/* Transient highlight on a user message we navigated to (Previous/Next). A soft pulse
-   that fades; removed by the JS after ~1s. This mirrors CopyButtons' .cc-nav-flash so
-   the effect is present even when UserNav is injected WITHOUT CopyButtons (a features=
-   subset); when both are injected the identical rules are harmlessly deduplicated. */
+/*
+ * Transient highlight on a user message we navigated to (Previous/Next).
+ * A soft pulse that fades; removed by the JS after ~1s.
+ * This mirrors CopyButtons' .cc-nav-flash so the effect is present even when UserNav is injected WITHOUT CopyButtons (a features= subset); when both are injected the identical rules are harmlessly deduplicated.
+ */
 .cc-nav-flash {
   animation: cc-nav-pulse 1s ease-out 1;
   border-radius: 8px;

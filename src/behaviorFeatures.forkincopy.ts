@@ -136,11 +136,12 @@ const JS = `
     return null;
   }
 
-  // Click \`userEl\`'s own "Message actions" trigger, then poll (bounded, ~30 tries /
-  // ~600ms) for its popup to mount and carry a "Fork conversation from here" row —
-  // clicking it the instant it appears. Identical mechanics to ForkConv's own
-  // forkFrom(), just invoked against the resolved PRECEDING user message rather than
-  // the message the button itself sits on.
+  /**
+   * Click \`userEl\`'s own "Message actions" trigger, then poll (bounded, ~30 tries / ~600ms) for its popup to mount and carry a "Fork conversation from here" row — clicking it the instant it appears.
+   * Identical mechanics to ForkConv's own forkFrom(), just invoked against the resolved PRECEDING user message rather than the message the button itself sits on.
+   * @param {Element} userEl - The user message element to fork the conversation from.
+   * @returns {void}
+   */
   function forkFrom(userEl) {
     var trigger = userEl.querySelector ? userEl.querySelector(MSG_ACTIONS_SEL) : null;
     if (!trigger) return;
@@ -177,15 +178,13 @@ const JS = `
     '<path d="M6 8.5v7"/><path d="M8.2 7.2c3 1 5.6 2.6 7.4 4.3"/><path d="M8.2 16.8c3-1 5.6-2.6 7.4-4.3"/>' +
     "</svg>";
 
-  // The button's bound userEl is stored on the element itself (a plain JS
-  // property, not a DOM attribute — never serialized, never confused with a
-  // real attribute) so a later sweep can cheaply check whether the CURRENTLY
-  // resolved userEl still matches what THIS button was created for, and
-  // re-bind (rather than silently keep a stale binding forever) when it
-  // doesn't. See the real incident note on ensureButton() below: a button
-  // created once and never re-verified can lock in a wrong userEl resolved
-  // during a transient DOM state (e.g. mid-stream, before a later message's
-  // own nested content has fully mounted).
+  /**
+   * Create the fork button docked into CopyButtons' row.
+   * The button's bound userEl is stored on the element itself (a plain JS property, not a DOM attribute — never serialized, never confused with a real attribute) so a later sweep can cheaply check whether the CURRENTLY resolved userEl still matches what THIS button was created for, and re-bind (rather than silently keep a stale binding forever) when it doesn't.
+   * See the real incident note on ensureButton() below: a button created once and never re-verified can lock in a wrong userEl resolved during a transient DOM state (e.g. mid-stream, before a later message's own nested content has fully mounted).
+   * @param {Element} userEl - The user message this button will fork from.
+   * @returns {Element} The created button element.
+   */
   function makeButton(userEl) {
     var b = D.createElement("button");
     b.type = "button";
@@ -214,27 +213,25 @@ const JS = `
     return b;
   }
 
-  // Dock our fork button as the LAST child of CopyButtons' own .cc-copy-group row on
-  // this output message — i.e. to the right of the time label + Markdown + HTML
-  // buttons. Only when a preceding user message actually exists to fork from (a
-  // reply's very first message in the chat has no earlier prompt).
-  //
-  // NOTE: querySelector(":scope > .cc-copy-group") requires the group to be a
-  // DIRECT CHILD of outputEl — the exact element CopyButtons itself appends to
-  // (msgEl.appendChild(group) in copybuttons.ts). If a future Claude Code
-  // rebuild nests CopyButtons' group under an intermediate wrapper instead of
-  // appending directly to the stamped message, this direct-child match would
-  // silently stop finding it. Kept as ":scope >" deliberately (never a bare
-  // descendant match) so a future group ending up nested INSIDE a tool-call
-  // chip or another sub-container is never mistaken for THIS message's own row.
+  /**
+   * Dock our fork button as the LAST child of CopyButtons' own .cc-copy-group row on this output message — i.e. to the right of the time label + Markdown + HTML buttons.
+   * Only when a preceding user message actually exists to fork from (a reply's very first message in the chat has no earlier prompt).
+   *
+   * NOTE: querySelector(":scope > .cc-copy-group") requires the group to be a DIRECT CHILD of outputEl — the exact element CopyButtons itself appends to (msgEl.appendChild(group) in copybuttons.ts).
+   * If a future Claude Code rebuild nests CopyButtons' group under an intermediate wrapper instead of appending directly to the stamped message, this direct-child match would silently stop finding it.
+   * Kept as ":scope >" deliberately (never a bare descendant match) so a future group ending up nested INSIDE a tool-call chip or another sub-container is never mistaken for THIS message's own row.
+   * @param {Element} outputEl - The assistant OUTPUT message element to ensure a fork button on.
+   * @returns {void}
+   */
   var _diagLogged = 0;
   function ensureButton(outputEl) {
     var group = outputEl.querySelector ? outputEl.querySelector(":scope > ." + GROUP_CLASS) : null;
     if (!group) {
-      // Diagnostic: does a .cc-copy-group exist ANYWHERE inside this message (just
-      // not as a direct child)? Distinguishes "CopyButtons hasn't run yet" from "the
-      // group exists but our direct-child selector is too strict for the real DOM
-      // shape." Throttled to the first 5 misses per page load to avoid log spam.
+      /*
+       * Diagnostic: does a .cc-copy-group exist ANYWHERE inside this message (just not as a direct child)?
+       * Distinguishes "CopyButtons hasn't run yet" from "the group exists but our direct-child selector is too strict for the real DOM shape."
+       * Throttled to the first 5 misses per page load to avoid log spam.
+       */
       if (_diagLogged < 5 && outputEl.querySelector) {
         var anyGroup = outputEl.querySelector("." + GROUP_CLASS);
         try {
@@ -256,13 +253,10 @@ const JS = `
       return;
     }
     if (existing) {
-      // RE-VERIFY, never just trust a prior binding — a real incident: a
-      // button created on an EARLY sweep (e.g. mid-stream, before a later
-      // output's own nested user bubble had fully mounted) could resolve the
-      // WRONG userEl at creation time and then keep forking from that wrong,
-      // stale message on every future click, since nothing ever re-checked
-      // it. Cheap to re-verify every sweep (a property read + reference
-      // compare, no DOM churn when it already matches).
+      /*
+       * RE-VERIFY, never just trust a prior binding — a real incident: a button created on an EARLY sweep (e.g. mid-stream, before a later output's own nested user bubble had fully mounted) could resolve the WRONG userEl at creation time and then keep forking from that wrong, stale message on every future click, since nothing ever re-checked it.
+       * Cheap to re-verify every sweep (a property read + reference compare, no DOM churn when it already matches).
+       */
       if (existing.__ccForkUserEl !== userEl) {
         try {
           console.log("[cc-forkincopy] re-bound stale userEl on existing button (was pointing at the wrong message)");
@@ -304,10 +298,12 @@ const JS = `
 
   register(init);
 
-  // Order-independent registration: if the bootstrap is already installed, hand
-  // off now; otherwise queue onto window.__ccPending — the bootstrap drains it the
-  // moment it installs. A last-resort timer covers the impossible case where no
-  // bootstrap ever appears, running once against the current document.
+  /**
+   * Order-independent registration: if the bootstrap is already installed, hand off now; otherwise queue onto window.__ccPending — the bootstrap drains it the moment it installs.
+   * A last-resort timer covers the impossible case where no bootstrap ever appears, running once against the current document.
+   * @param {Function} fn - The init function to register against the chat document.
+   * @returns {void}
+   */
   function register(fn) {
     if (window.__ccOnChatDoc) { window.__ccOnChatDoc(fn); return; }
     (window.__ccPending = window.__ccPending || []).push(fn);
@@ -324,15 +320,11 @@ const JS = `
 `.trim();
 
 const CSS = `
-/* ForkInCopy — an ADDITIVE fork button docked into CopyButtons' own time+Markdown+HTML
-   row (.cc-copy-group), at the right end, on each assistant OUTPUT message. Clicking it
-   forks the conversation from that output's PRECEDING user message, by proxying a click
-   onto Claude Code's own native "Message actions" -> "Fork conversation from here" popup
-   option on that user message (the same native action ForkConv's own left-docked button
-   already uses — this is a second, independent entry point to the same native action,
-   kept alongside it per explicit request rather than replacing it). Reuses CopyButtons'
-   own .cc-copy-btn class so it matches the Markdown/HTML buttons' exact size/spacing/
-   hover styling with no separate CSS needed beyond the accent color below. */
+/*
+ * ForkInCopy — an ADDITIVE fork button docked into CopyButtons' own time+Markdown+HTML row (.cc-copy-group), at the right end, on each assistant OUTPUT message.
+ * Clicking it forks the conversation from that output's PRECEDING user message, by proxying a click onto Claude Code's own native "Message actions" -> "Fork conversation from here" popup option on that user message (the same native action ForkConv's own left-docked button already uses — this is a second, independent entry point to the same native action, kept alongside it per explicit request rather than replacing it).
+ * Reuses CopyButtons' own .cc-copy-btn class so it matches the Markdown/HTML buttons' exact size/spacing/hover styling with no separate CSS needed beyond the accent color below.
+ */
 
 .cc-copy-btn[data-cc-forkincopy-btn="1"] {
   color: var(--vscode-textLink-foreground, #4ea1ff);

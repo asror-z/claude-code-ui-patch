@@ -151,13 +151,12 @@ ${csp}
       knobs: snap.knobs.filter((k) => k.section === sec),
     })).filter((g) => g.knobs.length);
 
-    // Chat Features: one real checkbox per feature. Checking/unchecking
-    // writes straight to smartsClaudeManager.feature.<id> (see Patcher.setFeature) —
-    // this is the ONE control surface for per-feature on/off (no in-webview gear).
-    // The pack is always injected now (no master switch — see CLAUDE.md). It is a
-    // self-contained, single-column list (unlike the ▼/▲ knob rows, which need
-    // horizontal room for their controls), so it gets its OWN column rather than
-    // being crammed above a knob section.
+    /*
+     * Chat Features: one real checkbox per feature.
+     * Checking/unchecking writes straight to smartsClaudeManager.feature.<id> (see Patcher.setFeature) — this is the ONE control surface for per-feature on/off (no in-webview gear).
+     * The pack is always injected now (no master switch — see CLAUDE.md).
+     * It is a self-contained, single-column list (unlike the ▼/▲ knob rows, which need horizontal room for their controls), so it gets its OWN column rather than being crammed above a knob section.
+     */
     const featuresCol = `    <div class="section-col">
       <h2><span class="h2-icon">&#10022;</span>Chat Features</h2>
       <div class="feature-grid feature-grid-1col">
@@ -165,15 +164,11 @@ ${snap.features.map((f) => this.featureHtml(f)).join("\n")}
       </div>
     </div>`;
 
-    // The columns: the feature checkboxes, then each real Section (Chat Panel
-    // or Tab, Plan Preview) with its own ▼/▲ knob rows — this fills the
-    // panel's full width with coherent blocks instead of one long vertical
-    // flow. Columns wrap to fewer/stacked automatically in a narrow window
-    // (see .section-grid below). Question/reply notifications (taskbar flash,
-    // toast, audio beep) are configured entirely outside this panel now, via
-    // ~/.claude/config.json's vscodeNotify section (see
-    // ~/.claude/hooks/vscode-notify.mjs) — this extension no longer owns any
-    // notification UI.
+    /*
+     * The columns: the feature checkboxes, then each real Section (Chat Panel or Tab, Plan Preview) with its own ▼/▲ knob rows — this fills the panel's full width with coherent blocks instead of one long vertical flow.
+     * Columns wrap to fewer/stacked automatically in a narrow window (see .section-grid below).
+     * Question/reply notifications (taskbar flash, toast, audio beep) are configured entirely outside this panel now, via ~/.claude/config.json's vscodeNotify section (see ~/.claude/hooks/vscode-notify.mjs) — this extension no longer owns any notification UI.
+     */
     const sectionCols = groups
       .map((g) => {
         const rows = g.knobs.map((k) => this.knobHtml(k)).join("\n");
@@ -249,10 +244,11 @@ ${sections}
         return;
       }
       if (cmd === 'patchToggle') {
-        // Enable/disable the whole patch. Do NOT flip optimistically: the action
-        // runs a native confirm the user can cancel, and either way reloads the
-        // window — send the CURRENT on-state and let the extension decide (enable
-        // when currently off, fully-disable when currently on).
+        /*
+         * Enable/disable the whole patch.
+         * Do NOT flip optimistically: the action runs a native confirm the user can cancel, and either way reloads the window.
+         * Send the CURRENT on-state and let the extension decide (enable when currently off, fully-disable when currently on).
+         */
         const on = el.classList.contains('on');
         vscode.postMessage({ command: 'patchToggle', on: on });
         return;
@@ -263,17 +259,14 @@ ${sections}
     const commitTimers = {}; // knob id -> pending debounce timer
     const COMMIT_DEBOUNCE_MS = 250;
 
-    // The native <input type=number> spinner fires its own 'change' event on
-    // EVERY arrow click, so clicking it several times fast used to post one
-    // 'set' message (-> one settings.json write -> one autoApply() bundle
-    // rewrite) per click. Besides the now-serialized autoApply() queue, that
-    // many rapid settings.json writes in a burst is itself what triggered VS
-    // Code's own "Aborted onWillSaveTextDocument-event"/"listener failed"
-    // errors from unrelated save-participant extensions racing to keep up —
-    // debouncing the actual commit (postMessage) coalesces a fast run of
-    // clicks into a single write of the FINAL value, while the input's own
-    // displayed number still updates on every click (already-immediate, native
-    // browser behavior — nothing here delays what the user sees).
+    /**
+     * The native <input type=number> spinner fires its own 'change' event on EVERY arrow click, so clicking it several times fast used to post one 'set' message (-> one settings.json write -> one autoApply() bundle rewrite) per click.
+     * Besides the now-serialized autoApply() queue, that many rapid settings.json writes in a burst is itself what triggered VS Code's own "Aborted onWillSaveTextDocument-event"/"listener failed" errors from unrelated save-participant extensions racing to keep up.
+     * Debouncing the actual commit (postMessage) coalesces a fast run of clicks into a single write of the FINAL value, while the input's own displayed number still updates on every click (already-immediate, native browser behavior — nothing here delays what the user sees).
+     * @param {HTMLInputElement} input - The px-input element being committed.
+     * @param {boolean} immediate - True to send the commit synchronously, skipping the debounce.
+     * @returns {void}
+     */
     function commitPxInput(input, immediate) {
       const knob = input.closest('.knob');
       if (!knob) return;
@@ -335,9 +328,10 @@ ${sections}
         const st = document.querySelector('.header-status');
         if (st) st.innerHTML = m.status;
       }
-      // The reload button lives in the footer actions row and only exists while
-      // a reload is actually pending — add/remove it in place rather than a full
-      // re-render, mirroring how every other sync field patches the DOM in place.
+      /*
+       * The reload button lives in the footer actions row and only exists while a reload is actually pending.
+       * Add/remove it in place rather than a full re-render, mirroring how every other sync field patches the DOM in place.
+       */
       const actions = document.querySelector('.actions');
       let reloadBtn = document.querySelector('button[data-cmd="reload"]');
       if (m.reloadPending && !reloadBtn && actions) {
@@ -359,7 +353,7 @@ ${sections}
   }
 }
 
-// Floating editor-tab host (opened via the Command Palette or status-bar click).
+/** Floating editor-tab host (opened via the Command Palette or status-bar click). */
 export class PatchPanel extends PatchWebviewHost {
   private static current: PatchPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
@@ -397,10 +391,10 @@ export class PatchPanel extends PatchWebviewHost {
   }
 }
 
-// Activity Bar sidebar host — the SAME control surface, docked in the sidebar
-// under its own Activity Bar icon (media/activitybar-icon.svg) instead of a
-// floating editor tab. VS Code resolves the WebviewView lazily, the first time
-// the user opens the view (clicks the icon or expands it), not at activation.
+/**
+ * Activity Bar sidebar host — the SAME control surface, docked in the sidebar under its own Activity Bar icon (media/activitybar-icon.svg) instead of a floating editor tab.
+ * VS Code resolves the WebviewView lazily, the first time the user opens the view (clicks the icon or expands it), not at activation.
+ */
 export class PatchSidebarView extends PatchWebviewHost implements vscode.WebviewViewProvider {
   static readonly viewId = "smartsClaudeManager.sidebarView";
   private view: vscode.WebviewView | undefined;
@@ -426,7 +420,11 @@ export class PatchSidebarView extends PatchWebviewHost implements vscode.Webview
   }
 }
 
-// Structure signature: a full re-render happens only when this changes.
+/**
+ * Structure signature: a full re-render happens only when this changes.
+ * @param {Snapshot | undefined} snap - Current patch snapshot.
+ * @returns {string} Structural signature string.
+ */
 function shapeOf(snap: Snapshot | undefined): string {
   if (!snap || !snap.available) return "none";
   return [
@@ -446,17 +444,19 @@ function sectionIcon(sec: string): string {
 function statusInner(snap: Snapshot): string {
   if (!snap.supported)
     return `<span class="status-banner warn"><span class="status-icon">&#9888;</span>Patch not supported on Claude Code v${snap.version}</span>`;
-  // The pending-reload state has its own button in the footer actions row now
-  // (alongside Restore Last Applied / Fully Disable Patch / Open VS Code
-  // Settings) instead of a banner here. The "All settings applied" ok-state
-  // banner was removed too (per explicit user request) — it was redundant
-  // clutter in the narrow sidebar with no actionable content; the footer
-  // buttons already communicate the up-to-date state implicitly (no pending
-  // Restore Last Applied / no Reload button showing).
+  /*
+   * The pending-reload state has its own button in the footer actions row now (alongside Restore Last Applied / Fully Disable Patch / Open VS Code Settings) instead of a banner here.
+   * The "All settings applied" ok-state banner was removed too (per explicit user request) — it was redundant clutter in the narrow sidebar with no actionable content.
+   * The footer buttons already communicate the up-to-date state implicitly (no pending Restore Last Applied / no Reload button showing).
+   */
   return "";
 }
 
-// Lightweight per-knob state + header status for in-place DOM updates.
+/**
+ * Lightweight per-knob state + header status for in-place DOM updates.
+ * @param {Snapshot} snap - Current patch snapshot.
+ * @returns {object} Sync payload with knobs, features, status, and reloadPending.
+ */
 function syncPayload(snap: Snapshot): {
   knobs: Array<{ id: string; px: string; on: boolean }>;
   features: Array<{ id: string; on: boolean }>;
@@ -495,8 +495,7 @@ const baseCss = `
   .app-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; min-width: 0; }
   .app-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
   .app-icon { font-size: 1em; color: var(--ccp-accent); filter: drop-shadow(0 0 6px var(--ccp-accent-soft)); flex-shrink: 0; }
-  /* One line always: a fixed size small enough for the ~250px sidebar, plus
-     nowrap + ellipsis as a safety net rather than wrapping across 3 lines. */
+  /* One line always: a fixed size small enough for the ~250px sidebar, plus nowrap + ellipsis as a safety net rather than wrapping across 3 lines. */
   h1 {
     font-size: 1.05em; font-weight: 700; margin: 0; letter-spacing: -0.01em;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
@@ -508,9 +507,7 @@ const baseCss = `
     font-size: .78em; font-weight: 700; color: var(--ccp-accent); background: var(--ccp-accent-soft);
     border: 1px solid rgba(217, 119, 87, 0.35); border-radius: 999px; padding: 3px 11px; white-space: nowrap;
   }
-  /* Separates this extension's own version from the installed Claude Code
-     version inside the same pill, de-emphasized so the extension's version
-     (the primary identity) still reads first. */
+  /* Separates this extension's own version from the installed Claude Code version inside the same pill, de-emphasized so the extension's version (the primary identity) still reads first. */
   .version-pill .version-sep { margin: 0 6px; opacity: .5; font-weight: 400; }
   .header-status { margin-bottom: 12px; }
   .header-status:empty { margin-bottom: 0; }
@@ -532,22 +529,18 @@ const baseCss = `
   .knob { display: flex; align-items: center; padding: 5px 4px; line-height: 1.5; border-radius: var(--ccp-radius-sm); transition: background-color .12s ease; }
   .knob:hover { background: var(--vscode-list-hoverBackground); }
   .knob .label { flex: 1 1 auto; min-width: 160px; }
-  /* Top-of-panel Enable/Disable-patch master switch: a prominent card-like row
-     with the switch BEFORE the label (like a settings toggle), sitting above the
-     main card. Reuses the .knob/.switch styling; only layout/emphasis differ. */
+  /*
+     Top-of-panel Enable/Disable-patch master switch: a prominent card-like row with the switch BEFORE the label (like a settings toggle), sitting above the main card.
+     Reuses the .knob/.switch styling; only layout/emphasis differ.
+  */
   .patch-enabled-row { margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--vscode-panel-border); border-radius: var(--ccp-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); gap: 12px; }
   .patch-enabled-row .controls { width: auto; margin-left: 0; flex-shrink: 0; }
   .patch-enabled-row .label { flex: 1 1 auto; min-width: 0; font-weight: 600; }
-  /* Two columns whenever there's room (>= ~340px per column), one column in a
-     narrow panel — auto-fit avoids a forced 2-up layout that would overflow or
-     leave an awkward gap in a resized/narrow window. */
+  /* Two columns whenever there's room (>= ~340px per column), one column in a narrow panel — auto-fit avoids a forced 2-up layout that would overflow or leave an awkward gap in a resized/narrow window. */
   .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 20px; row-gap: 1px; }
-  /* Inside its OWN section-col (narrower than the whole panel), the feature list
-     stays a single column — a nested 2-up auto-fit would cramp each label. */
+  /* Inside its OWN section-col (narrower than the whole panel), the feature list stays a single column — a nested 2-up auto-fit would cramp each label. */
   .feature-grid-1col { grid-template-columns: 1fr; }
-  /* 3 columns whenever there's room (feature checkboxes, Chat Panel knobs,
-     Plan Preview knobs); wraps down to 2, then 1, in a narrower
-     window rather than ever overflowing or leaving an awkward gap. */
+  /* 3 columns whenever there's room (feature checkboxes, Chat Panel knobs, Plan Preview knobs); wraps down to 2, then 1, in a narrower window rather than ever overflowing or leaving an awkward gap. */
   .section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 28px; row-gap: 18px; align-items: start; }
   .section-col { min-width: 0; }
   .section-col + .section-col { border-left: 1px solid var(--vscode-panel-border); padding-left: 28px; }
@@ -572,40 +565,33 @@ const baseCss = `
   .btn:active { transform: scale(0.97); }
   .btn-green { background: var(--ccp-green); color: #fff; }
   .btn-green:hover { background: var(--ccp-green-hover); }
-  /* Quiet (nothing pending): "Restore Last Applied" has nothing to revert, so it
-     recedes to an outline instead of shouting in solid green. The border is an
-     inset box-shadow, not a real border, so the box stays the same size as the
-     solid state and toggling between them never shifts layout. */
+  /*
+     Quiet (nothing pending): "Restore Last Applied" has nothing to revert, so it recedes to an outline instead of shouting in solid green.
+     The border is an inset box-shadow, not a real border, so the box stays the same size as the solid state and toggling between them never shifts layout.
+  */
   .btn-green.quiet { background: transparent; color: var(--ccp-green); box-shadow: inset 0 0 0 1px var(--ccp-green); }
   .btn-green.quiet:hover { background: rgba(63, 163, 77, 0.12); }
   .btn-red { background: var(--ccp-red); color: #fff; }
   .btn-red:hover { background: var(--ccp-red-hover); }
-  /* Open VS Code Settings / Reload Window: a quieter outline button, same size
-     and shape as the green/red actions so all 4 read as one cohesive row instead
-     of a mix of buttons and bare links. */
+  /* Open VS Code Settings / Reload Window: a quieter outline button, same size and shape as the green/red actions so all 4 read as one cohesive row instead of a mix of buttons and bare links. */
   .btn-outline {
     background: transparent; color: var(--vscode-foreground);
     box-shadow: inset 0 0 0 1px var(--vscode-panel-border); display: inline-flex;
     align-items: center; gap: 6px;
   }
   .btn-outline:hover { background: var(--vscode-list-hoverBackground); }
-  /* Reload Window becomes the same green/warning badge language as
-     "Restore Last Applied" once a reload is actually pending, so the one
-     action that matters right now stands out from the row. */
+  /* Reload Window becomes the same green/warning badge language as "Restore Last Applied" once a reload is actually pending, so the one action that matters right now stands out from the row. */
   .btn-outline.btn-reload-pending {
     background: var(--vscode-statusBarItem-warningBackground, #b7791f);
     color: #fff; box-shadow: none;
   }
   .btn-outline.btn-reload-pending:hover { filter: brightness(1.08); }
 
-  /* --- Toggle switch (pill + sliding thumb) replacing the plain On/Off button ---
-     Base rule applies to EVERY .switch regardless of parent (a .knob row, a
-     .feature-row, or the top-of-panel .patch-enabled-row) — without this, a
-     bare button.switch falls back to native browser button chrome
-     (padding/border/background), which is what broke the Chat Features switches
-     when they only inherited width from a .feature-row .switch override with
-     no base display/reset rule underneath it. .knob .switch / .feature-row
-     .switch below only ever adjust width/alignment, never re-declare the reset. */
+  /*
+     --- Toggle switch (pill + sliding thumb) replacing the plain On/Off button ---
+     Base rule applies to EVERY .switch regardless of parent (a .knob row, a .feature-row, or the top-of-panel .patch-enabled-row) — without this, a bare button.switch falls back to native browser button chrome (padding/border/background), which is what broke the Chat Features switches when they only inherited width from a .feature-row .switch override with no base display/reset rule underneath it.
+     .knob .switch / .feature-row .switch below only ever adjust width/alignment, never re-declare the reset.
+  */
   .switch { display: flex; align-items: center; justify-content: flex-end; gap: 8px; background: none; border: none; padding: 0; cursor: pointer; font-size: inherit; font-weight: 600; }
   .knob .switch { width: 100%; }
   .switch-track {
@@ -624,64 +610,44 @@ const baseCss = `
   .actions-right { display: flex; flex-direction: row; align-items: center; gap: 16px; }
   .actions-right a.link { margin-top: 0; }
 
-  /* Every header status is a full-width banner so the strip never changes height
-     between states: green when everything is applied, yellow when a reload is due
-     or the version is unsupported. */
+  /* Every header status is a full-width banner so the strip never changes height between states: green when everything is applied, yellow when a reload is due or the version is unsupported. */
   .status-banner { display: flex; align-items: center; gap: 8px; color: #fff; padding: 6px 14px; border-radius: var(--ccp-radius-sm); font-weight: 700; border: none; width: 100%; text-align: left; font-family: inherit; transition: filter .12s ease; }
   .status-banner.ok { background: var(--ccp-green); }
   .status-banner.warn { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
-  /* Only the reload-pending banner is an actual <button> (data-cmd="reload") —
-     give it a hand cursor and a hover brighten so it reads as clickable; the
-     plain "All settings applied" / "unsupported version" banners are inert
-     <span>s and stay unaffected. */
+  /* Only the reload-pending banner is an actual <button> (data-cmd="reload") — give it a hand cursor and a hover brighten so it reads as clickable; the plain "All settings applied" / "unsupported version" banners are inert <span>s and stay unaffected. */
   .status-banner-btn { cursor: pointer; }
   .status-banner-btn:hover { filter: brightness(1.12); }
   .status-icon { font-size: 1.05em; }
   a.link { display: inline-flex; align-items: center; gap: 6px; color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; font-size: 1em; }
   a.link:hover { text-decoration: underline; }
   .link-icon { font-size: 1.05em; }
-  /* The reload link is always a badge with the same box in both states, so it
-     never jitters when the pending state flips: green while everything is
-     applied, yellow when a reload is due. */
+  /* The reload link is always a badge with the same box in both states, so it never jitters when the pending state flips: green while everything is applied, yellow when a reload is due. */
   a.link.link-reload { background: var(--ccp-green); color: #fff; padding: 4px 13px; border-radius: 999px; font-weight: 700; }
   a.link.link-reload:hover { text-decoration: none; filter: brightness(1.08); }
   a.link.link-reload.link-reload-pending { background: var(--vscode-statusBarItem-warningBackground, #b7791f); }
 
-  /* Below ~500px (the Activity Bar sidebar's typical width, far narrower than the
-     editor-tab panel this layout was originally designed for) a knob row's fixed
-     168px control group + 160px label simply cannot fit side-by-side, and the two
-     footer buttons' full label text ("Restore Last Applied" / "Open VS Code
-     Settings") cannot fit two-up either. THIS BLOCK MUST BE THE VERY LAST THING IN
-     baseCss — a same-specificity override loses to a rule that appears LATER in
-     the stylesheet regardless of whether the media condition is active, so any
-     rule added below this comment in the future must go ABOVE this media block,
-     never after it (a prior bug: this same block sat above the later .link-icon/
-     a.link.link-reload rules and got silently overridden by them at every width). */
+  /*
+     Below ~500px (the Activity Bar sidebar's typical width, far narrower than the editor-tab panel this layout was originally designed for) a knob row's fixed 168px control group + 160px label simply cannot fit side-by-side, and the two footer buttons' full label text ("Restore Last Applied" / "Open VS Code Settings") cannot fit two-up either.
+     THIS BLOCK MUST BE THE VERY LAST THING IN baseCss — a same-specificity override loses to a rule that appears LATER in the stylesheet regardless of whether the media condition is active, so any rule added below this comment in the future must go ABOVE this media block, never after it (a prior bug: this same block sat above the later .link-icon/ a.link.link-reload rules and got silently overridden by them at every width).
+  */
   @media (max-width: 500px) {
     body { padding: 10px 10px 14px; }
     .card { padding: 12px 10px; }
     .feature-grid, .section-grid { grid-template-columns: 1fr; }
     .section-col + .section-col { border-left: none; padding-left: 0; border-top: 1px solid var(--vscode-panel-border); padding-top: 12px; margin-top: 4px; }
-    /* Stay on ONE row (not stacked) even at this width, but put the controls
-       (the input/switch) BEFORE the label visually via CSS order, without
-       reordering the actual DOM/data-cmd wiring. A label too long for the
-       remaining width WRAPS onto a second line (never ellipsis-truncated —
-       a clipped "usage-limit w..." hides which setting the row even is), so
-       the row's height grows instead of the text being cut off. */
+    /*
+       Stay on ONE row (not stacked) even at this width, but put the controls (the input/switch) BEFORE the label visually via CSS order, without reordering the actual DOM/data-cmd wiring.
+       A label too long for the remaining width WRAPS onto a second line (never ellipsis-truncated — a clipped "usage-limit w..." hides which setting the row even is), so the row's height grows instead of the text being cut off.
+    */
     .knob { flex-wrap: nowrap; align-items: center; gap: 8px; padding: 6px 4px; }
     .knob .label { order: 2; min-width: 0; flex: 1 1 auto; overflow: visible; text-overflow: clip; white-space: normal; word-break: break-word; }
-    /* The wide-view .controls box is a fixed 60px so a size-input and a
-       toggle-switch line up in a column; at this width there's no column to
-       line up (one knob per row), so let it shrink to its actual content
-       instead of reserving 60px of now-empty space before the switch/input. */
+    /* The wide-view .controls box is a fixed 60px so a size-input and a toggle-switch line up in a column; at this width there's no column to line up (one knob per row), so let it shrink to its actual content instead of reserving 60px of now-empty space before the switch/input. */
     .knob .controls { order: 1; margin-left: 0; flex-shrink: 0; width: auto; }
     .knob .switch { width: auto; }
-    /* Footer buttons: a 2-up row truncated "Restore Last Applied" / "Open VS Code
-       Settings" down to unreadable slivers ("Rest…" / "Open VS C…") because there
-       simply isn't enough width for both side by side, even with a smaller font.
-       Stack them full-width instead (1 column), and grow the button's height
-       while shrinking its icon/font so the whole label fits on one line without
-       wrapping or clipping. */
+    /*
+       Footer buttons: a 2-up row truncated "Restore Last Applied" / "Open VS Code Settings" down to unreadable slivers ("Rest…" / "Open VS C…") because there simply isn't enough width for both side by side, even with a smaller font.
+       Stack them full-width instead (1 column), and grow the button's height while shrinking its icon/font so the whole label fits on one line without wrapping or clipping.
+    */
     .actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
     .btn {
       padding: 10px 8px; font-size: 0.8em; white-space: nowrap; overflow: hidden;
@@ -691,9 +657,11 @@ const baseCss = `
   }
 `;
 
-// Per-render nonce so the Content-Security-Policy can allow only this panel's
-// own inline <script> (the HTML is fully extension-generated, so this is
-// defense in depth rather than a fix for a known injection).
+/**
+ * Per-render nonce so the Content-Security-Policy can allow only this panel's own inline <script>.
+ * The HTML is fully extension-generated, so this is defense in depth rather than a fix for a known injection.
+ * @returns {string} A random 32-character nonce.
+ */
 function getNonce(): string {
   const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
