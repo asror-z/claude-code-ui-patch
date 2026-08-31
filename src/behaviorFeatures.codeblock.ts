@@ -15,11 +15,16 @@ const JS = `
   var D = document;
   var W = window;
 
-  // Derive a language label from a <pre>/<code>. Checks, in order: a
-  // \`language-xxx\`/\`lang-xxx\` class, a \`data-language\`/\`data-lang\` attr, an hljs
-  // \`hljs-xxx\`, then a CodeMirror mode. Falls back to "code".
   var LANG_CLASS_RE = /\\b(?:language|lang)-([\\w+#.-]+)/i;
   var HLJS_RE = /\\bhljs\\s+(?:language-)?([\\w+#.-]+)/i;
+  /**
+   * Derive a language label from a <pre>/<code>.
+   * Checks, in order: a \`language-xxx\`/\`lang-xxx\` class, a \`data-language\`/\`data-lang\` attr, an hljs \`hljs-xxx\`, then a CodeMirror mode.
+   * Falls back to "code".
+   * @param {Element} pre - the <pre> element.
+   * @param {Element|null} code - the nested <code> element, if any.
+   * @returns {string} detected language id, or "code" if none found.
+   */
   function detectLang(pre, code) {
     var srcs = [];
     if (code) {
@@ -37,8 +42,13 @@ const JS = `
     return "code";
   }
 
-  // The block's raw text — prefer the <code> element's textContent, else <pre>'s,
-  // with our own bar stripped so the label/button never leak into the copy.
+  /**
+   * The block's raw text — prefer the <code> element's textContent, else <pre>'s.
+   * Our own bar is stripped so the label/button never leak into the copy.
+   * @param {Element} pre - the <pre> element.
+   * @param {Element|null} code - the nested <code> element, if any.
+   * @returns {string} the block's plain text content, trailing newline removed.
+   */
   function blockText(pre, code) {
     var host = code || pre;
     var clone = host.cloneNode(true);

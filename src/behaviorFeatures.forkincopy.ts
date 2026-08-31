@@ -19,17 +19,19 @@ const JS = `
 
   var EXCLUDE_RE = /messageInput|messagesContainer|messageGradient|fullEditor|stickyHeader/i;
 
-  // Claude Code's own "Message actions" (⤴) button + popup — identical selectors to
-  // ForkConv's own (behaviorFeatures.forkconv.ts), reused here so both features stay
-  // in lockstep if the native markup ever changes.
+  /*
+   * Claude Code's own "Message actions" (⤴) button + popup — identical selectors to ForkConv's own (behaviorFeatures.forkconv.ts).
+   * Reused here so both features stay in lockstep if the native markup ever changes.
+   */
   var MSG_ACTIONS_SEL = "button[title='Message actions']";
   var POPUP_SEL = "[class*='popup_']";
   var POPUP_OPTION_SEL = "[class*='popupOption_']";
   var FORK_OPTION_RE = /fork/i;
 
-  // Is \`el\` (a stamped [data-cc-dt-time] element) a USER message? Mirrors
-  // CopyButtons' own isUserMessage() exactly, so both features classify every
-  // message identically.
+  /*
+   * Is \`el\` (a stamped [data-cc-dt-time] element) a USER message?
+   * Mirrors CopyButtons' own isUserMessage() exactly, so both features classify every message identically.
+   */
   function isUserMessage(el) {
     var cn = (el.getAttribute && el.getAttribute("class")) || "";
     if (/userMessage/i.test(cn)) return true;
@@ -45,8 +47,7 @@ const JS = `
     return EXCLUDE_RE.test(cn);
   }
 
-  // Every stamped message, in document order — the same anchor set ([data-cc-dt-time],
-  // written by DateTime) CopyButtons itself sweeps.
+  // Every stamped message, in document order — the same anchor set ([data-cc-dt-time], written by DateTime) CopyButtons itself sweeps.
   function stampedMessages() {
     var nodes = D.querySelectorAll ? D.querySelectorAll("[" + TIME_ATTR + "]") : [];
     var out = [];
@@ -57,34 +58,33 @@ const JS = `
     return out;
   }
 
-  // The nested user-bubble selector — matches copybuttons.ts's own documented
-  // structure exactly: a live \`turn_…\` OUTPUT wrapper NESTS the user prompt
-  // bubble (\`userMessageContainer_…\`) BEFORE the assistant response inside the
-  // SAME stamped element, rather than the user/output being two separate,
-  // sibling-level stamped entries. This is why stampedMessages() often returns
-  // ONE element per exchange (the whole turn_ wrapper), not two.
+  /*
+   * The nested user-bubble selector — matches copybuttons.ts's own documented structure exactly.
+   * A live \`turn_…\` OUTPUT wrapper NESTS the user prompt bubble (\`userMessageContainer_…\`) BEFORE the assistant response inside the SAME stamped element, rather than the user/output being two separate, sibling-level stamped entries.
+   * This is why stampedMessages() often returns ONE element per exchange (the whole turn_ wrapper), not two.
+   */
   var USER_BUBBLE_SEL = "[class*='userMessageContainer'],[class*='userMessage']";
 
-  // Find the USER message a given OUTPUT message's fork button should fork
-  // from. Checked in two steps, since Claude Code's real chat DOM can shape a
-  // "turn" either way depending on version/context:
-  //  1. NESTED — the user bubble lives INSIDE outputEl itself (a live turn_
-  //     wrapper containing both the prompt and the reply as one stamped
-  //     unit). This is the common case and was the actual cause of the fork
-  //     button never appearing: stampedMessages() returned one entry per
-  //     exchange, so the old sibling-only search below never had a distinct
-  //     "preceding" entry to find.
-  //  2. SIBLING — a separate, earlier stamped USER entry that precedes
-  //     outputEl in document order (kept as a fallback for a DOM shape where
-  //     the user/output really are two distinct stamped elements).
-  // Short, human-readable snippet of an element's own text — for diagnostic
-  // logging only (never used for matching/comparison logic).
+  /**
+   * Short, human-readable snippet of an element's own text — for diagnostic logging only (never used for matching/comparison logic).
+   * @param {Element} el - Element whose text content is summarized.
+   * @returns {string} Trimmed, whitespace-collapsed snippet, truncated to 60 chars.
+   */
   function snippet(el) {
     if (!el) return "(null)";
     var t = (el.textContent || "").trim().replace(/\\s+/g, " ");
     return t.length > 60 ? t.slice(0, 60) + "…" : t;
   }
 
+  /**
+   * Find the USER message a given OUTPUT message's fork button should fork from.
+   * Checked in two steps, since Claude Code's real chat DOM can shape a "turn" either way depending on version/context:
+   * 1. NESTED — the user bubble lives INSIDE outputEl itself (a live turn_ wrapper containing both the prompt and the reply as one stamped unit).
+   *    This is the common case and was the actual cause of the fork button never appearing: stampedMessages() returned one entry per exchange, so the old sibling-only search below never had a distinct "preceding" entry to find.
+   * 2. SIBLING — a separate, earlier stamped USER entry that precedes outputEl in document order (kept as a fallback for a DOM shape where the user/output really are two distinct stamped elements).
+   * @param {Element} outputEl - The OUTPUT (assistant) message element to find a preceding user message for.
+   * @returns {Element|null} The resolved user message element, or null when none is found.
+   */
   function precedingUserMessage(outputEl) {
     if (outputEl.querySelector) {
       var allNested = outputEl.querySelectorAll ? outputEl.querySelectorAll(USER_BUBBLE_SEL) : [];

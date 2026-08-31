@@ -46,6 +46,8 @@ export interface NumericConfig {
   autoContinueQuietMs: number;
   autoContinueCooldownMs: number;
   autoContinueDefaultCap: number;
+  autoContinueSessionLimitBufferMs: number;
+  autoContinueSessionLimitFallbackMs: number;
   draftSaveStaleMs: number;
   draftSaveDebounceMs: number;
 }
@@ -54,6 +56,8 @@ const NUMERIC_KEYS: { field: keyof NumericConfig; storageKey: string }[] = [
   { field: "autoContinueQuietMs", storageKey: "cc-autocontinue-quietms" },
   { field: "autoContinueCooldownMs", storageKey: "cc-autocontinue-cooldownms" },
   { field: "autoContinueDefaultCap", storageKey: "cc-autocontinue-defaultcap" },
+  { field: "autoContinueSessionLimitBufferMs", storageKey: "cc-autocontinue-sessionlimit-bufferms" },
+  { field: "autoContinueSessionLimitFallbackMs", storageKey: "cc-autocontinue-sessionlimit-fallbackms" },
   { field: "draftSaveStaleMs", storageKey: "cc-draftsave-stalems" },
   { field: "draftSaveDebounceMs", storageKey: "cc-draftsave-debouncems" },
 ];

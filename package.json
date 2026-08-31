@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.139",
+  "version": "2.0.140",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -230,6 +230,20 @@
           "minimum": 1,
           "maximum": 100,
           "markdownDescription": "AutoContinue: maximum number of auto-submitted \"continue\" messages per session."
+        },
+        "smartsClaudeManager.autoContinueSessionLimitBufferMs": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 0,
+          "maximum": 600000,
+          "markdownDescription": "AutoContinue: when a session/usage-limit banner names a reset time (\"resets 7:50pm\", \"resets in 2h 30m\", ...), wait this long (ms) PAST that parsed reset moment before auto-submitting \"continue\". Default 60000 = 1 minute."
+        },
+        "smartsClaudeManager.autoContinueSessionLimitFallbackMs": {
+          "type": "number",
+          "default": 1800000,
+          "minimum": 60000,
+          "maximum": 86400000,
+          "markdownDescription": "AutoContinue: when a session/usage-limit banner has NO parseable reset time at all, wait this long (ms) before auto-submitting \"continue\" anyway. Default 1800000 = 30 minutes."
         },
         "smartsClaudeManager.draftSaveStaleMs": {
           "type": "number",

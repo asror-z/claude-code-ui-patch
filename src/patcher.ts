@@ -27,8 +27,10 @@ import {
   applyModelInfoBridge,
   removeModelInfoBridge,
 } from "./modelInfoBridge";
-// faro is FIRST: it exposes window.__ccFaroLog, which every other feature below
-// may call from its own init() — later features assume the sink already exists.
+/*
+ * faro is FIRST: it exposes window.__ccFaroLog, which every other feature below may call from its own init().
+ * Later features assume the sink already exists.
+ */
 import "./behaviorFeatures.faro";
 import "./behaviorFeatures.reply";
 import "./behaviorFeatures.googlesearch";
@@ -53,30 +55,27 @@ import "./behaviorFeatures.filelinks";
 import "./behaviorFeatures.modelinfo";
 import "./behaviorFeatures.effortinfo";
 
-// The installed Claude Code extension is laid down as one directory per
-// version/platform, e.g. anthropic.claude-code-2.1.200-darwin-arm64. We patch
-// three bundled files inside it: extension.js (the plan-mode preview webview
-// template), webview/index.css (the chat code-block font, which no setting
-// reaches), and webview/index.js (the chat Edit-diff card: a Monaco diff editor
-// with a hardcoded font size, line-numbers off, and a forced dark theme).
+/*
+ * The installed Claude Code extension is laid down as one directory per version/platform, e.g. anthropic.claude-code-2.1.200-darwin-arm64.
+ * We patch three bundled files inside it: extension.js (the plan-mode preview webview template), webview/index.css (the chat code-block font, which no setting reaches), and webview/index.js (the chat Edit-diff card: a Monaco diff editor with a hardcoded font size, line-numbers off, and a forced dark theme).
+ */
 const EXT_PREFIX = "anthropic.claude-code-";
 const MARKER_FILE = "extension.js"; // must exist for a dir to count as an install
 
 const CONFIG_NS = "smartsClaudeManager";
 
-// Stock-value capture: the real native font-size values are read from the
-// fresh (unpatched) bundle and persisted in globalState, keyed by Claude Code
-// version. Restore uses these captured values instead of the hardcoded
-// originalPx/originalValue constants, so it always matches the actual native
-// behavior even if a future bundle changes its stock sizes.
+/*
+ * Stock-value capture: the real native font-size values are read from the fresh (unpatched) bundle and persisted in globalState, keyed by Claude Code version.
+ * Restore uses these captured values instead of the hardcoded originalPx/originalValue constants, so it always matches the actual native behavior even if a future bundle changes its stock sizes.
+ */
 const STOCK_VERSION_KEY = "smartsClaudeManager.stockVersion";
 const STOCK_VALUES_KEY = "smartsClaudeManager.stockValues";
 export type StockCapture = Record<string, string>;
 
-// The settings values in effect right before "Fully Disable Patch" ran, so
-// "Enable Patch" can restore them instead of leaving every knob at its stock
-// default (restore() itself resets all settings to stock as part of reverting
-// the bundle — this snapshot is taken BEFORE that reset).
+/*
+ * The settings values in effect right before "Fully Disable Patch" ran, so "Enable Patch" can restore them instead of leaving every knob at its stock default.
+ * restore() itself resets all settings to stock as part of reverting the bundle — this snapshot is taken BEFORE that reset.
+ */
 const PRE_DISABLE_SETTINGS_KEY = "smartsClaudeManager.preDisableSettings";
 type PreDisableSettings = Record<string, number | boolean | string>;
 
@@ -90,8 +89,10 @@ export const SECTION_ORDER: Section[] = [
   "Plan Preview",
 ];
 
-// Display order of knobs within a section (panel and popup), by point id. Ids
-// not listed keep their natural order after the listed ones.
+/*
+ * Display order of knobs within a section (panel and popup), by point id.
+ * Ids not listed keep their natural order after the listed ones.
+ */
 const KNOB_ORDER: string[] = [
   "chatEnhancements", // master switch for Reply/Search/DateTime/... (see behaviorFeatures.ts)
   "hideUsageWarning", // the "You've used X% of your weekly limit" banner
@@ -118,13 +119,13 @@ function knobOrder(id: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Native chat text size. NOT patched: Claude Code reads chat.fontSize and
-// injects it live (it sizes the chat message text, the input box, and the token
-// IN/OUT box). The panel exposes it with the same ▼/▲ controls as patch knobs;
-// adjusting writes the native setting directly (applied live, no reload needed).
-// External changes to chat.fontSize are reflected via onDidChangeConfiguration.
-// (chat.editor.fontSize sizes only the chat input editor; the chat's rendered
-// code block has no such lever, so it is a patch point below.)
+/*
+ * Native chat text size.
+ * NOT patched: Claude Code reads chat.fontSize and injects it live (it sizes the chat message text, the input box, and the token IN/OUT box).
+ * The panel exposes it with the same ▼/▲ controls as patch knobs; adjusting writes the native setting directly (applied live, no reload needed).
+ * External changes to chat.fontSize are reflected via onDidChangeConfiguration.
+ * (chat.editor.fontSize sizes only the chat input editor; the chat's rendered code block has no such lever, so it is a patch point below.)
+ */
 // ---------------------------------------------------------------------------
 interface NativeKnob {
   id: "chatText";
@@ -142,21 +143,24 @@ function nativePx(k: NativeKnob): number {
   return typeof raw === "number" && raw > 0 ? raw : k.fallback;
 }
 
-// The native chat.fontSize, shown by the chatHistoryFontSize knob while it is
-// inheriting (setting at 0), so the knob still reflects the effective size and a
-// first ▲/▼ takes control from that value.
+/**
+ * The native chat.fontSize, shown by the chatHistoryFontSize knob while it is inheriting (setting at 0), so the knob still reflects the effective size and a first ▲/▼ takes control from that value.
+ * @returns {number} the effective native chat font size in px
+ */
 function nativeChatFontSizePx(): number {
   const raw = vscode.workspace.getConfiguration().get<number>("chat.fontSize");
   return typeof raw === "number" && raw > 0 ? raw : 13;
 }
 
 // ---------------------------------------------------------------------------
-// Patch points (edits inside bundled files).
-//   style "number": swap a bare px number in place (pinned value / hardcoded).
-//   style "value":  swap a whole value that is either a stock var(...) or an
-//     absolute Npx we substituted (decouples from a live var).
-//   custom (fn*):   a self-contained transform for a spot the value-slot model
-//     can't express (the chat code block, scoped via appended CSS).
+/*
+ * Patch points (edits inside bundled files).
+ *   style "number": swap a bare px number in place (pinned value / hardcoded).
+ *   style "value":  swap a whole value that is either a stock var(...) or an
+ *     absolute Npx we substituted (decouples from a live var).
+ *   custom (fn*):   a self-contained transform for a spot the value-slot model
+ *     can't express (the chat code block, scoped via appended CSS).
+ */
 // ---------------------------------------------------------------------------
 interface PatchPoint {
   id: string;
@@ -177,17 +181,14 @@ interface PatchPoint {
   fnRestore?: (c: string) => string;
 }
 
-// Chat code block. Scoped to the chat message DOM (hovers/tooltips untouched)
-// by appending a CSS rule to webview/index.css that overrides the font ONLY
-// inside chat code-block wrappers (.codeBlockWrapper_<hash>) AND inline code
-// (.root_<hash> code, the markdown renderer's code spans). The stock wrapper
-// rule sets no font-size and inline code is 0.9em of chat.fontSize, so pinning
-// both to the same px keeps inline and fenced code matched. The markdown module
-// exposes both classes under one CSS-module hash, so `.root_<hash>` reuses the
-// hash read from the wrapper rule. A scoped !important rule wins by specificity.
-// The hash changes per build, so we read it at patch time; originalPx is
-// approximate (em-relative; ~11px at the default chat.fontSize of 13) and unused
-// by the css-style logic.
+/*
+ * Chat code block.
+ * Scoped to the chat message DOM (hovers/tooltips untouched) by appending a CSS rule to webview/index.css that overrides the font ONLY inside chat code-block wrappers (.codeBlockWrapper_<hash>) AND inline code (.root_<hash> code, the markdown renderer's code spans).
+ * The stock wrapper rule sets no font-size and inline code is 0.9em of chat.fontSize, so pinning both to the same px keeps inline and fenced code matched.
+ * The markdown module exposes both classes under one CSS-module hash, so `.root_<hash>` reuses the hash read from the wrapper rule.
+ * A scoped !important rule wins by specificity.
+ * The hash changes per build, so we read it at patch time; originalPx is approximate (em-relative; ~11px at the default chat.fontSize of 13) and unused by the css-style logic.
+ */
 const CHAT_CODE_MARKER = "/*cc-ui-patch:chatCode*/";
 const CHAT_CODE_WRAP_RE = /\.codeBlockWrapper_[-\w]+ pre\s*\{/;
 const CHAT_CODE_HASH_RE = /\.codeBlockWrapper_([-\w]+) pre\s*\{/;
@@ -202,20 +203,13 @@ function applyChatCodeCss(css: string, px: string): string {
     : css + line;
 }
 
-// Chat message-input box (composer). The composer is actually TWO stacked
-// elements sharing one CSS-module hash: the real contenteditable div (role=
-// "textbox", aria-label="Message input", className messageInput_<hash>) is
-// painted INVISIBLE (color:#0000 — it exists only to hold the caret/selection),
-// while className mentionMirror_<hash> (aria-hidden, positioned absolutely on
-// top) is what actually renders the visible text, incl. @-mention highlighting.
-// Patching messageInput_<hash> alone changes the invisible layer's metrics but
-// not what the user sees — both classes must be sized together. Claude Code's
-// own CSS sets no font-size on either, so it inherits the webview's base
-// font-size (~13px, VS Code's own editor font). There is no existing value to
-// swap, so — same approach as chatCode above — we append a marker-tagged
-// !important rule targeting both hashed classes, re-reading the hash from the
-// stock messageInputContainer_<hash> rule at patch time so this survives a
-// re-minify that changes the hash.
+/*
+ * Chat message-input box (composer).
+ * The composer is actually TWO stacked elements sharing one CSS-module hash: the real contenteditable div (role="textbox", aria-label="Message input", className messageInput_<hash>) is painted INVISIBLE (color:#0000 — it exists only to hold the caret/selection), while className mentionMirror_<hash> (aria-hidden, positioned absolutely on top) is what actually renders the visible text, incl. @-mention highlighting.
+ * Patching messageInput_<hash> alone changes the invisible layer's metrics but not what the user sees — both classes must be sized together.
+ * Claude Code's own CSS sets no font-size on either, so it inherits the webview's base font-size (~13px, VS Code's own editor font).
+ * There is no existing value to swap, so — same approach as chatCode above — we append a marker-tagged !important rule targeting both hashed classes, re-reading the hash from the stock messageInputContainer_<hash> rule at patch time so this survives a re-minify that changes the hash.
+ */
 const CHAT_COMPOSER_MARKER = "/*cc-ui-patch:chatComposer*/";
 const CHAT_COMPOSER_HASH_RE = /\.messageInputContainer_([-\w]+)\{/;
 const CHAT_COMPOSER_LINE_RE = /\n?\/\*cc-ui-patch:chatComposer\*\/[^\n]*/;
@@ -229,13 +223,13 @@ function applyChatComposerCss(css: string, px: string): string {
     : css + line;
 }
 
-// Chat Edit-diff card font. The Edit/MultiEdit tool body renders a read-only
-// Monaco diff editor whose options hardcode fontSize:12 (no setting reaches it).
-// We rewrite the number in both createDiffEditor option blocks (the inline card
-// and the expand modal) in webview/index.js. The anchor keys off the stable
-// `,lineNumbers:"` that follows the size, so it composes with the line-number
-// and theme toggles below (whichever of them is on, this still matches). The /g
-// flag patches both sites in one pass; the size is a bare JS number, not px.
+/*
+ * Chat Edit-diff card font.
+ * The Edit/MultiEdit tool body renders a read-only Monaco diff editor whose options hardcode fontSize:12 (no setting reaches it).
+ * We rewrite the number in both createDiffEditor option blocks (the inline card and the expand modal) in webview/index.js.
+ * The anchor keys off the stable `,lineNumbers:"` that follows the size, so it composes with the line-number and theme toggles below (whichever of them is on, this still matches).
+ * The /g flag patches both sites in one pass; the size is a bare JS number, not px.
+ */
 const DIFF_FONT_STOCK = 12;
 const DIFF_FONT_RE = /(fontSize:)(\d+(?:\.\d+)?)(,lineNumbers:")/g;
 
@@ -243,7 +237,11 @@ function diffFontPresent(c: string): boolean {
   DIFF_FONT_RE.lastIndex = 0;
   return DIFF_FONT_RE.test(c);
 }
-// The fixed size in the bundle, or undefined when at the native stock (12).
+/**
+ * The fixed size in the bundle, or undefined when at the native stock (12).
+ * @param {string} c - the file content to search
+ * @returns {string | undefined} the fixed size string, or undefined at stock
+ */
 function diffFontCurrent(c: string): string | undefined {
   DIFF_FONT_RE.lastIndex = 0;
   const v = DIFF_FONT_RE.exec(c)?.[2];
@@ -750,6 +748,8 @@ export function readNumericConfig(): NumericConfig {
     autoContinueQuietMs: c.get<number>("autoContinueQuietMs", 500),
     autoContinueCooldownMs: c.get<number>("autoContinueCooldownMs", 4000),
     autoContinueDefaultCap: c.get<number>("autoContinueDefaultCap", 5),
+    autoContinueSessionLimitBufferMs: c.get<number>("autoContinueSessionLimitBufferMs", 60000),
+    autoContinueSessionLimitFallbackMs: c.get<number>("autoContinueSessionLimitFallbackMs", 30 * 60000),
     draftSaveStaleMs: c.get<number>("draftSaveStaleMs", 10 * 60 * 1000),
     draftSaveDebounceMs: c.get<number>("draftSaveDebounceMs", 250),
   };

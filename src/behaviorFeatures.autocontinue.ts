@@ -1,26 +1,32 @@
 import { registerFeature } from "./behaviorFeatures";
 
 const JS = `
-// Chat AutoContinue feature for the Claude Code chat webview.
-//
-// A stream drop or a transient server throttle ends a turn mid-response and, in the
-// webview, surfaces only as a BANNER in the chat — often WITHOUT ever being written to
-// the transcript as an error entry, so the \`auto-resume-on-drop\` Stop hook cannot see
-// it and a human has to retype "continue". This feature closes that gap FROM INSIDE the
-// webview: it watches the chat DOM and, the moment such an error/throttle banner
-// appears, TYPES "continue" INTO THE COMPOSER AND SUBMITS IT — resuming the interrupted
-// turn automatically.
-//
-// It handles all of these banners (and similar):
-//   * API Error: Connection closed mid-response
-//   * API Error: Server is temporarily limiting requests (not your usage limit)
-//   * Rate limited / stream stall / "the response above may be incomplete"
-//
-// BOUNDED — no loop: fires ONCE per distinct banner (data-cc-autocont="1"), only when
-// the composer is EMPTY and idle, after a COOLDOWN, and stops after a per-session CAP
-// (localStorage). Off switch: localStorage 'cc-autocontinue' = 'off'. Detection is
-// scoped to error/banner-looking elements so ordinary prose that merely QUOTES the
-// phrase never false-fires.
+/*
+ * Chat AutoContinue feature for the Claude Code chat webview.
+ * A stream drop or a transient server throttle ends a turn mid-response.
+ * In the webview this surfaces only as a BANNER in the chat.
+ * Often WITHOUT ever being written to the transcript as an error entry, so the \`auto-resume-on-drop\` Stop hook cannot see it and a human has to retype "continue".
+ * This feature closes that gap FROM INSIDE the webview.
+ * It watches the chat DOM and, the moment such an error/throttle banner appears, TYPES "continue" INTO THE COMPOSER AND SUBMITS IT — resuming the interrupted turn automatically.
+ *
+ * It handles banners like these (and similar):
+ *   API Error: Connection closed mid-response
+ *   API Error: Server is temporarily limiting requests (not your usage limit)
+ *   Rate limited / stream stall / "the response above may be incomplete"
+ *
+ * BOUNDED — no loop.
+ * Fires ONCE per distinct banner (data-cc-autocont="1"), only when the composer is EMPTY and idle, after a COOLDOWN, and stops after a per-session CAP (localStorage).
+ * Off switch: localStorage 'cc-autocontinue' = 'off'.
+ * Detection is scoped to error/banner-looking elements so ordinary prose that merely QUOTES the phrase never false-fires.
+ *
+ * SESSION-LIMIT branch (same feature/toggle, separate detection+wait path).
+ * Claude's own usage-limit banner ("You've hit your session limit · resets 7:50pm" and known variants — "usage limit reached", "5-hour limit", "weekly limit", each paired with a reset word) names a specific future RESET TIME rather than "retry shortly".
+ * Correct response is to wait until that moment (+ a fixed buffer), not the short QUIET_MS guess the stream-drop path uses.
+ * Reset time is parsed out of the banner's own text, tolerating several shapes (clock time with optional am/pm, bare 24h clock, or a relative "in Nh Mm" duration).
+ * No time confidently parsed → a fixed FALLBACK wait arms instead, so an unrecognized-but-real banner still eventually retries.
+ * Wait persists to localStorage so it survives a webview reload/VS Code restart — a session-limit wait can span hours, easily outliving one webview lifetime.
+ * Shares the SAME off switch, composer-submit mechanism, and per-session cap as the stream-drop path above.
+ */
 (function () {
   "use strict";
 
@@ -32,10 +38,12 @@ const JS = `
   var COUNT_KEY = "cc-autocontinue-count"; // localStorage session counter
   var OFF_KEY = "cc-autocontinue";         // localStorage 'off' override
 
-  // COOLDOWN_MS/DEFAULT_CAP are USER-CONFIGURABLE VS Code settings
-  // (smartsClaudeManager.autoContinueCooldownMs/autoContinueDefaultCap), seeded into
-  // localStorage on every webview load by behaviorInject.ts's seedScript() — same
-  // mechanism and same missing/invalid-value fallback contract as QUIET_MS below.
+  /**
+   * Reads a USER-CONFIGURABLE VS Code setting (e.g. smartsClaudeManager.autoContinueCooldownMs/autoContinueDefaultCap) seeded into localStorage on every webview load by behaviorInject.ts's seedScript() — same mechanism and same missing/invalid-value fallback contract as QUIET_MS below.
+   * @param {string} key - localStorage key the setting was seeded under.
+   * @param {number} fallback - value to use when missing/invalid.
+   * @returns {number} the parsed setting value, or fallback.
+   */
   function readNumSetting(key, fallback) {
     try {
       var v = parseInt(W.localStorage.getItem(key), 10);
@@ -47,17 +55,70 @@ const JS = `
   var COOLDOWN_MS = readNumSetting("cc-autocontinue-cooldownms", 4000); // min gap between two auto-continues
   var DEFAULT_CAP = readNumSetting("cc-autocontinue-defaultcap", 5);    // max auto-continues per session
 
-  // ANY "API Error:" banner auto-continues (explicit user requirement), plus a few
-  // stream-drop/throttle phrases that a real error banner uses WITHOUT necessarily
-  // leading with the literal words "API Error:" (a stall/abort/reset banner). The bare
-  // "\\bAPI Error\\b" alternative previously false-fired when matched against ANY
-  // sentence containing those two words anywhere in the page — but that hazard is
-  // guarded structurally, not by narrowing this regex: isBannerEl() requires an actual
-  // role=alert/status or error/banner/alert/toast-classed element, insideMessage()
-  // excludes anything inside a chat message/blockquote container, and phraseLeads()
-  // requires the match to be within the first 40 chars of that banner's own short text.
-  // A user message merely quoting "> API Error: …" is inside a message container and is
-  // rejected by insideMessage() regardless of how broad this regex is.
+  /*
+   * Session-limit branch tunables (see file-header comment).
+   * BUFFER_MS: fixed grace period after the parsed reset time before firing — never fire exactly AT reset, since a reset boundary can be off by a few seconds server-side.
+   * FALLBACK_MS: used only when the banner's own text has NO parseable time at all, so an unrecognized-but-real limit banner still eventually retries instead of being silently ignored.
+   */
+  var SESSIONLIMIT_BUFFER_MS = readNumSetting("cc-autocontinue-sessionlimit-bufferms", 60000);
+  var SESSIONLIMIT_FALLBACK_MS = readNumSetting("cc-autocontinue-sessionlimit-fallbackms", 30 * 60000);
+  var SESSIONLIMIT_DONE_ATTR = "data-cc-autocont-sl"; // separate marker from DONE_ATTR (different wait shape)
+  var SESSIONLIMIT_ARMED_KEY = "cc-autocontinue-sessionlimit-armed"; // persists across reload
+
+  /*
+   * Loose phrase match for Claude's own usage/session-limit banner.
+   * Wording already observed to vary: "session limit" / "usage limit" / "5-hour limit" / "weekly limit" / "daily limit".
+   * Always paired with a reset-ing word in the same banner.
+   */
+  var LIMIT_RE = /\\b(?:session|usage|5-hour|weekly|daily)\\s+limit\\b/i;
+  var RESET_WORD_RE = /\\breset(?:s|ting)?\\b/i;
+
+  /*
+   * Reset-time parsing — tolerates several shapes seen in the wild.
+   *   clock time, optional am/pm, optional leading zero: "7:50pm" "7:50 PM" "19:50"
+   *   relative duration: "in 2h 30m" "in 45 minutes" "in 2 hours" "in 1h"
+   * A trailing timezone abbreviation/offset next to a clock time (if ever present) is simply not matched by CLOCK_RE and has no effect.
+   * The clock value itself is taken at face value in the viewer's own local time, same as the banner displays it.
+   */
+  var CLOCK_RE = /\\b(\\d{1,2}):(\\d{2})\\s*(am|pm)?\\b/i;
+  var DURATION_RE = /\\bin\\s+(?:(\\d+)\\s*h(?:ours?)?)?\\s*(?:(\\d+)\\s*m(?:in(?:ute)?s?)?)?\\b/i;
+
+  /**
+   * Parses a session-limit reset moment out of a banner's own text.
+   * Caller falls back to SESSIONLIMIT_FALLBACK_MS when this returns null — never guesses.
+   * @param {string} text - banner text to scan.
+   * @param {Date} now - reference "now" for relative-duration/clock-time math.
+   * @returns {Date|null} parsed future reset moment, or null when no well-formed time is found.
+   */
+  function parseResetTime(text, now) {
+    var mDur = DURATION_RE.exec(text);
+    if (mDur && (mDur[1] || mDur[2])) {
+      var hh = parseInt(mDur[1] || "0", 10);
+      var mm = parseInt(mDur[2] || "0", 10);
+      if (hh > 0 || mm > 0) return new Date(now.getTime() + (hh * 60 + mm) * 60000);
+    }
+    var mClock = CLOCK_RE.exec(text);
+    if (mClock) {
+      var h = parseInt(mClock[1], 10);
+      var m = parseInt(mClock[2], 10);
+      var ap = (mClock[3] || "").toLowerCase();
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        if (ap === "pm" && h < 12) h += 12;
+        if (ap === "am" && h === 12) h = 0;
+        var target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+        // Already-passed today (or no am/pm to disambiguate) → next occurrence is tomorrow.
+        if (target.getTime() <= now.getTime()) target = new Date(target.getTime() + 24 * 60 * 60000);
+        return target;
+      }
+    }
+    return null;
+  }
+
+  /*
+   * ANY "API Error:" banner auto-continues (explicit user requirement), plus a few stream-drop/throttle phrases that a real error banner uses WITHOUT necessarily leading with the literal words "API Error:" (a stall/abort/reset banner).
+   * The bare "\\bAPI Error\\b" alternative previously false-fired when matched against ANY sentence containing those two words anywhere in the page — but that hazard is guarded structurally, not by narrowing this regex: isBannerEl() requires an actual role=alert/status or error/banner/alert/toast-classed element, insideMessage() excludes anything inside a chat message/blockquote container, and phraseLeads() requires the match to be within the first 40 chars of that banner's own short text.
+   * A user message merely quoting "> API Error: …" is inside a message container and is rejected by insideMessage() regardless of how broad this regex is.
+   */
   var DROP_RE = new RegExp(
     [
       "\\\\bAPI Error\\\\b",
@@ -108,9 +169,10 @@ const JS = `
 
   // ---- banner detection (hardened after a live false-fire) ------------------------
 
-  // HARD EXCLUSION: a candidate inside a MESSAGE container is chat prose, never a banner —
-  // a user prompt, an assistant message, a quoted blockquote. This is the decisive guard:
-  // however the text phrases the error, if it lives in a message it cannot trigger.
+  /*
+   * HARD EXCLUSION: a candidate inside a MESSAGE container is chat prose, never a banner — a user prompt, an assistant message, a quoted blockquote.
+   * This is the decisive guard: however the text phrases the error, if it lives in a message it cannot trigger.
+   */
   var MSG_CONTAINER_RE =
     /userMessageContainer|timelineMessage|messageContent|markdown|prose|turn_/i;
   function insideMessage(el) {
@@ -220,6 +282,50 @@ const JS = `
       if (!msgContained) out.push(msgDrop);
     }
     return out;
+  }
+
+  /**
+   * Checks whether the limit phrase sits at/near the START of the text.
+   * A real limit banner LEADS with it ("You've hit your session limit · resets…"); ordinary prose (a question ABOUT limits) buries it mid-sentence or phrases it as a question.
+   * Mirrors phraseLeads() above.
+   * @param {string} text - candidate text to test.
+   * @returns {boolean} true when LIMIT_RE matches within the first 40 chars.
+   */
+  function limitPhraseLeads(text) {
+    var m = LIMIT_RE.exec(text);
+    return !!m && m.index <= 40;
+  }
+
+  /**
+   * Finds Claude's own session/usage-limit banner: an explicit banner-shaped element, or (mirroring findLastMessageDrop) the chat's own newest message — Claude can surface this as an ordinary message instead of a styled banner.
+   * Never matches inside ordinary chat prose — the short text must LEAD with a limit phrase and mention reset.
+   * @returns {Element|null} the banner/message element, or null when none qualifies.
+   */
+  function findSessionLimitBanner() {
+    var root = chatRoot();
+    var cands = root.querySelectorAll(
+      "[role='alert'],[role='status'],[class*='error' i],[class*='banner' i]," +
+      "[class*='alert' i],[class*='toast' i],[class*='notice' i],[class*='limit' i]"
+    );
+    for (var i = 0; i < cands.length; i++) {
+      var b = cands[i];
+      if (b.getAttribute(SESSIONLIMIT_DONE_ATTR) === "1") continue;
+      if (!isBannerEl(b)) continue;
+      if (insideMessage(b)) continue;
+      var t = (b.textContent || "").trim();
+      if (!t || t.length > 300) continue;
+      if (!limitPhraseLeads(t) || !RESET_WORD_RE.test(t)) continue;
+      return b;
+    }
+    var msgs = root.querySelectorAll(MSG_SEL);
+    if (msgs.length) {
+      var last = msgs[msgs.length - 1];
+      if (last.getAttribute(SESSIONLIMIT_DONE_ATTR) !== "1") {
+        var lt = (last.textContent || "").trim();
+        if (lt && lt.length <= 300 && limitPhraseLeads(lt) && RESET_WORD_RE.test(lt)) return last;
+      }
+    }
+    return null;
   }
 
   // ---- composer submit ------------------------------------------------------------
@@ -419,7 +525,144 @@ const JS = `
     });
   }
 
+  // ---- session-limit arm/wait/fire (separate wait shape from QUIET_MS above) ------
+  /*
+   * Unlike the stream-drop path (a short quiet-period guess), a session-limit banner names a specific future reset moment.
+   * So this arms a real setTimeout for that moment (+ SESSIONLIMIT_BUFFER_MS), persisted to localStorage so the wait survives a webview reload/VS Code restart — it can span hours, easily outliving one webview lifetime.
+   * Shares fireContinue's own cap/cooldown/composer-submit machinery by calling the SAME submitContinue()/findComposer() helpers directly.
+   */
+  var slFireTimer = null;
+
+  /**
+   * Persists the armed session-limit wait so it survives a webview reload/VS Code restart.
+   * @param {number} fireAtMs - epoch ms when "continue" should fire.
+   * @param {string} matched - short snippet of the matched banner text (diagnostics only).
+   * @returns {void}
+   */
+  function slSaveArmed(fireAtMs, matched) {
+    try { W.localStorage.setItem(SESSIONLIMIT_ARMED_KEY, JSON.stringify({ fireAt: fireAtMs, matched: matched })); }
+    catch (e) {}
+  }
+
+  /**
+   * Reads back a previously persisted armed session-limit wait, if any.
+   * @returns {{fireAt: number, matched: string}|null} the armed record, or null when none exists.
+   */
+  function slReadArmed() {
+    try {
+      var raw = W.localStorage.getItem(SESSIONLIMIT_ARMED_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  /**
+   * Clears the persisted armed session-limit wait.
+   * @returns {void}
+   */
+  function slClearArmed() {
+    try { W.localStorage.removeItem(SESSIONLIMIT_ARMED_KEY); } catch (e) {}
+  }
+
+  /**
+   * Schedules slFire() for a future moment, chunking a long wait into bounded setTimeout hops.
+   * setTimeout has a practical max delay (~24.8 days) — this re-checks in bounded chunks so an unusually long wait still fires rather than silently overflowing.
+   * @param {number} fireAtMs - epoch ms when "continue" should fire.
+   * @returns {void}
+   */
+  function slSchedule(fireAtMs) {
+    if (slFireTimer) { W.clearTimeout(slFireTimer); slFireTimer = null; }
+    var delay = fireAtMs - Date.now();
+    var MAX_CHUNK = 30 * 60000;
+    if (delay > MAX_CHUNK) {
+      slFireTimer = W.setTimeout(function () { slSchedule(fireAtMs); }, MAX_CHUNK);
+      return;
+    }
+    slFireTimer = W.setTimeout(function () { slFire(fireAtMs); }, Math.max(0, delay));
+  }
+
+  /**
+   * Fires the session-limit auto-continue at (or retries shortly after) the armed moment.
+   * @param {number} fireAtMs - epoch ms this fire was armed for (diagnostics + retry re-arm).
+   * @returns {void}
+   */
+  function slFire(fireAtMs) {
+    slFireTimer = null;
+    if (offOverride()) { diagLog({ kind: "cc.autocontinue", action: "sessionlimit-disabled" }); slClearArmed(); return; }
+    var count = getCount();
+    var maxN = cap();
+    if (count >= maxN) {
+      diagLog({ kind: "cc.autocontinue", action: "sessionlimit-capped", attempts: count, cap: maxN });
+      slClearArmed();
+      return;
+    }
+    var input = findComposer();
+    if (!input) {
+      diagLog({ kind: "cc.autocontinue", action: "sessionlimit-composer-not-ready-retry" });
+      slFireTimer = W.setTimeout(function () { slFire(fireAtMs); }, 5000);
+      return;
+    }
+    if (!composerIsEmpty(input)) {
+      diagLog({ kind: "cc.autocontinue", action: "sessionlimit-composer-busy-retry" });
+      slFireTimer = W.setTimeout(function () { slFire(fireAtMs); }, 5000);
+      return;
+    }
+    var sent = submitContinue(input);
+    lastFireAt = (W.performance && W.performance.now) ? W.performance.now() : Date.parse(new Date().toString());
+    setCount(count + 1);
+    slClearArmed();
+    diagLog({ kind: "cc.autocontinue", action: sent ? "sessionlimit-continued" : "sessionlimit-insert-only", fireAt: fireAtMs, attempt: count + 1, cap: maxN });
+  }
+
+  /**
+   * Marks a banner handled and arms (or re-arms) the session-limit wait against it.
+   * @param {Element} banner - the matched banner/message element.
+   * @param {Date} fireAtDate - base moment to fire at (before buffer/fallback adjustment).
+   * @param {boolean} isFallback - true when fireAtDate is the fixed FALLBACK_MS wait rather than a parsed reset time.
+   * @returns {void}
+   */
+  function slArm(banner, fireAtDate, isFallback) {
+    banner.setAttribute(SESSIONLIMIT_DONE_ATTR, "1");
+    var fireAtMs = fireAtDate.getTime() + (isFallback ? 0 : SESSIONLIMIT_BUFFER_MS);
+    var matched = (banner.textContent || "").trim().slice(0, 160);
+    slSaveArmed(fireAtMs, matched);
+    slSchedule(fireAtMs);
+    diagLog({ kind: "cc.autocontinue", action: "sessionlimit-armed", fireAt: fireAtMs, fallback: !!isFallback, matched: matched });
+  }
+
+  /**
+   * Session-limit sweep: resumes a persisted wait, then looks for a fresh limit banner to arm.
+   * @returns {void}
+   */
+  function runSessionLimit() {
+    if (offOverride()) return;
+
+    // Resume a wait armed before a reload, if it hasn't fired yet.
+    if (!slFireTimer) {
+      var armed = slReadArmed();
+      if (armed && armed.fireAt) {
+        if (armed.fireAt <= Date.now()) slFire(armed.fireAt);
+        else slSchedule(armed.fireAt);
+      }
+    }
+
+    var banner = findSessionLimitBanner();
+    if (!banner || banner.getAttribute(SESSIONLIMIT_DONE_ATTR) === "1") return;
+
+    var text = (banner.textContent || "").trim();
+    var resetAt = parseResetTime(text, new Date());
+    if (resetAt) {
+      slArm(banner, resetAt, false);
+    } else {
+      // No parseable time at all — arm the fixed fallback wait rather than ignoring a
+      // real (but unrecognized-shape) limit banner outright.
+      diagLog({ kind: "cc.autocontinue", action: "sessionlimit-unparseable-fallback", text: text.slice(0, 160), fallbackMs: SESSIONLIMIT_FALLBACK_MS });
+      slArm(banner, new Date(Date.now() + SESSIONLIMIT_FALLBACK_MS), true);
+    }
+  }
+
   function run() {
+    try { runSessionLimit(); } catch (e) {}
+
     var banners = findErrorBanners();
     if (!banners.length) {
       // a clean sweep (no error banner visible) means the run recovered on its own —

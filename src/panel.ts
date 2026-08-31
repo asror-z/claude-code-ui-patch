@@ -1,15 +1,17 @@
 import * as vscode from "vscode";
 import { Patcher, Snapshot, Knob, FeatureState, SECTION_ORDER, STEP, MIN_PX } from "./patcher";
 
-// Native modal Yes/No confirm for a hard-to-reverse panel action ("Restore
-// Last Applied", "Fully Disable Patch" — both revert on-disk state and, per
-// their own onMessage handling below, immediately reload the window). Routed
-// through vscode.window.showWarningMessage({modal:true}) rather than the
-// webview's own confirm() so it renders as VS Code's native modal dialog,
-// consistent with every other destructive-action prompt in the editor.
-// Resolves true only on an explicit "Yes" click; Escape/click-outside/"No"
-// all resolve false, matching showWarningMessage's own undefined-on-dismiss
-// contract.
+/**
+ * Native modal Yes/No confirm for a hard-to-reverse panel action ("Restore Last Applied", "Fully Disable Patch").
+ * Both revert on-disk state and, per their own onMessage handling below, immediately reload the window.
+ * Routed through vscode.window.showWarningMessage({modal:true}) rather than the webview's own confirm().
+ * Renders as VS Code's native modal dialog, consistent with every other destructive-action prompt in the editor.
+ * Resolves true only on an explicit "Yes" click.
+ * Escape/click-outside/"No" all resolve false, matching showWarningMessage's own undefined-on-dismiss contract.
+ * @param {string} title - Dialog title.
+ * @param {string} detail - Dialog detail/body text.
+ * @returns {Promise<boolean>} True only when the user clicks "Yes".
+ */
 async function confirmAction(title: string, detail: string): Promise<boolean> {
   const choice = await vscode.window.showWarningMessage(
     title,
@@ -20,19 +22,15 @@ async function confirmAction(title: string, detail: string): Promise<boolean> {
   return choice === "Yes";
 }
 
-// Shared rendering + message-handling logic for the control surface, hosted by
-// EITHER a floating editor-tab WebviewPanel (PatchPanel, opened via the Command
-// Palette / status-bar click) OR an Activity Bar-docked WebviewView
-// (PatchSidebarView, opened via its own icon in the Activity Bar) — VS Code's
-// vscode.Webview interface (.html, .postMessage, .onDidReceiveMessage,
-// .cspSource) is identical for both host types, so one base class drives both;
-// only how each host is created/revealed differs.
-//
-// Snappiness: clicking an arrow updates the px display in the webview
-// immediately (optimistically) and posts the absolute target value. The full
-// HTML is rebuilt only when the structure changes (version, which knobs exist);
-// ordinary value/dot/status updates are pushed as lightweight "sync" messages
-// that patch the DOM in place, so nothing reloads on each click.
+/**
+ * Shared rendering + message-handling logic for the control surface, hosted by EITHER a floating editor-tab WebviewPanel (PatchPanel, opened via the Command Palette / status-bar click) OR an Activity Bar-docked WebviewView (PatchSidebarView, opened via its own icon in the Activity Bar).
+ * VS Code's vscode.Webview interface (.html, .postMessage, .onDidReceiveMessage, .cspSource) is identical for both host types, so one base class drives both.
+ * Only how each host is created/revealed differs.
+ *
+ * Snappiness: clicking an arrow updates the px display in the webview immediately (optimistically) and posts the absolute target value.
+ * The full HTML is rebuilt only when the structure changes (version, which knobs exist).
+ * Ordinary value/dot/status updates are pushed as lightweight "sync" messages that patch the DOM in place, so nothing reloads on each click.
+ */
 abstract class PatchWebviewHost {
   protected shape = ""; // signature of the last full render's structure
 
@@ -85,11 +83,12 @@ abstract class PatchWebviewHost {
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
         break;
       case "patchToggle": {
-        // The top-of-panel Enable/Disable switch. `msg.on` is the CURRENT state:
-        // on → the user is turning it OFF (fully disable), off → turning it ON.
-        // No confirmation dialog — this is meant to be an instant, frictionless
-        // toggle (per explicit user request); it still auto-reloads the window
-        // so the effect is immediately visible.
+        /*
+         * The top-of-panel Enable/Disable switch.
+         * `msg.on` is the CURRENT state: on → the user is turning it OFF (fully disable), off → turning it ON.
+         * No confirmation dialog — this is meant to be an instant, frictionless toggle (per explicit user request).
+         * It still auto-reloads the window so the effect is immediately visible.
+         */
         const turningOff = msg.on === true;
         if (turningOff) await this.patcher.restore();
         else await this.patcher.enable();
