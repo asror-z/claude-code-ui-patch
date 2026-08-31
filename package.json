@@ -2,7 +2,7 @@
   "name": "smarts-claude-manager",
   "displayName": "Smarts Claude Manager",
   "description": "Patch Claude Code with finegrained UI settings for font sizes, code blocks, diff cards, and more.",
-  "version": "2.0.142",
+  "version": "2.0.143",
   "publisher": "asrorz",
   "icon": "icon.png",
   "license": "MIT",
@@ -118,7 +118,7 @@
         },
         "smartsClaudeManager.chatDiffCardLineNumbers": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Show line numbers in the diff card, with real `+`/`-` gutter signs."
         },
         "smartsClaudeManager.chatDiffCardThemeSync": {
@@ -271,7 +271,7 @@
         },
         "smartsClaudeManager.feature.search": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "Chat Search (Ctrl+F): find text within the chat."
         },
         "smartsClaudeManager.feature.datetime": {

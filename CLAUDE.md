@@ -450,6 +450,8 @@ Both extend the abstract `PatchWebviewHost` base class in `panel.ts`, which owns
 
 **As of `package.json` 2.0.138: `feature.noarrowuphistory`=`true` (changed from its ship-time default of `false` to match the live `Code/User/settings.json`).** This sync run additionally confirmed the machine carries a SECOND, independently-configured settings.json under a different VS Code-family profile (`AppData/Roaming/Antigravity/User/settings.json`) with genuinely different values for several of the same keys (`patchEnabled: false` vs `Code`'s `true`, `chatDiffCardLineNumbers: true` vs `false`, different font-size numbers throughout) — confirmed via explicit user choice that `Code/User/settings.json` is the one `package.json`'s shipped defaults sync from; the `Antigravity` profile's values are that profile's own local overrides, never folded into the shipped default.
 
+**As of `package.json` 2.0.142: `chatDiffCardLineNumbers`=`true`, `feature.search`=`true` (both changed to match the live `Code/User/settings.json`).** Every other `smartsClaudeManager.*` key's shipped default already matched live at this pass — full key-by-key diff re-run, not assumed from the prior snapshot.
+
 ## Every `.vsix` Build Goes Into `build/` — Owned by `smarts-app-vscode`
 
 Every `vsce package` run for this project outputs into `<project-root>/build/` (gitignored, every past version kept). The general convention and concrete packaging/verification steps are owned by the `smarts-app-vscode` skill's `package-vsix` action — invoke it for any future `.vsix` build, in this project or any other.
