@@ -20,7 +20,7 @@ win.clearTimeout = function () {};
 const el = win.document.createElement("div");
 el.setAttribute("role", "alert");
 el.className = "limitBanner_abc";
-el.textContent = "Usage limit reached. Resets in 45 minutes";
+el.textContent = "You've hit your session limit · resets 11am (Asia/Karachi)";
 win.document.getElementById("root").appendChild(el);
 
 const source = readFileSync(SRC, "utf8");
@@ -31,11 +31,6 @@ const end = source.indexOf("`.trim();", bodyStart);
 let body = source.slice(bodyStart, end);
 body = body.replace(/\\\\/g, "\\");
 
-// print the exact DURATION_RE line as it will be evaluated
-const m = body.match(/var DURATION_RE = (.+);/);
-console.log("DURATION_RE literal in eval'd body:", m && m[1]);
-const m2 = body.match(/var CLOCK_RE = (.+);/);
-console.log("CLOCK_RE literal in eval'd body:", m2 && m2[1]);
-
 win.eval(body);
 console.log("calls", JSON.stringify(calls));
+console.log("localStorage armed", win.localStorage.getItem("cc-autocontinue-sessionlimit-armed"));
