@@ -117,6 +117,30 @@ test("session-limit banner with a clock-time reset ('resets 7:50pm') arms a wait
   }
 });
 
+test("session-limit banner with a bare-hour+am/pm reset and trailing timezone ('resets 11am (Asia/Karachi)') arms a real wait, not the fallback", () => {
+  const win = buildWindow();
+  try {
+    const doc = win.document;
+    installBootstrapStub(win);
+    stubTimers(win);
+
+    addLimitBanner(doc, "You've hit your session limit · resets 11am (Asia/Karachi)");
+
+    win.eval(extractInjectedScript(readFileSync(SRC, "utf8")));
+
+    const armed = readArmedRecord(win);
+    assert.ok(armed, "expected a persisted armed record from the session-limit arm path");
+    const delay = armed.fireAt - Date.now();
+    assert.ok(delay > 0, "armed fireAt must be in the future");
+    assert.ok(delay <= 24 * 60 * 60000 + 60000, "armed fireAt must be within ~24h + buffer");
+    const fireAtDate = new Date(armed.fireAt);
+    assert.equal(fireAtDate.getHours(), 11, "must resolve to 11:00, not fall back to the generic 30min wait");
+    assert.equal(fireAtDate.getMinutes(), 1, "must include the 1min default buffer past the parsed clock time");
+  } finally {
+    win.close();
+  }
+});
+
 test("session-limit banner with a relative duration ('resets in 45 minutes') arms a wait close to 45min + buffer", () => {
   const win = buildWindow();
   try {

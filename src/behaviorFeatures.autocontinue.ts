@@ -75,12 +75,14 @@ const JS = `
 
   /*
    * Reset-time parsing — tolerates several shapes seen in the wild.
-   *   clock time, optional am/pm, optional leading zero: "7:50pm" "7:50 PM" "19:50"
+   *   clock time with minutes, optional am/pm: "7:50pm" "7:50 PM" "19:50"
+   *   clock time WITHOUT minutes, am/pm required (bare "11" alone is too ambiguous to trust): "11am" "7 pm"
    *   relative duration: "in 2h 30m" "in 45 minutes" "in 2 hours" "in 1h"
-   * A trailing timezone abbreviation/offset next to a clock time (if ever present) is simply not matched by CLOCK_RE and has no effect.
+   * A trailing timezone name/abbreviation/offset next to a clock time ("11am (Asia/Karachi)", "7:50pm UTC+5") is simply not matched by CLOCK_RE and has no effect.
    * The clock value itself is taken at face value in the viewer's own local time, same as the banner displays it.
    */
-  var CLOCK_RE = /\\b(\\d{1,2}):(\\d{2})\\s*(am|pm)?\\b/i;
+  var CLOCK_RE = /\\b(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)\\b/i;
+  var CLOCK_24H_RE = /\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b/;
   var DURATION_RE = /\\bin\\s+(?:(\\d+)\\s*h(?:ours?)?)?\\s*(?:(\\d+)\\s*m(?:in(?:ute)?s?)?)?\\b/i;
 
   /**
@@ -100,18 +102,34 @@ const JS = `
     var mClock = CLOCK_RE.exec(text);
     if (mClock) {
       var h = parseInt(mClock[1], 10);
-      var m = parseInt(mClock[2], 10);
+      var m = mClock[2] ? parseInt(mClock[2], 10) : 0;
       var ap = (mClock[3] || "").toLowerCase();
-      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      if (h >= 1 && h <= 12 && m >= 0 && m <= 59) {
         if (ap === "pm" && h < 12) h += 12;
         if (ap === "am" && h === 12) h = 0;
-        var target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
-        // Already-passed today (or no am/pm to disambiguate) → next occurrence is tomorrow.
-        if (target.getTime() <= now.getTime()) target = new Date(target.getTime() + 24 * 60 * 60000);
-        return target;
+        return nextOccurrence(now, h, m);
       }
     }
+    var m24 = CLOCK_24H_RE.exec(text);
+    if (m24) {
+      var h24 = parseInt(m24[1], 10);
+      var m24m = parseInt(m24[2], 10);
+      if (h24 >= 0 && h24 <= 23 && m24m >= 0 && m24m <= 59) return nextOccurrence(now, h24, m24m);
+    }
     return null;
+  }
+
+  /**
+   * Builds the next future occurrence of a given hour:minute, rolling to tomorrow if that time already passed today.
+   * @param {Date} now - reference "now".
+   * @param {number} h - hour, 0-23 (already normalized from any am/pm).
+   * @param {number} m - minute, 0-59.
+   * @returns {Date} the next future Date at that hour:minute.
+   */
+  function nextOccurrence(now, h, m) {
+    var target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+    if (target.getTime() <= now.getTime()) target = new Date(target.getTime() + 24 * 60 * 60000);
+    return target;
   }
 
   /*
